@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0f1115" />
+<title>Karpservice — Онлайн-запис</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b21; --muted:#9aa3af; --text:#f7f8fa;
+    --accent:#2f7cf6; --green:#29c46a; --line:#2a2f38; --danger:#ff5d5d;
+    --warn:#f3b63f;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  .app{max-width:460px;margin:0 auto;min-height:100vh;padding:18px 16px 36px}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+  .brand{font-size:22px;font-weight:800;letter-spacing:.2px}
+  .badge{font-size:12px;color:#b8c2d1;border:1px solid var(--line);padding:6px 9px;border-radius:999px}
+  h1{font-size:28px;line-height:1.1;margin:12px 0 8px}
+  h2{font-size:20px;margin:18px 0 8px}
+  p{color:var(--muted);line-height:1.45}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin:12px 0}
+  label{font-size:13px;color:#c9d0d9;display:block;margin-bottom:7px}
+  input,select{
+    width:100%;background:#11141a;border:1px solid #303641;color:white;border-radius:13px;
+    padding:14px 13px;font-size:16px;outline:none
+  }
+  input:focus{border-color:var(--accent)}
+  button{
+    width:100%;border:0;border-radius:14px;padding:14px 16px;font-size:16px;font-weight:700;
+    cursor:pointer;margin-top:10px
+  }
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .primary{background:var(--accent);color:white}
+  .secondary{background:#232832;color:white;border:1px solid #303641}
+  .success{background:var(--green);color:#08150d}
+  .back{width:auto;background:none;color:#b9c2ce;padding:8px 0;margin:0}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .car{display:block;cursor:pointer}
+  .car-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .car strong{display:block;font-size:17px}
+  .small{font-size:13px;color:var(--muted)}
+  .tiny{font-size:12px;color:var(--muted)}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;background:#11251b;color:#78e3a4;
+    padding:7px 10px;border-radius:999px;font-size:12px;white-space:nowrap
+  }
+  .pill.blue{background:#15213a;color:#8db9ff}
+  .pill.warn{background:#2c2413;color:#f7ca67}
+  .steps{display:flex;gap:6px;margin:14px 0 18px}
+  .steps span{height:4px;flex:1;background:#2a3039;border-radius:99px}
+  .steps .on{background:var(--accent)}
+  .service,.master,.slot{border:1px solid var(--line);border-radius:14px;padding:13px;margin:9px 0;cursor:pointer;background:#15181e}
+  .service.active,.master.active,.slot.active{border-color:var(--accent);background:#15213a}
+  .master{display:flex;align-items:center;gap:12px}
+  .avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#252a32;font-weight:800}
+  .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .slot{text-align:center;margin:0}.slot.busy{opacity:.35;cursor:not-allowed;text-decoration:line-through}
+  .summary{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+  .sumrow{display:flex;justify-content:space-between;gap:14px;margin:7px 0;color:#cdd3db}
+  .sumrow b{text-align:right}
+  .screen{display:none}.screen.active{display:block}
+  .nav{display:flex;gap:8px;margin-bottom:12px}.nav button{margin:0;padding:10px;font-size:13px}
+  .status{margin-top:12px;padding:12px;border-radius:13px;font-size:14px;display:none}
+  .status.show{display:block}.status.error{background:#2b1719;color:#ff9ca1;border:1px solid #5b262b}
+  .status.ok{background:#12251a;color:#8be5aa;border:1px solid #245f3d}
+  .loader{display:none;text-align:center;padding:20px;color:var(--muted)}.loader.show{display:block}
+  .history-item{padding:14px 0;border-top:1px solid var(--line)}
+  .history-item:first-child{border-top:0;padding-top:0}
+  .history-item:last-child{padding-bottom:0}
+  .vin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;color:#aeb7c3}
+  .empty{text-align:center;padding:24px 12px;color:var(--muted)}
+  .test-note{
+    margin-top:14px;padding:11px 12px;border:1px solid #4a3c1d;background:#241e12;
+    color:#e6c36e;border-radius:13px;font-size:12px;line-height:1.4
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">Karpservice</div>
+    <div class="badge">онлайн-запис</div>
+  </div>
+
+  <div class="nav">
+    <button class="secondary" onclick="show('login')">Клієнт</button>
+    <button class="secondary" onclick="show('admin')">Сервіс</button>
+  </div>
+
+  <section id="login" class="screen active">
+    <h1>Мій Karpservice</h1>
+    <p>Введіть номер телефону, який вказаний у нашій CRM. Ми підтягнемо ваші автомобілі та історію звернень.</p>
+    <div class="card">
+      <label for="phone">Номер телефону</label>
+      <input id="phone" inputmode="tel" autocomplete="tel" placeholder="+380 XX XXX XX XX" value="+380 " />
+      <button id="loadBtn" class="primary" onclick="loadCustomer()">Завантажити мої авто</button>
+      <div id="loginStatus" class="status"></div>
+    </div>
+    <div class="test-note">
+      Тестова версія: підтвердження номера через SMS/OTP ще не підключене. Перед публічним запуском його потрібно додати.
+    </div>
+  </section>
+
+  <section id="cars" class="screen">
+    <div class="steps"><span class="on"></span><span></span><span></span><span></span></div>
+    <h1 id="welcome">Мої авто</h1>
+    <p>Дані завантажені з RO App.</p>
+    <div id="carsLoader" class="loader">Завантаження…</div>
+    <div id="carsList"></div>
+    <button class="secondary" onclick="logout()">Змінити номер телефону</button>
+  </section>
+
+  <section id="history" class="screen">
+    <button class="back" onclick="show('cars')">← Назад</button>
+    <h1 id="historyTitle">Історія авто</h1>
+    <div id="historyCarMeta" class="small"></div>
+    <div id="historyList"></div>
+    <button class="primary" onclick="startBooking(selectedCarId)">Записати це авто на сервіс</button>
+  </section>
+
+  <section id="service" class="screen">
+    <button class="back" onclick="show('cars')">← Назад</button>
+    <div class="steps"><span class="on"></span><span class="on"></span><span></span><span></span></div>
+    <h1>Що потрібно зробити?</h1>
+    <p id="bookingCarLabel" class="small"></p>
+
+    <div class="service active" onclick="pick(this)">
+      <strong>Діагностика ходової</strong><div class="small">≈ 60 хв · потрібен підйомник</div>
+    </div>
+    <div class="service" onclick="pick(this)">
+      <strong>Заміна масла</strong><div class="small">≈ 45 хв · потрібен підйомник</div>
+    </div>
+    <div class="service" onclick="pick(this)">
+      <strong>Комп'ютерна діагностика</strong><div class="small">≈ 40 хв · без підйомника</div>
+    </div>
+    <div class="service" onclick="pick(this)">
+      <strong>Інше</strong><div class="small">Опишете проблему при підтвердженні</div>
+    </div>
+
+    <button class="primary" onclick="show('time')">Далі</button>
+  </section>
+
+
+  <section id="time" class="screen">
+    <button class="back" onclick="show('service')">← Назад</button>
+    <div class="steps"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+    <h1>Оберіть дату і час</h1>
+
+    <div class="card">
+      <label for="bookingDate">Дата</label>
+      <input id="bookingDate" type="date" />
+    </div>
+
+    <div class="slots">
+      <div class="slot active" onclick="pickSlot(this)">09:00</div>
+      <div class="slot" onclick="pickSlot(this)">10:00</div>
+      <div class="slot" onclick="pickSlot(this)">11:00</div>
+      <div class="slot" onclick="pickSlot(this)">12:00</div>
+      <div class="slot" onclick="pickSlot(this)">14:00</div>
+      <div class="slot" onclick="pickSlot(this)">15:00</div>
+    </div>
+
+    <div class="card summary">
+      <div class="sumrow"><span>Авто</span><b id="summaryCar">—</b></div>
+      <div class="sumrow"><span>Послуга</span><b id="summaryService">Діагностика ходової</b></div>
+      <div class="sumrow"><span>Дата</span><b id="summaryDate">—</b></div>
+      <div class="sumrow"><span>Час</span><b id="summaryTime">09:00–10:00</b></div>
+    </div>
+
+    <button id="bookingBtn" class="success" onclick="createBooking()">Підтвердити запис</button>
+    <div id="bookingStatus" class="status"></div>
+  </section>
+
+  <section id="done" class="screen">
+    <h1>Запит сформовано ✓</h1>
+    <div class="card">
+      <strong id="doneCar">Автомобіль</strong>
+      <p>Запис успішно створено в RO App. Майстра сервіс призначить окремо.</p>
+    </div>
+    <button class="secondary" onclick="show('cars')">До моїх авто</button>
+  </section>
+
+  <section id="admin" class="screen">
+    <h1>Сервіс</h1>
+    <p>Клієнтські записи створюються в RO App без вибору конкретного майстра.</p>
+    <div class="card">
+      <div class="sumrow"><span>CRM</span><b>RO App</b></div>
+      <div class="sumrow"><span>Backend</span><b>Cloudflare Worker</b></div>
+      <div class="sumrow"><span>Клієнтські дані</span><b class="small">підключені</b></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const API_URL = "https://karpservice-api.venyast31.workers.dev/";
+let customerData = null;
+let selectedCarId = null;
+let selectedService = "Діагностика ходової";
+let selectedTime = "09:00";
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function normalizePhone(value){
+  return String(value || '').replace(/\D/g,'');
+}
+
+function escapeHtml(value){
+  return String(value ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+function showStatus(message, type='error'){
+  const box = document.getElementById('loginStatus');
+  box.textContent = message;
+  box.className = `status show ${type}`;
+}
+
+async function loadCustomer(){
+  const btn = document.getElementById('loadBtn');
+  const phone = normalizePhone(document.getElementById('phone').value);
+
+  if (phone.length < 10){
+    showStatus('Перевірте номер телефону.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Завантаження…';
+  document.getElementById('loginStatus').className = 'status';
+
+  try{
+    const res = await fetch(`${API_URL}?phone=${encodeURIComponent(phone)}`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success){
+      throw new Error(data.error || 'Не вдалося отримати дані з сервісу.');
+    }
+
+    if (!data.found){
+      showStatus('Клієнта з таким номером у CRM не знайдено.');
+      return;
+    }
+
+    customerData = data;
+    renderCustomer();
+    show('cars');
+
+  }catch(err){
+    showStatus('Помилка зв’язку. Спробуйте ще раз.');
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Завантажити мої авто';
+  }
+}
+
+function renderCustomer(){
+  const customer = customerData?.customer || {};
+  const cars = customerData?.cars || [];
+
+  const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ');
+  document.getElementById('welcome').textContent = fullName ? `Вітаємо, ${fullName}` : 'Мої авто';
+
+  const list = document.getElementById('carsList');
+
+  if (!cars.length){
+    list.innerHTML = `<div class="card empty">У знайдених замовленнях поки немає прив’язаних автомобілів.</div>`;
+    return;
+  }
+
+  list.innerHTML = cars.map(car => {
+    const title = carName(car);
+    const visits = Array.isArray(car.history) ? car.history.length : 0;
+    const latest = latestOrder(car.history || []);
+    const active = latest && !isClosedStatus(latest.status);
+
+    return `
+      <div class="card car">
+        <div class="car-top" onclick="openHistory(${Number(car.id)})">
+          <div>
+            <strong>${escapeHtml(title)}</strong>
+            <div class="small">${escapeHtml(car.year || '')}${car.year ? ' · ' : ''}${escapeHtml(car.modification || '')}</div>
+            <div class="vin">${escapeHtml(car.vin || '')}</div>
+          </div>
+          <span class="pill ${active ? 'blue' : ''}">${visits} ${visitWord(visits)}</span>
+        </div>
+        ${active ? `<div style="margin-top:12px"><span class="pill warn">Активний запис: ${escapeHtml(latest.status || 'Новий')}</span></div>` : ''}
+        <button class="primary" onclick="startBooking(${Number(car.id)})">Записати на сервіс</button>
+        <button class="secondary" onclick="openHistory(${Number(car.id)})">Історія обслуговування</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function openHistory(carId){
+  selectedCarId = carId;
+  const car = getCar(carId);
+  if (!car) return;
+
+  document.getElementById('historyTitle').textContent = carName(car);
+  document.getElementById('historyCarMeta').innerHTML =
+    `${escapeHtml(car.year || '')}${car.year ? ' · ' : ''}<span class="vin">${escapeHtml(car.vin || '')}</span>`;
+
+  const history = [...(car.history || [])].sort((a,b) => {
+    return new Date(b.scheduled_for || b.created_at || 0) - new Date(a.scheduled_for || a.created_at || 0);
+  });
+
+  const box = document.getElementById('historyList');
+
+  if (!history.length){
+    box.innerHTML = `<div class="card empty">Історії звернень поки немає.</div>`;
+  }else{
+    box.innerHTML = `<div class="card">${history.map(order => `
+      <div class="history-item">
+        <div class="car-top">
+          <div>
+            <strong>${escapeHtml(order.number ? `Замовлення ${order.number}` : 'Замовлення')}</strong>
+            <div class="small">${escapeHtml(formatDate(order.scheduled_for || order.created_at))}</div>
+          </div>
+          <span class="pill blue">${escapeHtml(order.status || '—')}</span>
+        </div>
+        <div class="sumrow"><span>Сума</span><b>${formatMoney(order.total)}</b></div>
+        ${order.paid !== undefined ? `<div class="sumrow"><span>Оплачено</span><b>${formatMoney(order.paid)}</b></div>` : ''}
+      </div>
+    `).join('')}</div>`;
+  }
+
+  show('history');
+}
+
+function startBooking(carId){
+  selectedCarId = carId;
+  const car = getCar(carId);
+  const label = car ? carName(car) : 'Автомобіль';
+  selectedService = 'Діагностика ходової';
+  selectedTime = '09:00';
+  document.getElementById('bookingCarLabel').textContent = label;
+  document.getElementById('summaryCar').textContent = label;
+  document.getElementById('doneCar').textContent = label;
+  const ss = document.getElementById('summaryService');
+  const st = document.getElementById('summaryTime');
+  if (ss) ss.textContent = selectedService;
+  if (st) st.textContent = '09:00–10:00';
+  show('service');
+}
+
+function getCar(id){
+  return (customerData?.cars || []).find(c => String(c.id) === String(id));
+}
+
+function carName(car){
+  return [car.brand, car.model, car.modification].filter(Boolean).join(' ') || car.title || 'Автомобіль';
+}
+
+function latestOrder(history){
+  if (!history?.length) return null;
+  return [...history].sort((a,b) =>
+    new Date(b.scheduled_for || b.created_at || 0) - new Date(a.scheduled_for || a.created_at || 0)
+  )[0];
+}
+
+function isClosedStatus(status){
+  const s = String(status || '').toLowerCase();
+  return ['закрит', 'виконан', 'готов', 'closed', 'done', 'completed'].some(x => s.includes(x));
+}
+
+function formatDate(value){
+  if (!value) return 'Дата не вказана';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat('uk-UA', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  }).format(d);
+}
+
+function formatMoney(value){
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('uk-UA', {
+    style:'currency', currency:'UAH', maximumFractionDigits:0
+  }).format(n);
+}
+
+function visitWord(n){
+  const mod10 = n % 10, mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'візит';
+  if ([2,3,4].includes(mod10) && ![12,13,14].includes(mod100)) return 'візити';
+  return 'візитів';
+}
+
+function logout(){
+  customerData = null;
+  selectedCarId = null;
+  document.getElementById('carsList').innerHTML = '';
+  show('login');
+}
+
+function pick(el){
+  document.querySelectorAll('.service').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  selectedService = el.querySelector('strong')?.textContent?.trim() || 'Інше';
+  const s = document.getElementById('summaryService');
+  if (s) s.textContent = selectedService;
+}
+function pickSlot(el){
+  if(el.classList.contains('busy')) return;
+  document.querySelectorAll('.slot').forEach(x=>x.classList.remove('active'));
+  el.classList.add('active');
+  selectedTime = el.textContent.trim();
+  document.getElementById('summaryTime').textContent = selectedTime + '–' + addHour(selectedTime);
+}
+function addHour(t){
+  const [h,m] = t.split(':').map(Number);
+  return String((h+1)%24).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+}
+
+function kyivIso(dateStr, timeStr){
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = timeStr.split(':').map(Number);
+
+  // Перетворюємо саме локальний час Europe/Kyiv у ISO 8601
+  // з правильним +02:00 / +03:00 залежно від пори року.
+  let utcMs = Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Kyiv',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  });
+
+  function partsFor(ms){
+    const parts = formatter.formatToParts(new Date(ms));
+    const obj = {};
+    for (const p of parts){
+      if (p.type !== 'literal') obj[p.type] = p.value;
+    }
+    return {
+      year: Number(obj.year),
+      month: Number(obj.month),
+      day: Number(obj.day),
+      hour: Number(obj.hour),
+      minute: Number(obj.minute),
+      second: Number(obj.second)
+    };
+  }
+
+  // Два проходи достатні навіть на переході літнього/зимового часу.
+  for (let i = 0; i < 2; i++){
+    const p = partsFor(utcMs);
+    const shownAsUtc = Date.UTC(
+      p.year, p.month - 1, p.day,
+      p.hour, p.minute, p.second
+    );
+    const wantedAsUtc = Date.UTC(
+      year, month - 1, day,
+      hour, minute, 0
+    );
+    utcMs += wantedAsUtc - shownAsUtc;
+  }
+
+  const finalParts = partsFor(utcMs);
+  const localAsUtc = Date.UTC(
+    finalParts.year, finalParts.month - 1, finalParts.day,
+    finalParts.hour, finalParts.minute, finalParts.second
+  );
+
+  const offsetMinutes = Math.round((localAsUtc - utcMs) / 60000);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const offH = String(Math.floor(abs / 60)).padStart(2, '0');
+  const offM = String(abs % 60).padStart(2, '0');
+
+  return `${dateStr}T${timeStr}:00${sign}${offH}:${offM}`;
+}
+async function createBooking(){
+  const btn = document.getElementById('bookingBtn');
+  const status = document.getElementById('bookingStatus');
+  const date = document.getElementById('bookingDate').value;
+  const car = getCar(selectedCarId);
+
+  if (!customerData?.customer?.id || !car){
+    status.textContent = 'Не вдалося визначити клієнта або автомобіль.';
+    status.className = 'status show error';
+    return;
+  }
+  if (!date){
+    status.textContent = 'Оберіть дату.';
+    status.className = 'status show error';
+    return;
+  }
+
+  const scheduledFor = kyivIso(date, selectedTime);
+  const scheduledTo = kyivIso(date, addHour(selectedTime));
+
+  btn.disabled = true;
+  btn.textContent = 'Створюємо запис…';
+  status.className = 'status';
+
+  try{
+    const res = await fetch(API_URL + 'booking', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        client_id: customerData.customer.id,
+        scheduled_for: scheduledFor,
+        scheduled_to: scheduledTo,
+        service: selectedService,
+        car: carName(car)
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success){
+      throw new Error(data?.details?.message || data?.error || 'RO App не створив запис');
+    }
+
+    document.getElementById('doneCar').textContent = carName(car);
+    show('done');
+  }catch(err){
+    status.textContent = 'Не вдалося створити запис: ' + err.message;
+    status.className = 'status show error';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Підтвердити запис';
+  }
+}
+
+document.getElementById('phone').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadCustomer();
+});
+
+const dateInput = document.getElementById('bookingDate');
+if (dateInput){
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  dateInput.min = today;
+  dateInput.value = today;
+  document.getElementById('summaryDate').textContent = today;
+  dateInput.addEventListener('change', () => {
+    document.getElementById('summaryDate').textContent = dateInput.value || '—';
+  });
+}
+</script>
+</body>
+</html>
