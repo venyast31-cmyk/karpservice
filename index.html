@@ -411,22 +411,34 @@ function renderOrder(order){
     ['Коментар', order.comment]
   ].filter(([,value]) => value);
 
-  const itemsHtml = items.length ? `
+  const works = items.filter(item => item.kind === 'service');
+  const parts = items.filter(item => item.kind === 'product');
+  const otherItems = items.filter(item => !['service','product'].includes(item.kind));
+
+  const renderItemCard = (title, list, emptyText) => `
     <div class="card order-section">
-      <h2>Роботи та запчастини</h2>
-      ${items.map(item => `
+      <h2>${escapeHtml(title)}</h2>
+      ${list.length ? list.map(item => `
         <div class="order-line">
           <div class="order-line-title">${escapeHtml(item.name || 'Позиція')}</div>
+          ${item.code ? `<div class="tiny">Артикул: ${escapeHtml(item.code)}</div>` : ''}
           <div class="order-line-meta">
-            <span>${escapeHtml(item.kind === 'service' ? 'Робота' : item.kind === 'product' ? 'Запчастина' : 'Позиція')}${Number.isFinite(Number(item.quantity)) ? ` · ${escapeHtml(item.quantity)} ${escapeHtml(item.uom || 'шт.')}` : ''}</span>
+            <span>${Number.isFinite(Number(item.quantity)) ? `${escapeHtml(item.quantity)} ${escapeHtml(item.uom || 'шт.')}` : 'Кількість не вказана'}</span>
             <b>${formatMoney(item.total)}</b>
           </div>
+          ${Number.isFinite(Number(item.price)) ? `<div class="tiny">Ціна за одиницю: ${formatMoney(item.price)}</div>` : ''}
           ${item.assignee ? `<div class="tiny">Майстер: ${escapeHtml(item.assignee)}</div>` : ''}
           ${item.warranty ? `<div class="tiny">Гарантія: ${escapeHtml(item.warranty)}</div>` : ''}
           ${item.comment ? `<div class="tiny">${escapeHtml(item.comment)}</div>` : ''}
         </div>
-      `).join('')}
-    </div>` : `<div class="card empty">У RO App для цього замовлення немає доступних позицій робіт або запчастин.</div>`;
+      `).join('') : `<div class="empty">${escapeHtml(emptyText)}</div>`}
+    </div>`;
+
+  const itemsHtml = `
+    ${renderItemCard('Роботи', works, 'У цьому замовленні роботи не вказані.')}
+    ${renderItemCard('Запчастини', parts, 'У цьому замовленні запчастини не вказані.')}
+    ${otherItems.length ? renderItemCard('Інші позиції', otherItems, '') : ''}
+  `;
 
   const notesHtml = textFields.length ? `
     <div class="card order-section">
