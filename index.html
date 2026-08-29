@@ -72,6 +72,16 @@
   .history-item{padding:14px 0;border-top:1px solid var(--line)}
   .history-item:first-child{border-top:0;padding-top:0}
   .history-item:last-child{padding-bottom:0}
+  .history-item.order-link{cursor:pointer;border-radius:12px;padding-left:8px;padding-right:8px}
+  .history-item.order-link:hover,.history-item.order-link:focus{background:#20242c;outline:none}
+  .order-section{margin-top:16px}
+  .order-section h2{font-size:17px;margin:0 0 10px}
+  .order-line{padding:12px 0;border-top:1px solid var(--line)}
+  .order-line:first-child{border-top:0;padding-top:0}
+  .order-line:last-child{padding-bottom:0}
+  .order-line-title{font-weight:700;line-height:1.35}
+  .order-line-meta{display:flex;justify-content:space-between;gap:12px;margin-top:6px;color:var(--muted);font-size:13px}
+  .order-text{white-space:pre-wrap;line-height:1.5;color:#d7dce3}
   .vin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;color:#aeb7c3}
   .empty{text-align:center;padding:24px 12px;color:var(--muted)}
   .test-note{
@@ -121,6 +131,14 @@
     <div id="historyCarMeta" class="small"></div>
     <div id="historyList"></div>
     <button class="primary" onclick="startBooking(selectedCarId)">Записати це авто на сервіс</button>
+  </section>
+
+  <section id="order" class="screen">
+    <button class="back" onclick="show('history')">← До історії</button>
+    <h1 id="orderTitle">Замовлення</h1>
+    <div id="orderLoader" class="loader">Завантаження замовлення…</div>
+    <div id="orderError" class="status"></div>
+    <div id="orderContent"></div>
   </section>
 
   <section id="service" class="screen">
@@ -200,6 +218,7 @@
 const API_URL = "https://karpservice-api.venyast31.workers.dev/";
 let customerData = null;
 let selectedCarId = null;
+let selectedOrderId = null;
 let selectedService = "Діагностика ходової";
 let selectedTime = "09:00";
 
@@ -325,7 +344,9 @@ function openHistory(carId){
     box.innerHTML = `<div class="card empty">Історії звернень поки немає.</div>`;
   }else{
     box.innerHTML = `<div class="card">${history.map(order => `
-      <div class="history-item">
+      <div class="history-item order-link" role="button" tabindex="0"
+        onclick="openOrder(${Number(order.id)})"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openOrder(${Number(order.id)})}">
         <div class="car-top">
           <div>
             <strong>${escapeHtml(order.number ? `Замовлення ${order.number}` : 'Замовлення')}</strong>
@@ -340,6 +361,109 @@ function openHistory(carId){
   }
 
   show('history');
+}
+
+async function openOrder(orderId){
+  const phone = normalizePhone(document.getElementById('phone').value);
+  const numericOrderId = Number(orderId);
+  if (!phone || !Number.isFinite(numericOrderId) || numericOrderId <= 0) return;
+
+  selectedOrderId = numericOrderId;
+  const loader = document.getElementById('orderLoader');
+  const error = document.getElementById('orderError');
+  const content = document.getElementById('orderContent');
+
+  document.getElementById('orderTitle').textContent = 'Замовлення';
+  content.innerHTML = '';
+  error.className = 'status';
+  error.textContent = '';
+  loader.classList.add('show');
+  show('order');
+
+  try{
+    const params = new URLSearchParams({phone, order_id:String(numericOrderId)});
+    const res = await fetch(`${API_URL}order?${params}`);
+    const data = await res.json();
+    if (!res.ok || !data.success || !data.order){
+      throw new Error(data.error || 'Не вдалося завантажити замовлення.');
+    }
+    renderOrder(data.order);
+  }catch(err){
+    error.textContent = err.message || 'Не вдалося завантажити замовлення.';
+    error.className = 'status show error';
+    console.error(err);
+  }finally{
+    loader.classList.remove('show');
+  }
+}
+
+function renderOrder(order){
+  const title = order.number ? `Замовлення ${order.number}` : 'Замовлення';
+  document.getElementById('orderTitle').textContent = title;
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  const customFields = Array.isArray(order.custom_fields) ? order.custom_fields : [];
+  const payments = Array.isArray(order.payments) ? order.payments : [];
+  const textFields = [
+    ['Причина звернення', order.problem],
+    ['Діагностика', order.diagnostics],
+    ['Рекомендації', order.recommendations],
+    ['Коментар', order.comment]
+  ].filter(([,value]) => value);
+
+  const itemsHtml = items.length ? `
+    <div class="card order-section">
+      <h2>Роботи та запчастини</h2>
+      ${items.map(item => `
+        <div class="order-line">
+          <div class="order-line-title">${escapeHtml(item.name || 'Позиція')}</div>
+          <div class="order-line-meta">
+            <span>${escapeHtml(item.kind === 'service' ? 'Робота' : item.kind === 'product' ? 'Запчастина' : 'Позиція')}${Number.isFinite(Number(item.quantity)) ? ` · ${escapeHtml(item.quantity)} ${escapeHtml(item.uom || 'шт.')}` : ''}</span>
+            <b>${formatMoney(item.total)}</b>
+          </div>
+          ${item.assignee ? `<div class="tiny">Майстер: ${escapeHtml(item.assignee)}</div>` : ''}
+          ${item.warranty ? `<div class="tiny">Гарантія: ${escapeHtml(item.warranty)}</div>` : ''}
+          ${item.comment ? `<div class="tiny">${escapeHtml(item.comment)}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>` : `<div class="card empty">У RO App для цього замовлення немає доступних позицій робіт або запчастин.</div>`;
+
+  const notesHtml = textFields.length ? `
+    <div class="card order-section">
+      ${textFields.map(([label,value]) => `
+        <div class="order-line">
+          <div class="small">${escapeHtml(label)}</div>
+          <div class="order-text">${escapeHtml(value)}</div>
+        </div>
+      `).join('')}
+    </div>` : '';
+
+  const fieldsHtml = customFields.length ? `
+    <div class="card order-section">
+      <h2>Додаткова інформація</h2>
+      ${customFields.map(field => `<div class="sumrow"><span>${escapeHtml(field.name)}</span><b>${escapeHtml(field.value)}</b></div>`).join('')}
+    </div>` : '';
+
+  const paymentsHtml = payments.length ? `
+    <div class="card order-section">
+      <h2>Оплати</h2>
+      ${payments.map(payment => `<div class="sumrow"><span>${escapeHtml(payment.method || formatDate(payment.date))}</span><b>${formatMoney(payment.amount)}</b></div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('orderContent').innerHTML = `
+    <div class="card">
+      <div class="car-top">
+        <div class="small">${escapeHtml(formatDate(order.scheduled_for || order.created_at))}</div>
+        <span class="pill blue">${escapeHtml(order.status || '—')}</span>
+      </div>
+      ${Number.isFinite(Number(order.mileage)) ? `<div class="sumrow"><span>Пробіг</span><b>${escapeHtml(order.mileage)} км</b></div>` : ''}
+      ${order.manager ? `<div class="sumrow"><span>Менеджер</span><b>${escapeHtml(order.manager)}</b></div>` : ''}
+      ${order.assignee ? `<div class="sumrow"><span>Майстер</span><b>${escapeHtml(order.assignee)}</b></div>` : ''}
+      <div class="sumrow"><span>Сума</span><b>${formatMoney(order.total)}</b></div>
+      ${Number.isFinite(Number(order.paid)) ? `<div class="sumrow"><span>Оплачено</span><b>${formatMoney(order.paid)}</b></div>` : ''}
+    </div>
+    ${itemsHtml}${notesHtml}${fieldsHtml}${paymentsHtml}
+  `;
 }
 
 function startBooking(carId){
@@ -406,6 +530,7 @@ function visitWord(n){
 function logout(){
   customerData = null;
   selectedCarId = null;
+  selectedOrderId = null;
   document.getElementById('carsList').innerHTML = '';
   show('login');
 }
