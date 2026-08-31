@@ -83,11 +83,51 @@ test("protected API derives ownership from the Telegram session", async () => {
 
   const roappCalls = [];
   let orderOwnerId = 123;
+  let createdAsset = null;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.roapp.io");
-    roappCalls.push({ url, method: String(init.method || "GET").toUpperCase() });
+    const method = String(init.method || "GET").toUpperCase();
+    let requestBody = null;
+    if (init.body) {
+      const bodyText = typeof init.body === "string"
+        ? init.body
+        : new TextDecoder().decode(init.body);
+      requestBody = JSON.parse(bodyText);
+    }
+    roappCalls.push({ url, method, body: requestBody });
+
+    if (url.pathname === "/v2/warehouse/assets" || url.pathname === "/warehouse/assets") {
+      if (method === "POST") {
+        const payload = requestBody || {};
+        createdAsset = {
+          id: 501,
+          uid: payload.uid,
+          owner_id: payload.owner_id,
+          brand: "Mitsubishi",
+          model: "Outlander",
+          group: payload.group || "Автомобіль"
+        };
+        return Response.json({});
+      }
+
+      const uidFilters = url.searchParams.getAll("uid[]");
+      const ownerFilters = url.searchParams.getAll("owner_id[]");
+      if (uidFilters.length) {
+        return Response.json({
+          data: createdAsset && uidFilters.includes(createdAsset.uid) ? [createdAsset] : []
+        });
+      }
+      if (ownerFilters.length) {
+        return Response.json({
+          data: createdAsset && ownerFilters.includes(String(createdAsset.owner_id))
+            ? [createdAsset]
+            : []
+        });
+      }
+      return Response.json({ data: [] });
+    }
 
     if (url.pathname === "/v2/contacts/people") {
       return Response.json({
@@ -148,6 +188,43 @@ test("protected API derives ownership from the Telegram session", async () => {
       contactCall.url.searchParams.getAll("phones").some((phone) => phone.replace(/\D/g, "") === PHONE),
       true
     );
+
+    const ownerAssetCall = roappCalls.find(({ url, method }) =>
+      method === "GET" &&
+      url.pathname === "/v2/warehouse/assets" &&
+      url.searchParams.has("owner_id[]")
+    );
+    assert.ok(ownerAssetCall, "customer assets must use the owner_id[] array filter");
+    assert.deepEqual(ownerAssetCall.url.searchParams.getAll("owner_id[]"), ["123"]);
+    assert.equal(ownerAssetCall.url.searchParams.has("owner_id"), false);
+
+    const vin = "JMBSRCS3A6U011108";
+    const addCarResponse = await callWorker("/cars", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vin })
+    });
+    assert.equal(addCarResponse.status, 200);
+    const addCarData = await addCarResponse.json();
+    assert.equal(addCarData.success, true);
+    assert.equal(addCarData.car.vin, vin);
+
+    const vinLookupCall = roappCalls.find(({ url, method }) =>
+      method === "GET" &&
+      url.pathname === "/v2/warehouse/assets" &&
+      url.searchParams.has("uid[]")
+    );
+    assert.ok(vinLookupCall, "VIN lookup must use the uid[] array filter");
+    assert.deepEqual(vinLookupCall.url.searchParams.getAll("uid[]"), [vin]);
+    assert.equal(vinLookupCall.url.searchParams.has("uid"), false);
+
+    const createAssetCall = roappCalls.find(({ url, method }) =>
+      method === "POST" && url.pathname === "/v2/warehouse/assets"
+    );
+    assert.ok(createAssetCall, "asset must be created through the RO App API");
+    assert.equal(typeof createAssetCall.body.uid, "string");
+    assert.equal(createAssetCall.body.uid, vin);
+    assert.equal(createAssetCall.body.owner_id, 123);
 
     orderOwnerId = 999;
     const foreignOrder = await callWorker("/order?order_id=456");

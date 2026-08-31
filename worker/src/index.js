@@ -170,7 +170,7 @@ __name(getAllCustomerOrders, "getAllCustomerOrders");
 async function getCustomerAssets(env, customerId) {
   const response = await roappAssetRequest(env, (baseUrl) => {
     const assetsUrl = new URL(baseUrl);
-    assetsUrl.searchParams.append("owner_id", String(customerId));
+    assetsUrl.searchParams.append("owner_id[]", String(customerId));
     return assetsUrl.toString();
   });
   const assets = extractList(response.data, ["assets"]);
@@ -253,7 +253,7 @@ __name(mergeCustomerAssets, "mergeCustomerAssets");
 async function findAssetByVin(env, vin) {
   const response = await roappAssetRequest(env, (baseUrl) => {
     const assetsUrl = new URL(baseUrl);
-    assetsUrl.searchParams.append("uid", vin);
+    assetsUrl.searchParams.append("uid[]", vin);
     return assetsUrl.toString();
   });
   const assets = extractList(response.data, ["assets"]);
