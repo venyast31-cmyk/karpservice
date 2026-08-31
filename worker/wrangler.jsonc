@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "karpservice-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "vars": {
+    "ROAPP_BRANCH_ID": "136446",
+    "ALLOWED_ORIGINS": "https://karpservice-app.pages.dev",
+    "TELEGRAM_WEBHOOK_ORIGIN": "https://karpservice-api.venyast31.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "AUTH_DB",
+      "database_name": "karpservice-auth",
+      "database_id": "e7568dec-237a-4f1d-b8eb-fd1170af09e9",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
