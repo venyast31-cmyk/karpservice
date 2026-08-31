@@ -1,0 +1,51 @@
+name: Probe Jina VIN source relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-jina-vin-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Probe relay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          url = 'https://r.jina.ai/https://autoua.com.ua/vin/TMBDX41U79B008586?lang=en'
+          req = urllib.request.Request(url, headers={'Accept':'text/plain','User-Agent':'Karpservice/1.0'})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  body = r.read(200000).decode('utf-8', 'replace')
+                  data = {
+                      'status': r.status,
+                      'content_type': r.headers.get('content-type',''),
+                      'length': len(body),
+                      'body': body[:20000],
+                  }
+          except Exception as e:
+              data = {'error': repr(e)}
+          open('tmp/jina-vin-source.json','w',encoding='utf-8').write(json.dumps(data,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Publish and clean workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/jina-vin-source.json
+          git rm -f .github/workflows/probe-jina-vin-source.yml
+          git commit -m "Record Jina VIN relay probe"
+          git push origin HEAD:main
