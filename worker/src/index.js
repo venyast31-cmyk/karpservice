@@ -291,6 +291,81 @@ async function inferCustomerVehicleGroup(env, customerId) {
   return "Автомобіль";
 }
 __name(inferCustomerVehicleGroup, "inferCustomerVehicleGroup");
+function isRoappAssetValidationError(error) {
+  return [400, 415, 422].includes(Number(error?.status));
+}
+__name(isRoappAssetValidationError, "isRoappAssetValidationError");
+function buildRoappAssetCreateOptions(payload, format) {
+  if (format === "form") {
+    const form = new URLSearchParams();
+    for (const [key, value] of Object.entries(payload)) {
+      if (value !== undefined && value !== null && value !== "") {
+        form.set(key, String(value));
+      }
+    }
+    return {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: form.toString()
+    };
+  }
+  if (format === "multipart") {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(payload)) {
+      if (value !== undefined && value !== null && value !== "") {
+        form.set(key, String(value));
+      }
+    }
+    return { method: "POST", body: form };
+  }
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  };
+}
+__name(buildRoappAssetCreateOptions, "buildRoappAssetCreateOptions");
+async function findAssetAfterCreateAttempt(env, vin) {
+  try {
+    await delay(420);
+    return await findAssetByVin(env, vin);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "asset_create_verification_failed",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return null;
+  }
+}
+__name(findAssetAfterCreateAttempt, "findAssetAfterCreateAttempt");
+async function createRoappAssetCompatible(env, payload) {
+  let lastError = null;
+  for (const format of ["json", "form", "multipart"]) {
+    try {
+      return await roappAssetRequest(
+        env,
+        (baseUrl) => baseUrl,
+        buildRoappAssetCreateOptions(payload, format)
+      );
+    } catch (error) {
+      lastError = error;
+      const existing = await findAssetAfterCreateAttempt(env, payload.uid);
+      if (existing) {
+        return { status: 200, data: { data: existing } };
+      }
+      if (!isRoappAssetValidationError(error)) throw error;
+      console.warn(JSON.stringify({
+        event: "asset_create_encoding_fallback",
+        format,
+        status: Number(error?.status) || 0,
+        message: error instanceof Error ? error.message : String(error)
+      }));
+      await delay(420);
+    }
+  }
+  throw lastError || new Error("RO App не прийняв дані автомобіля");
+}
+__name(createRoappAssetCompatible, "createRoappAssetCompatible");
 async function createCustomerAsset(request, env, customerId, responseHeaders) {
   let body;
   try {
@@ -336,31 +411,17 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
     }, 200, responseHeaders);
   }
 
-const createPayload = { uid: vin, owner_id: numericCustomerId };
-let createResponse;
-try {
-  createResponse = await roappAssetRequest(
-    env,
-    (baseUrl) => baseUrl,
-    {
-      method: "POST",
-      body: JSON.stringify(createPayload)
-    }
-  );
-} catch (error) {
-  const errorText = String(error?.message || "");
-  const needsGroup = Number(error?.status) === 400 && /group|груп/i.test(errorText);
-  if (!needsGroup) throw error;
-  const group = await inferCustomerVehicleGroup(env, numericCustomerId);
-  createResponse = await roappAssetRequest(
-    env,
-    (baseUrl) => baseUrl,
-    {
-      method: "POST",
-      body: JSON.stringify({ ...createPayload, group })
-    }
-  );
-}
+  const createPayload = { uid: vin, owner_id: numericCustomerId };
+  let createResponse;
+  try {
+    createResponse = await createRoappAssetCompatible(env, createPayload);
+  } catch (error) {
+    const errorText = String(error?.message || "");
+    const needsGroup = isRoappAssetValidationError(error) && /group|груп/i.test(errorText);
+    if (!needsGroup) throw error;
+    const group = await inferCustomerVehicleGroup(env, numericCustomerId);
+    createResponse = await createRoappAssetCompatible(env, { ...createPayload, group });
+  }
   let asset = extractRecord(createResponse.data, ["asset"]);
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -438,13 +499,22 @@ function friendlyErrorField(value) {
   return labels[value] || String(value).replaceAll("_", " ");
 }
 __name(friendlyErrorField, "friendlyErrorField");
+function roappDefaultContentType(body) {
+  if (body === undefined || body === null) return {};
+  if (typeof FormData !== "undefined" && body instanceof FormData) return {};
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    return { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" };
+  }
+  return { "Content-Type": "application/json" };
+}
+__name(roappDefaultContentType, "roappDefaultContentType");
 async function roappRequest(env, url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${env.ROAPP_API_KEY}`,
-      ...options.body ? { "Content-Type": "application/json" } : {},
+      ...roappDefaultContentType(options.body),
       ...options.headers || {}
     }
   });

@@ -84,23 +84,41 @@ test("protected API derives ownership from the Telegram session", async () => {
   const roappCalls = [];
   let orderOwnerId = 123;
   let createdAsset = null;
+  let rejectJsonAssetCreate = true;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
     assert.equal(url.hostname, "api.roapp.io");
     const method = String(init.method || "GET").toUpperCase();
     let requestBody = null;
+    const requestHeaders = new Headers(init.headers || {});
+    const requestContentType = requestHeaders.get("Content-Type") || "";
     if (init.body) {
-      const bodyText = typeof init.body === "string"
-        ? init.body
-        : new TextDecoder().decode(init.body);
-      requestBody = JSON.parse(bodyText);
+      if (typeof FormData !== "undefined" && init.body instanceof FormData) {
+        requestBody = Object.fromEntries(init.body.entries());
+      } else {
+        const bodyText = typeof init.body === "string"
+          ? init.body
+          : new TextDecoder().decode(init.body);
+        if (requestContentType.includes("application/x-www-form-urlencoded")) {
+          requestBody = Object.fromEntries(new URLSearchParams(bodyText));
+        } else {
+          requestBody = JSON.parse(bodyText);
+        }
+      }
+      if (requestBody?.owner_id !== undefined) {
+        requestBody.owner_id = Number(requestBody.owner_id);
+      }
     }
-    roappCalls.push({ url, method, body: requestBody });
+    roappCalls.push({ url, method, body: requestBody, contentType: requestContentType });
 
     if (url.pathname === "/v2/warehouse/assets" || url.pathname === "/warehouse/assets") {
       if (method === "POST") {
         const payload = requestBody || {};
+        if (rejectJsonAssetCreate && requestContentType.includes("application/json")) {
+          rejectJsonAssetCreate = false;
+          return Response.json({ uid: ["Invalid data type"] }, { status: 400 });
+        }
         createdAsset = {
           id: 501,
           uid: payload.uid,
@@ -225,6 +243,17 @@ test("protected API derives ownership from the Telegram session", async () => {
     assert.equal(typeof createAssetCall.body.uid, "string");
     assert.equal(createAssetCall.body.uid, vin);
     assert.equal(createAssetCall.body.owner_id, 123);
+    const assetCreateCalls = roappCalls.filter(({ url, method }) =>
+      method === "POST" && url.pathname === "/v2/warehouse/assets"
+    );
+    assert.ok(assetCreateCalls.length >= 2, "asset create must retry with a form-compatible encoding");
+    assert.ok(assetCreateCalls[0].contentType.includes("application/json"));
+    assert.ok(
+      assetCreateCalls.slice(1).some(({ contentType }) =>
+        contentType.includes("application/x-www-form-urlencoded") || !contentType
+      ),
+      "a non-JSON request format must be attempted after RO App rejects JSON"
+    );
 
     orderOwnerId = 999;
     const foreignOrder = await callWorker("/order?order_id=456");
