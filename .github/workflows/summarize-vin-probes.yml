@@ -1,0 +1,89 @@
+name: Summarize VIN source probes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/summarize-vin-probes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Build compact safe summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import html
+          import json
+          import re
+          from pathlib import Path
+
+          source_path = Path("tmp/ukraine-vin-source-probe.json")
+          data = json.loads(source_path.read_text(encoding="utf-8"))
+          summary = {}
+
+          def clean(value):
+              return html.unescape(re.sub(r"\s+", " ", str(value or ""))).strip()
+
+          def first(pattern, text):
+              match = re.search(pattern, text, flags=re.I | re.S)
+              return clean(match.group(1)) if match else ""
+
+          for vin, sources in data.items():
+              item = {}
+              for name, result in sources.items():
+                  compact = {
+                      "status": result.get("status"),
+                      "error": result.get("error", ""),
+                      "content_type": result.get("content_type", ""),
+                      "url": result.get("url", ""),
+                  }
+                  sample = result.get("sample", "")
+                  if name == "autoua" and sample:
+                      compact.update({
+                          "title": first(r"<title[^>]*>(.*?)</title>", sample),
+                          "make": first(r"<th[^>]*>\s*Make\s*</th>\s*<td[^>]*>(.*?)</td>", sample),
+                          "model": first(r"<th[^>]*>\s*Model\s*</th>\s*<td[^>]*>(.*?)</td>", sample),
+                          "year": first(r"<th[^>]*>\s*Year\s*</th>\s*<td[^>]*>(.*?)</td>", sample),
+                      })
+                  elif sample:
+                      try:
+                          parsed = json.loads(sample)
+                      except Exception:
+                          parsed = None
+                      if isinstance(parsed, dict):
+                          compact["json"] = {
+                              key: parsed.get(key)
+                              for key in ["ok", "success", "error", "message", "make", "model", "year"]
+                              if key in parsed
+                          }
+                  item[name] = compact
+              summary[vin] = item
+
+          Path("tmp/vin-source-summary.json").write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          PY
+
+      - name: Publish summary and clean probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/vin-source-summary.json
+          git rm -f tmp/ukraine-vin-source-probe.json tmp/vin-decoder-probe.json || true
+          git rm -f .github/workflows/summarize-vin-probes.yml
+          git commit -m "Summarize VIN source compatibility"
+          git push origin HEAD:main
