@@ -1,0 +1,275 @@
+name: Fix VIN API error handling
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/fix-vin-api-error.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Patch VIN flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              return text.replace(old, new, 1)
+
+          worker_path = Path("worker/src/index.js")
+          worker = worker_path.read_text(encoding="utf-8")
+
+          worker = replace_once(
+              worker,
+              '''var ROAPP_ASSET_BASES = [
+            "https://api.roapp.io/warehouse/assets",
+            `${ROAPP_BASE}/warehouse/assets`
+          ];''',
+              '''var ROAPP_ASSET_BASES = [
+            `${ROAPP_BASE}/warehouse/assets`,
+            "https://api.roapp.io/warehouse/assets"
+          ];''',
+              "asset endpoint priority",
+          )
+
+          group_helper = r'''
+          async function inferCustomerVehicleGroup(env, customerId) {
+            try {
+              const assets = await getCustomerAssets(env, customerId);
+              for (const asset of assets) {
+                const group = valueTitle(asset?.group).trim();
+                if (group) return group;
+              }
+            } catch (error) {
+              console.warn(JSON.stringify({
+                event: "asset_group_from_assets",
+                success: false,
+                message: error instanceof Error ? error.message : String(error)
+              }));
+            }
+
+            try {
+              const orderResult = await getAllCustomerOrders(env, customerId);
+              for (const order of orderResult.orders) {
+                const asset = order?.asset || order?.vehicle || order?.customer_asset;
+                const group = valueTitle(asset?.group).trim();
+                if (group) return group;
+              }
+            } catch (error) {
+              console.warn(JSON.stringify({
+                event: "asset_group_from_orders",
+                success: false,
+                message: error instanceof Error ? error.message : String(error)
+              }));
+            }
+
+            return "Автомобіль";
+          }
+          __name(inferCustomerVehicleGroup, "inferCustomerVehicleGroup");
+          '''.strip("\n")
+
+          worker = replace_once(
+              worker,
+              '__name(findAssetByVin, "findAssetByVin");\nasync function createCustomerAsset',
+              '__name(findAssetByVin, "findAssetByVin");\n' + group_helper + '\nasync function createCustomerAsset',
+              "vehicle group helper",
+          )
+
+          worker = replace_once(
+              worker,
+              '''  const createResponse = await roappAssetRequest(
+            env,
+            (baseUrl) => baseUrl,
+            {
+              method: "POST",
+              body: JSON.stringify({ uid: vin, owner_id: numericCustomerId })
+            }
+          );''',
+              '''  const createPayload = { uid: vin, owner_id: numericCustomerId };
+          let createResponse;
+          try {
+            createResponse = await roappAssetRequest(
+              env,
+              (baseUrl) => baseUrl,
+              {
+                method: "POST",
+                body: JSON.stringify(createPayload)
+              }
+            );
+          } catch (error) {
+            const errorText = String(error?.message || "");
+            const needsGroup = Number(error?.status) === 400 && /group|груп/i.test(errorText);
+            if (!needsGroup) throw error;
+
+            const group = await inferCustomerVehicleGroup(env, numericCustomerId);
+            createResponse = await roappAssetRequest(
+              env,
+              (baseUrl) => baseUrl,
+              {
+                method: "POST",
+                body: JSON.stringify({ ...createPayload, group })
+              }
+            );
+          }''',
+              "asset create retry",
+          )
+
+          error_helpers = r'''
+          function readableRoappError(value, path = "", depth = 0) {
+            if (depth > 5 || value === null || value === undefined) return "";
+            if (["string", "number", "boolean"].includes(typeof value)) {
+              const text = String(value).trim();
+              if (!text) return "";
+              return path ? `${friendlyErrorField(path)}: ${text}` : text;
+            }
+            if (Array.isArray(value)) {
+              return value
+                .map((item) => readableRoappError(item, path, depth + 1))
+                .filter(Boolean)
+                .join(" · ");
+            }
+            if (typeof value !== "object") return "";
+
+            for (const key of ["message", "detail", "description"]) {
+              const text = readableRoappError(value[key], path, depth + 1);
+              if (text) return text;
+            }
+
+            return Object.entries(value)
+              .filter(([key]) => !["status", "status_code", "code"].includes(key))
+              .map(([key, nested]) => {
+                const nextPath = ["error", "errors", "data"].includes(key) ? path : key;
+                return readableRoappError(nested, nextPath, depth + 1);
+              })
+              .filter(Boolean)
+              .join(" · ");
+          }
+          __name(readableRoappError, "readableRoappError");
+          function friendlyErrorField(value) {
+            const labels = {
+              uid: "VIN",
+              owner_id: "Власник",
+              group: "Група автомобіля",
+              reg_number: "Державний номер",
+              brand: "Марка",
+              model: "Модель",
+              year: "Рік"
+            };
+            return labels[value] || String(value).replaceAll("_", " ");
+          }
+          __name(friendlyErrorField, "friendlyErrorField");
+          '''.strip("\n")
+
+          worker = replace_once(
+              worker,
+              '__name(roappAssetRequest, "roappAssetRequest");\nasync function roappRequest',
+              '__name(roappAssetRequest, "roappAssetRequest");\n' + error_helpers + '\nasync function roappRequest',
+              "RO App error formatter",
+          )
+
+          worker = replace_once(
+              worker,
+              '''    const message = data?.message || data?.error || data?.detail || `RO App повернув помилку ${response.status}`;
+            const error = new Error(String(message));
+            error.status = response.status;
+            throw error;''',
+              '''    const message = readableRoappError(data) || `RO App повернув помилку ${response.status}`;
+            const error = new Error(message.slice(0, 900));
+            error.status = response.status;
+            error.data = data;
+            throw error;''',
+              "RO App error creation",
+          )
+
+          worker_path.write_text(worker, encoding="utf-8")
+
+          index_path = Path("index.html")
+          html = index_path.read_text(encoding="utf-8")
+
+          html = replace_once(
+              html,
+              "      throw new Error(data.error || 'Не вдалося додати автомобіль.');",
+              "      throw new Error(readableUiError(data.error || data, 'Не вдалося додати автомобіль.'));",
+              "VIN frontend error",
+          )
+
+          ui_helper = r'''
+          function readableUiError(value, fallback='Сталася помилка.'){
+            if (value === null || value === undefined || value === '') return fallback;
+            if (typeof value === 'string') return value.trim() || fallback;
+            if (['number','boolean'].includes(typeof value)) return String(value);
+            if (Array.isArray(value)){
+              const items = value.map(item => readableUiError(item, '')).filter(Boolean);
+              return items.join(' · ') || fallback;
+            }
+            if (typeof value === 'object'){
+              for (const key of ['message','detail','description']){
+                if (value[key]) return readableUiError(value[key], fallback);
+              }
+              const items = Object.entries(value).map(([key,nested]) => {
+                const message = readableUiError(nested, '');
+                if (!message) return '';
+                return ['error','errors','data'].includes(key) ? message : `${key}: ${message}`;
+              }).filter(Boolean);
+              return items.join(' · ') || fallback;
+            }
+            return fallback;
+          }
+          '''.strip("\n")
+
+          html = replace_once(
+              html,
+              "function escapeHtml(value){",
+              ui_helper + "\n\nfunction escapeHtml(value){",
+              "frontend error formatter",
+          )
+
+          html = replace_once(
+              html,
+              "  box.textContent = message;\n  box.className = `status show ${type}`;",
+              "  box.textContent = readableUiError(message, 'Сталася помилка.');\n  box.className = `status show ${type}`;",
+              "status message formatting",
+          )
+
+          index_path.write_text(html, encoding="utf-8")
+          PY
+
+      - name: Verify changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix worker run check
+          npm --prefix worker test
+          grep -q 'function readableRoappError' worker/src/index.js
+          grep -q 'inferCustomerVehicleGroup' worker/src/index.js
+          grep -q 'function readableUiError' index.html
+
+      - name: Publish fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html worker/src/index.js
+          git rm -f .github/workflows/fix-vin-api-error.yml
+          git commit -m "Fix VIN CRM validation and readable API errors"
+          git push origin HEAD:main
