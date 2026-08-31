@@ -1,0 +1,184 @@
+name: Probe RO App VIN lookup app route
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-roapp-app-vin.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Add temporary Worker probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('worker/src/index.js')
+          text = path.read_text(encoding='utf-8')
+          marker = '      if (url.pathname === "/health" && request.method === "GET") {'
+          if text.count(marker) != 1:
+              raise SystemExit(f'health marker count={text.count(marker)}')
+
+          route = r'''      if (url.pathname === "/health/roapp-app-vin" && request.method === "GET") {
+        const vin = "TMBDX41U79B008586";
+        const encodedVin = encodeURIComponent(vin);
+        const apiKey = String(env.ROAPP_API_KEY || "");
+        const variants = [
+          {
+            name: "web_app_get_bearer",
+            target: `https://web.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
+            init: {
+              method: "GET",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest"
+              }
+            }
+          },
+          {
+            name: "api_app_get_bearer",
+            target: `https://api.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
+            init: {
+              method: "GET",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest"
+              }
+            }
+          },
+          {
+            name: "web_app_post_bearer_json",
+            target: "https://web.roapp.io/app/integrations/service/vin-lookup",
+            init: {
+              method: "POST",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ vin })
+            }
+          },
+          {
+            name: "api_app_post_bearer_json",
+            target: "https://api.roapp.io/app/integrations/service/vin-lookup",
+            init: {
+              method: "POST",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ vin })
+            }
+          }
+        ];
+        const results = [];
+        for (const variant of variants) {
+          const startedAt = Date.now();
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8000);
+            const response = await fetch(variant.target, {
+              ...variant.init,
+              redirect: "manual",
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+            const text = await response.text();
+            let data = null;
+            try {
+              data = text ? JSON.parse(text) : null;
+            } catch {
+              data = text.slice(0, 1200);
+            }
+            results.push({
+              name: variant.name,
+              status: response.status,
+              status_text: response.statusText,
+              content_type: response.headers.get("content-type") || "",
+              location: response.headers.get("location") || "",
+              data,
+              elapsed_ms: Date.now() - startedAt
+            });
+          } catch (error) {
+            results.push({
+              name: variant.name,
+              status: 0,
+              error_name: error?.name || "Error",
+              error: error instanceof Error ? error.message : String(error),
+              elapsed_ms: Date.now() - startedAt
+            });
+          }
+        }
+        return json2({ marker: "roapp_app_vin_probe_v1", results }, 200, corsHeaders);
+      }
+'''
+          path.write_text(text.replace(marker, route + marker, 1), encoding='utf-8')
+          PY
+          npm --prefix worker run check
+          npm --prefix worker test
+
+      - name: Publish probe source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/src/index.js
+          git rm -f .github/workflows/probe-roapp-app-vin.yml
+          git commit -m "Add temporary RO App app-route VIN probe"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Wait for Worker and record result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          endpoint="https://karpservice-api.venyast31.workers.dev/health/roapp-app-vin"
+          success=0
+          for attempt in $(seq 1 30); do
+            code=$(curl -sS --max-time 15 -o tmp/roapp-app-vin-probe.json -w "%{http_code}" "$endpoint" || true)
+            if [ "$code" = "200" ] && grep -q 'roapp_app_vin_probe_v1' tmp/roapp-app-vin-probe.json; then
+              success=1
+              break
+            fi
+            sleep 4
+          done
+          if [ "$success" != "1" ]; then
+            echo "Worker probe did not become available" >&2
+            cat tmp/roapp-app-vin-probe.json 2>/dev/null || true
+            exit 1
+          fi
+          python -m json.tool tmp/roapp-app-vin-probe.json > tmp/roapp-app-vin-probe.pretty.json
+          mv tmp/roapp-app-vin-probe.pretty.json tmp/roapp-app-vin-probe.json
+
+          git add tmp/roapp-app-vin-probe.json
+          git commit -m "Record RO App app-route VIN probe"
+          git pull --rebase origin main
+          git push origin HEAD:main
