@@ -42,5 +42,21 @@ if old_verify in text:
 elif "window.sessionStorage.setItem(LEGACY_AUTH_TOKEN_KEY, data.token)" not in text:
     raise SystemExit("Telegram verification block was not found")
 
+old_loaded = "\n".join([
+    "    customerData = data;",
+    "    setAuthSession(true);",
+    "    clearLegacyAuthToken();",
+    "    renderCustomer();",
+])
+new_loaded = "\n".join([
+    "    customerData = data;",
+    "    setAuthSession(true);",
+    "    renderCustomer();",
+])
+if old_loaded in text:
+    text = text.replace(old_loaded, new_loaded, 1)
+elif new_loaded not in text:
+    raise SystemExit("Customer session retention block was not found")
+
 path.write_text(text, encoding="utf-8")
 print(f"Connected app to {bridge_url}")
