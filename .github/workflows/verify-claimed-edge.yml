@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: Verify claimed Worker and API proxy
         env:
-          APP_URL: "https://karpservice-app.venyast31.workers.dev"
+          APP_URL: "https://karpservice-app.jeweled-astrodon.workers.dev"
         run: |
           set -euo pipefail
 
