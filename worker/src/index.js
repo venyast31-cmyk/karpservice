@@ -1136,6 +1136,48 @@ var index_default = {
       });
       if (authResponse) return authResponse;
 
+      if (url.pathname === "/health/vin-source" && request.method === "GET") {
+        const vin = "TMBDX41U79B008586";
+        const target = `https://autoua.com.ua/vin/${vin}?lang=en`;
+        const startedAt = Date.now();
+        try {
+          const response = await fetch(target, {
+            method: "GET",
+            redirect: "follow",
+            headers: {
+              Accept: "text/html,application/xhtml+xml",
+              "Accept-Language": "en,uk;q=0.9",
+              "User-Agent": "Mozilla/5.0 (compatible; Karpservice/1.0; +https://karpservice-app.pages.dev)"
+            }
+          });
+          const html = await response.text();
+          const title = decodeVinHtmlText(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+          return json2({
+            success: response.ok,
+            status: response.status,
+            redirected: response.redirected,
+            final_url: response.url,
+            content_type: response.headers.get("content-type") || "",
+            server: response.headers.get("server") || "",
+            cf_ray: response.headers.get("cf-ray") || "",
+            length: html.length,
+            contains_vin: html.toUpperCase().includes(vin),
+            title,
+            make: extractVinHtmlField(html, "Make"),
+            model: extractVinHtmlField(html, "Model"),
+            year: extractVinHtmlField(html, "Year"),
+            preview: decodeVinHtmlText(html).slice(0, 350),
+            elapsed_ms: Date.now() - startedAt
+          }, 200, corsHeaders);
+        } catch (error) {
+          return json2({
+            success: false,
+            error_name: error?.name || "Error",
+            error: error instanceof Error ? error.message : String(error),
+            elapsed_ms: Date.now() - startedAt
+          }, 200, corsHeaders);
+        }
+      }
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);
         return json2({
