@@ -247,6 +247,9 @@
   .order-line-meta{display:flex;justify-content:space-between;gap:12px;margin-top:6px;color:var(--muted);font-size:13px}
   .order-text{white-space:pre-wrap;line-height:1.5;color:#d7dce3}
   .vin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;color:#aeb7c3}
+  .add-car-button{margin:0 0 18px;border-style:dashed;border-color:rgba(114,230,170,.34)}
+  .vin-input{text-transform:uppercase;letter-spacing:1.6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:750}
+  .vin-help{margin:9px 1px 0;line-height:1.45}
   .empty{text-align:center;padding:24px 12px;color:var(--muted)}
   .test-note{
     margin-top:14px;padding:11px 12px;border:1px solid #4a3c1d;background:#241e12;
@@ -408,7 +411,24 @@
   <section id="cars" class="screen">
     <div id="carsLoader" class="loader">Завантаження…</div>
     <h2 id="carsHeading" class="section-title">Ваш автомобіль</h2>
+    <button class="secondary add-car-button" type="button" onclick="openAddCar()">+ Додати автомобіль за VIN</button>
+    <div id="carsStatus" class="status"></div>
     <div id="carsList"></div>
+  </section>
+
+  <section id="addCar" class="screen">
+    <button class="back" type="button" onclick="openCars()">← До автомобілів</button>
+    <h1>Додати автомобіль</h1>
+    <p>Введіть VIN-код. Марку, модель та інші дані підтягне інтеграція CRM.</p>
+    <div class="card">
+      <label for="carVin">VIN-код</label>
+      <input id="carVin" class="vin-input" inputmode="text" autocomplete="off"
+        autocapitalize="characters" spellcheck="false" maxlength="17"
+        placeholder="WVWZZZ1JZXW000001" oninput="formatVinInput(this)" />
+      <div class="tiny vin-help">17 символів. Літери I, O та Q у VIN не використовуються.</div>
+      <button id="addCarBtn" class="primary" type="button" onclick="addCarByVin()">Додати автомобіль</button>
+      <div id="addCarStatus" class="status"></div>
+    </div>
   </section>
 
   <section id="history" class="screen">
@@ -683,7 +703,7 @@ function show(id){
   const el = document.getElementById(id);
   if (el) el.classList.add('active');
   const navByScreen = {
-    home:'homeNav', cars:'carsNav',
+    home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'historyNav', history:'historyNav', order:'historyNav',
     profile:'profileNav'
@@ -719,6 +739,67 @@ function openCars(){
   show('cars');
 }
 
+function openAddCar(){
+  if (!customerData){
+    openClientHome();
+    return;
+  }
+  const input = document.getElementById('carVin');
+  if (input) input.value = '';
+  showStatus('', 'error', 'addCarStatus');
+  showStatus('', 'error', 'carsStatus');
+  show('addCar');
+  window.requestAnimationFrame(() => input?.focus());
+}
+
+async function addCarByVin(){
+  const input = document.getElementById('carVin');
+  const btn = document.getElementById('addCarBtn');
+  const vin = normalizeVin(input?.value);
+  if (input) input.value = vin;
+
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)){
+    showStatus('VIN має містити рівно 17 символів без літер I, O та Q.', 'error', 'addCarStatus');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Додаємо…';
+  showStatus('Перевіряємо VIN у CRM…', 'ok', 'addCarStatus');
+
+  try{
+    const res = await apiFetch('cars', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({vin})
+    });
+    const data = await responseJson(res);
+
+    if (res.status === 401){
+      setAuthSession(false);
+      clearLegacyAuthToken();
+      resetAuthFlow({message:'Сесія завершилася. Підтвердьте вхід через Telegram ще раз.'});
+      show('login');
+      return;
+    }
+    if (!res.ok || !data.success){
+      throw new Error(data.error || 'Не вдалося додати автомобіль.');
+    }
+
+    const notice = data.already_exists
+      ? 'Цей автомобіль уже є у вашому профілі.'
+      : 'Автомобіль додано. Марка й модель підтягнуться з CRM автоматично.';
+    const refreshed = await loadCustomer({targetScreen:'cars'});
+    if (refreshed) showStatus(notice, 'ok', 'carsStatus');
+  }catch(err){
+    showStatus(err.message || 'Не вдалося додати автомобіль.', 'error', 'addCarStatus');
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Додати автомобіль';
+  }
+}
+
 function toggleNewsDetails(detailsId, button){
   const details = document.getElementById(detailsId);
   if (!details || !button) return;
@@ -730,6 +811,15 @@ function toggleNewsDetails(detailsId, button){
 
 function normalizePhone(value){
   return String(value || '').replace(/\D/g,'');
+}
+
+function normalizeVin(value){
+  return String(value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'');
+}
+
+function formatVinInput(input){
+  if (!input) return;
+  input.value = normalizeVin(input.value).slice(0,17);
 }
 
 function escapeHtml(value){
@@ -1013,7 +1103,7 @@ async function loadCustomer(options={}){
     renderAllHistory();
     renderProfile();
     setAuthenticatedUi(true);
-    show('home');
+    show(options.targetScreen || 'home');
     return true;
   }catch(err){
     const statusId = document.getElementById('codeAuthStep').hidden ? 'loginStatus' : 'codeStatus';
@@ -1035,7 +1125,7 @@ function renderCustomer(){
   heading.hidden = !cars.length;
 
   if (!cars.length){
-    list.innerHTML = `<div class="card empty">У знайдених замовленнях поки немає прив’язаних автомобілів.</div>`;
+    list.innerHTML = `<div class="card empty">Автомобілів поки немає. Додайте авто за VIN-кодом.</div>`;
     return;
   }
 

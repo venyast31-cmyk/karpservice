@@ -29,7 +29,13 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
   const orderResult = await getAllCustomerOrders(env, customer.id);
-  const cars = buildCarsFromOrders(orderResult.orders);
+  let assets = [];
+  try {
+    assets = await getCustomerAssets(env, customer.id);
+  } catch (error) {
+    console.error(JSON.stringify({ event: "customer_assets_load", success: false, message: error instanceof Error ? error.message : String(error) }));
+  }
+  const cars = mergeCustomerAssets(assets, orderResult.orders);
   return json({
     success: true,
     found: true,
@@ -157,6 +163,167 @@ async function getAllCustomerOrders(env, customerId) {
   return { orders, total, complete };
 }
 __name(getAllCustomerOrders, "getAllCustomerOrders");
+async function getCustomerAssets(env, customerId) {
+  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
+  assetsUrl.searchParams.append("owner_id", String(customerId));
+  const response = await roappRequest(env, assetsUrl.toString());
+  const assets = extractList(response.data, ["assets"]);
+  return assets.filter((asset) => {
+    const ownerId = assetOwnerId(asset);
+    return ownerId === 0 || ownerId === Number(customerId);
+  });
+}
+__name(getCustomerAssets, "getCustomerAssets");
+function normalizeVin(value) {
+  return String(value || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
+}
+__name(normalizeVin, "normalizeVin");
+function assetVin(asset) {
+  return normalizeVin(
+    asset?.uid || asset?.vin || asset?.serial || asset?.serial_number || ""
+  );
+}
+__name(assetVin, "assetVin");
+function assetOwnerId(asset) {
+  return Number(
+    asset?.owner_id ?? asset?.owner?.id ?? asset?.client_id ?? asset?.client?.id ?? 0
+  ) || 0;
+}
+__name(assetOwnerId, "assetOwnerId");
+function publicAssetCar(asset, history = []) {
+  const vin = assetVin(asset);
+  const brand = valueTitle(asset?.brand);
+  const model = valueTitle(asset?.model);
+  const decodedTitle = [brand, model].filter(Boolean).join(" ").trim();
+  const rawTitle = firstText(asset?.title, asset?.name);
+  const title = decodedTitle || (
+    rawTitle && normalizeVin(rawTitle) !== vin ? rawTitle : "Автомобіль"
+  );
+  return {
+    id: Number(asset?.id) || stableNumber(vin),
+    title,
+    brand,
+    model,
+    modification: valueTitle(asset?.modification),
+    year: asset?.year || asset?.production_year || "",
+    vin,
+    history: Array.isArray(history) ? history : []
+  };
+}
+__name(publicAssetCar, "publicAssetCar");
+function mergeCustomerAssets(assets, orders) {
+  const cars = [];
+  const byId = /* @__PURE__ */ new Map();
+  const byVin = /* @__PURE__ */ new Map();
+  const remember = (car) => {
+    cars.push(car);
+    const id = Number(car?.id);
+    const vin = normalizeVin(car?.vin);
+    if (id > 0) byId.set(id, car);
+    if (vin) byVin.set(vin, car);
+  };
+  for (const asset of assets || []) {
+    remember(publicAssetCar(asset));
+  }
+  for (const orderCar of buildCarsFromOrders(orders)) {
+    const id = Number(orderCar?.id);
+    const vin = normalizeVin(orderCar?.vin);
+    const current = (id > 0 ? byId.get(id) : null) || (vin ? byVin.get(vin) : null);
+    if (!current) {
+      remember({ ...orderCar, vin });
+      continue;
+    }
+    current.history = Array.isArray(orderCar.history) ? orderCar.history : [];
+    for (const field of ["brand", "model", "modification", "year", "vin"]) {
+      if (!current[field] && orderCar[field]) current[field] = orderCar[field];
+    }
+    if ((!current.title || current.title === "Автомобіль") && orderCar.title) {
+      current.title = orderCar.title;
+    }
+  }
+  return cars;
+}
+__name(mergeCustomerAssets, "mergeCustomerAssets");
+async function findAssetByVin(env, vin) {
+  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
+  assetsUrl.searchParams.append("uid", vin);
+  const response = await roappRequest(env, assetsUrl.toString());
+  const assets = extractList(response.data, ["assets"]);
+  return assets.find((asset) => assetVin(asset) === vin) || null;
+}
+__name(findAssetByVin, "findAssetByVin");
+async function createCustomerAsset(request, env, customerId, responseHeaders) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Некоректні дані запиту" }, 400, responseHeaders);
+  }
+  const vin = normalizeVin(body?.vin || body?.uid);
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+    return json({
+      success: false,
+      error: "VIN має містити рівно 17 символів без літер I, O та Q"
+    }, 400, responseHeaders);
+  }
+  const numericCustomerId = Number(customerId);
+  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
+    return json({ success: false, error: "Клієнта не знайдено" }, 404, responseHeaders);
+  }
+
+  const existing = await findAssetByVin(env, vin);
+  if (existing) {
+    const ownerId = assetOwnerId(existing);
+    let belongsToCustomer = ownerId === numericCustomerId;
+    if (!ownerId) {
+      const customerAssets = await getCustomerAssets(env, numericCustomerId);
+      belongsToCustomer = customerAssets.some((asset) => {
+        const sameId = Number(asset?.id) > 0 && Number(asset?.id) === Number(existing?.id);
+        return sameId || assetVin(asset) === vin;
+      });
+    }
+    if (!belongsToCustomer) {
+      return json({
+        success: false,
+        error: "Автомобіль з таким VIN уже зареєстрований у CRM. Зверніться до сервісу."
+      }, 409, responseHeaders);
+    }
+    return json({
+      success: true,
+      created: false,
+      already_exists: true,
+      message: "Цей автомобіль уже є у вашому профілі",
+      car: publicAssetCar(existing)
+    }, 200, responseHeaders);
+  }
+
+  const createResponse = await roappRequest(
+    env,
+    `${ROAPP_BASE}/warehouse/assets`,
+    {
+      method: "POST",
+      body: JSON.stringify({ uid: vin, owner_id: numericCustomerId })
+    }
+  );
+  let asset = extractRecord(createResponse.data, ["asset"]);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const hasDecodedData = valueTitle(asset?.brand) || valueTitle(asset?.model);
+    if (hasDecodedData) break;
+    await delay(650);
+    const refreshed = await findAssetByVin(env, vin);
+    if (refreshed) asset = refreshed;
+  }
+
+  return json({
+    success: true,
+    created: true,
+    already_exists: false,
+    message: "Автомобіль додано до CRM",
+    car: publicAssetCar(asset || { uid: vin })
+  }, 200, responseHeaders);
+}
+__name(createCustomerAsset, "createCustomerAsset");
 async function roappRequest(env, url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -672,7 +839,7 @@ var index_default = {
       }
 
       let authSession = null;
-      if (["/", "/order", "/availability", "/booking"].includes(url.pathname)) {
+      if (["/", "/order", "/availability", "/booking", "/cars"].includes(url.pathname)) {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
@@ -682,6 +849,14 @@ var index_default = {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
         return await getOrderDetails(protectedUrl, env, corsHeaders);
+      }
+      if (url.pathname === "/cars" && request.method === "POST") {
+        return await createCustomerAsset(
+          request,
+          env,
+          Number(authSession.customer_id),
+          corsHeaders
+        );
       }
 
       const branchId = getBranchId(env);
