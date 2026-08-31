@@ -10,6 +10,10 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 
 // src/orders.js
 var ROAPP_BASE = "https://api.roapp.io/v2";
+var ROAPP_ASSET_BASES = [
+  "https://api.roapp.io/warehouse/assets",
+  `${ROAPP_BASE}/warehouse/assets`
+];
 var ORDER_PAGE_SIZE = 100;
 var MAX_ORDER_PAGES = 45;
 var CORS_HEADERS = {
@@ -164,9 +168,11 @@ async function getAllCustomerOrders(env, customerId) {
 }
 __name(getAllCustomerOrders, "getAllCustomerOrders");
 async function getCustomerAssets(env, customerId) {
-  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
-  assetsUrl.searchParams.append("owner_id", String(customerId));
-  const response = await roappRequest(env, assetsUrl.toString());
+  const response = await roappAssetRequest(env, (baseUrl) => {
+    const assetsUrl = new URL(baseUrl);
+    assetsUrl.searchParams.append("owner_id", String(customerId));
+    return assetsUrl.toString();
+  });
   const assets = extractList(response.data, ["assets"]);
   return assets.filter((asset) => {
     const ownerId = assetOwnerId(asset);
@@ -245,9 +251,11 @@ function mergeCustomerAssets(assets, orders) {
 }
 __name(mergeCustomerAssets, "mergeCustomerAssets");
 async function findAssetByVin(env, vin) {
-  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
-  assetsUrl.searchParams.append("uid", vin);
-  const response = await roappRequest(env, assetsUrl.toString());
+  const response = await roappAssetRequest(env, (baseUrl) => {
+    const assetsUrl = new URL(baseUrl);
+    assetsUrl.searchParams.append("uid", vin);
+    return assetsUrl.toString();
+  });
   const assets = extractList(response.data, ["assets"]);
   return assets.find((asset) => assetVin(asset) === vin) || null;
 }
@@ -297,9 +305,9 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
     }, 200, responseHeaders);
   }
 
-  const createResponse = await roappRequest(
+  const createResponse = await roappAssetRequest(
     env,
-    `${ROAPP_BASE}/warehouse/assets`,
+    (baseUrl) => baseUrl,
     {
       method: "POST",
       body: JSON.stringify({ uid: vin, owner_id: numericCustomerId })
@@ -324,6 +332,26 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
   }, 200, responseHeaders);
 }
 __name(createCustomerAsset, "createCustomerAsset");
+async function roappAssetRequest(env, buildUrl, options = {}) {
+  let lastError = null;
+  for (const baseUrl of ROAPP_ASSET_BASES) {
+    const url = buildUrl(baseUrl);
+    try {
+      return await roappRequest(env, url, options);
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status);
+      if (![404, 405].includes(status)) throw error;
+      console.warn(JSON.stringify({
+        event: "roapp_asset_endpoint_fallback",
+        status,
+        endpoint: new URL(url).pathname
+      }));
+    }
+  }
+  throw lastError || new Error("RO App не повернув API автомобілів");
+}
+__name(roappAssetRequest, "roappAssetRequest");
 async function roappRequest(env, url, options = {}) {
   const response = await fetch(url, {
     ...options,
