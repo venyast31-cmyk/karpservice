@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json.schemastore.org/wrangler.json",
+  "name": "karpservice-app",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-31"
+}
