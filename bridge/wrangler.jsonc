@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json.schemastore.org/wrangler.json",
+  "name": "karpservice-api-bridge",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-31"
+}
