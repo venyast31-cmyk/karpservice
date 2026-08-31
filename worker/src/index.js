@@ -327,7 +327,7 @@ function buildRoappAssetCreateOptions(payload, format) {
 __name(buildRoappAssetCreateOptions, "buildRoappAssetCreateOptions");
 async function findAssetAfterCreateAttempt(env, vin) {
   try {
-    await delay(420);
+    await delay(650);
     return await findAssetByVin(env, vin);
   } catch (error) {
     console.warn(JSON.stringify({
@@ -360,7 +360,7 @@ async function createRoappAssetCompatible(env, payload) {
         status: Number(error?.status) || 0,
         message: error instanceof Error ? error.message : String(error)
       }));
-      await delay(420);
+      await delay(650);
     }
   }
   throw lastError || new Error("RO App не прийняв дані автомобіля");
