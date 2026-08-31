@@ -1,0 +1,75 @@
+name: Find RO App VIN integration chunk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/find-roapp-vin-chunk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Locate VIN integration code
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          python - <<'PY'
+          import html, re, urllib.parse, urllib.request
+          from collections import deque
+
+          headers={'User-Agent':'Mozilla/5.0 Chrome/126 Safari/537.36','Accept':'text/html,application/javascript,*/*'}
+          def fetch(url, cap=15_000_000):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  return r.geturl(),r.read(cap).decode('utf-8','replace')
+
+          root, page = fetch('https://web.roapp.io/login', 5_000_000)
+          scripts=[urllib.parse.urljoin(root, html.unescape(x)) for x in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']',page,re.I)]
+          out=['ROOT '+root,'SCRIPTS:']+scripts
+          queue=deque(scripts)
+          seen=set()
+          hits=0
+          while queue and len(seen)<200:
+              url=queue.popleft()
+              if url in seen or urllib.parse.urlsplit(url).netloc!='web.roapp.io': continue
+              seen.add(url)
+              try:
+                  final, body=fetch(url)
+              except Exception as e:
+                  continue
+              low=body.lower()
+              for needle in ['vin-lookup-integration','vinlookupintegrationmodal','ua-license-plate-lookup']:
+                  start=0
+                  while True:
+                      idx=low.find(needle,start)
+                      if idx<0: break
+                      hits+=1
+                      out.append(f'\n=== HIT {hits} {needle} SOURCE {final} POS {idx} ===')
+                      out.append(body[max(0,idx-2500):min(len(body),idx+5000)])
+                      start=idx+len(needle)
+              for child in re.findall(r'["\']([^"\']+\.js(?:\?[^"\']*)?)["\']',body):
+                  child=urllib.parse.urljoin(final,html.unescape(child))
+                  if urllib.parse.urlsplit(child).netloc=='web.roapp.io' and child not in seen:
+                      queue.append(child)
+          out.append(f'\nSUMMARY seen={len(seen)} hits={hits}')
+          open('tmp/roapp-vin-chunk-context.txt','w',encoding='utf-8').write('\n'.join(out))
+          PY
+
+      - name: Publish and clean workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/roapp-vin-chunk-context.txt
+          git rm -f .github/workflows/find-roapp-vin-chunk.yml
+          git commit -m "Record RO App VIN chunk context"
+          git push origin HEAD:main
