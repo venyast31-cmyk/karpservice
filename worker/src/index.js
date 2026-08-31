@@ -295,6 +295,101 @@ function isRoappAssetValidationError(error) {
   return [400, 415, 422].includes(Number(error?.status));
 }
 __name(isRoappAssetValidationError, "isRoappAssetValidationError");
+function shouldRetryRoappAssetEncoding(error) {
+  const status = Number(error?.status);
+  if (status === 415) return true;
+  if (![400, 422].includes(status)) return false;
+  const text = String(error?.message || "").toLowerCase();
+  return /invalid data type|invalid type|type error|content[- ]?type|malformed|invalid json|request body/.test(text);
+}
+__name(shouldRetryRoappAssetEncoding, "shouldRetryRoappAssetEncoding");
+function decodeVinHtmlText(value) {
+  return String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => {
+      const number = Number.parseInt(code, 16);
+      return Number.isInteger(number) && number > 0 && number <= 1114111
+        ? String.fromCodePoint(number)
+        : match;
+    })
+    .replace(/&#([0-9]+);/g, (match, code) => {
+      const number = Number.parseInt(code, 10);
+      return Number.isInteger(number) && number > 0 && number <= 1114111
+        ? String.fromCodePoint(number)
+        : match;
+    })
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+__name(decodeVinHtmlText, "decodeVinHtmlText");
+function extractVinHtmlField(html, label) {
+  const escapedLabel = String(label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(html || "").match(
+    new RegExp(`<th[^>]*>\\s*${escapedLabel}\\s*<\\/th>\\s*<td[^>]*>([\\s\\S]*?)<\\/td>`, "i")
+  );
+  return decodeVinHtmlText(match?.[1] || "");
+}
+__name(extractVinHtmlField, "extractVinHtmlField");
+function validDecodedVehicleText(value, maxLength) {
+  const text = decodeVinHtmlText(value).slice(0, maxLength);
+  if (!text || /not found|unknown|невідом/i.test(text)) return "";
+  return text;
+}
+__name(validDecodedVehicleText, "validDecodedVehicleText");
+async function lookupVehicleIdentityByVin(vin) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(
+      `https://autoua.com.ua/vin/${encodeURIComponent(vin)}?lang=en`,
+      {
+        method: "GET",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en,uk;q=0.9",
+          "User-Agent": "Karpservice/1.0 VIN lookup"
+        }
+      }
+    );
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!/text\/html/i.test(contentType)) return null;
+    const html = await response.text();
+    if (html.length > 600000 || !html.toUpperCase().includes(vin)) return null;
+
+    const brand = validDecodedVehicleText(extractVinHtmlField(html, "Make"), 80);
+    const model = validDecodedVehicleText(extractVinHtmlField(html, "Model"), 120);
+    const rawYear = extractVinHtmlField(html, "Year");
+    const year = /^\d{4}$/.test(rawYear) ? rawYear : "";
+    if (!brand || !model) return null;
+    return { brand, model, year };
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "vin_identity_lookup",
+      success: false,
+      reason: error?.name === "AbortError" ? "timeout" : "request_failed"
+    }));
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+__name(lookupVehicleIdentityByVin, "lookupVehicleIdentityByVin");
+function needsVehicleIdentity(error) {
+  if (!isRoappAssetValidationError(error)) return false;
+  const text = String(error?.message || "");
+  return /(brand|марка|model|модель)/i.test(text) &&
+    /(required|must|необхідно|заповнити|обов'язков)/i.test(text);
+}
+__name(needsVehicleIdentity, "needsVehicleIdentity");
 function buildRoappAssetCreateOptions(payload, format) {
   if (format === "form") {
     const form = new URLSearchParams();
@@ -353,7 +448,7 @@ async function createRoappAssetCompatible(env, payload) {
       if (existing) {
         return { status: 200, data: { data: existing } };
       }
-      if (!isRoappAssetValidationError(error)) throw error;
+      if (!shouldRetryRoappAssetEncoding(error)) throw error;
       console.warn(JSON.stringify({
         event: "asset_create_encoding_fallback",
         format,
@@ -411,18 +506,54 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
     }, 200, responseHeaders);
   }
 
-  const createPayload = { uid: vin, owner_id: numericCustomerId };
-  let createResponse;
+
+let createPayload = { uid: vin, owner_id: numericCustomerId };
+let createResponse = null;
+let createError = null;
+
+for (let attempt = 0; attempt < 3 && !createResponse; attempt++) {
   try {
     createResponse = await createRoappAssetCompatible(env, createPayload);
   } catch (error) {
+    createError = error;
+    if (!isRoappAssetValidationError(error)) throw error;
+
     const errorText = String(error?.message || "");
-    const needsGroup = isRoappAssetValidationError(error) && /group|груп/i.test(errorText);
-    if (!needsGroup) throw error;
-    const group = await inferCustomerVehicleGroup(env, numericCustomerId);
-    createResponse = await createRoappAssetCompatible(env, { ...createPayload, group });
+    let payloadChanged = false;
+
+    if (needsVehicleIdentity(error) && (!createPayload.brand || !createPayload.model)) {
+      const identity = await lookupVehicleIdentityByVin(vin);
+      if (!identity) {
+        return json({
+          success: false,
+          error: "Не вдалося автоматично визначити марку та модель за цим VIN. Перевірте VIN або зверніться до сервісу."
+        }, 422, responseHeaders);
+      }
+      createPayload = {
+        ...createPayload,
+        brand: identity.brand,
+        model: identity.model,
+        ...(identity.year ? { year: identity.year } : {})
+      };
+      payloadChanged = true;
+    }
+
+    if (/group|груп/i.test(errorText) && !createPayload.group) {
+      createPayload = {
+        ...createPayload,
+        group: await inferCustomerVehicleGroup(env, numericCustomerId)
+      };
+      payloadChanged = true;
+    }
+
+    if (!payloadChanged) throw error;
   }
-  let asset = extractRecord(createResponse.data, ["asset"]);
+}
+
+if (!createResponse) {
+  throw createError || new Error("RO App не створив автомобіль");
+}
+let asset = extractRecord(createResponse.data, ["asset"]);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const hasDecodedData = valueTitle(asset?.brand) || valueTitle(asset?.model);
@@ -437,7 +568,7 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
     created: true,
     already_exists: false,
     message: "Автомобіль додано до CRM",
-    car: publicAssetCar(asset || { uid: vin })
+    car: publicAssetCar(asset || { uid: vin, brand: createPayload.brand, model: createPayload.model, year: createPayload.year })
   }, 200, responseHeaders);
 }
 __name(createCustomerAsset, "createCustomerAsset");

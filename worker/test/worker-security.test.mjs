@@ -85,9 +85,29 @@ test("protected API derives ownership from the Telegram session", async () => {
   let orderOwnerId = 123;
   let createdAsset = null;
   let rejectJsonAssetCreate = true;
+  let vinIdentityLookups = 0;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
+    if (url.hostname === "autoua.com.ua") {
+      vinIdentityLookups += 1;
+      if (url.pathname.includes("TMBDX41U79B008586")) {
+        return new Response(`<!doctype html><html><head>
+          <title>Skoda Octavia 2008 - Vehicle Information TMBDX41U79B008586</title>
+          </head><body><table>
+          <tr><th>Make</th><td>Skoda</td></tr>
+          <tr><th>Model</th><td>Octavia</td></tr>
+          <tr><th>Year</th><td>2008</td></tr>
+          </table></body></html>`, {
+          status: 200,
+          headers: { "Content-Type": "text/html; charset=UTF-8" }
+        });
+      }
+      return new Response("Not found", {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=UTF-8" }
+      });
+    }
     assert.equal(url.hostname, "api.roapp.io");
     const method = String(init.method || "GET").toUpperCase();
     let requestBody = null;
@@ -119,12 +139,21 @@ test("protected API derives ownership from the Telegram session", async () => {
           rejectJsonAssetCreate = false;
           return Response.json({ uid: ["Invalid data type"] }, { status: 400 });
         }
+        if (!payload.brand || !payload.model) {
+          return Response.json({
+            errors: {
+              brand: ["Необхідно заповнити"],
+              model: ["Необхідно заповнити"]
+            }
+          }, { status: 422 });
+        }
         createdAsset = {
           id: 501,
           uid: payload.uid,
           owner_id: payload.owner_id,
-          brand: "Mitsubishi",
-          model: "Outlander",
+          brand: payload.brand,
+          model: payload.model,
+          year: payload.year || "",
           group: payload.group || "Автомобіль"
         };
         return Response.json({});
@@ -216,7 +245,7 @@ test("protected API derives ownership from the Telegram session", async () => {
     assert.deepEqual(ownerAssetCall.url.searchParams.getAll("owner_id[]"), ["123"]);
     assert.equal(ownerAssetCall.url.searchParams.has("owner_id"), false);
 
-    const vin = "JMBSRCS3A6U011108";
+    const vin = "TMBDX41U79B008586";
     const addCarResponse = await callWorker("/cars", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -236,24 +265,34 @@ test("protected API derives ownership from the Telegram session", async () => {
     assert.deepEqual(vinLookupCall.url.searchParams.getAll("uid[]"), [vin]);
     assert.equal(vinLookupCall.url.searchParams.has("uid"), false);
 
-    const createAssetCall = roappCalls.find(({ url, method }) =>
-      method === "POST" && url.pathname === "/v2/warehouse/assets"
+    const createAssetCalls = roappCalls.filter(({ url, method, body }) =>
+      method === "POST" &&
+      url.pathname === "/v2/warehouse/assets" &&
+      body?.uid === vin
     );
-    assert.ok(createAssetCall, "asset must be created through the RO App API");
+    assert.equal(createAssetCalls.length, 3, "CRM retries encoding, then retries with decoded identity");
+    const createAssetCall = createAssetCalls.at(-1);
     assert.equal(typeof createAssetCall.body.uid, "string");
     assert.equal(createAssetCall.body.uid, vin);
     assert.equal(createAssetCall.body.owner_id, 123);
-    const assetCreateCalls = roappCalls.filter(({ url, method }) =>
-      method === "POST" && url.pathname === "/v2/warehouse/assets"
-    );
-    assert.ok(assetCreateCalls.length >= 2, "asset create must retry with a form-compatible encoding");
-    assert.ok(assetCreateCalls[0].contentType.includes("application/json"));
+    assert.equal(createAssetCall.body.brand, "Skoda");
+    assert.equal(createAssetCall.body.model, "Octavia");
+    assert.equal(createAssetCall.body.year, "2008");
+    assert.equal(vinIdentityLookups, 1);
+    assert.ok(createAssetCalls[0].contentType.includes("application/json"));
     assert.ok(
-      assetCreateCalls.slice(1).some(({ contentType }) =>
-        contentType.includes("application/x-www-form-urlencoded") || !contentType
-      ),
-      "a non-JSON request format must be attempted after RO App rejects JSON"
+      createAssetCalls[1].contentType.includes("application/x-www-form-urlencoded") ||
+        !createAssetCalls[1].contentType,
+      "a non-JSON format must be attempted after the data-type error"
     );
+
+    const unknownVinResponse = await callWorker("/cars", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vin: "WVWZZZ1JZXW000001" })
+    });
+    assert.equal(unknownVinResponse.status, 422);
+    assert.match((await unknownVinResponse.json()).error, /марку та модель/i);
 
     orderOwnerId = 999;
     const foreignOrder = await callWorker("/order?order_id=456");
