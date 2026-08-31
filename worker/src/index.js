@@ -11,8 +11,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // src/orders.js
 var ROAPP_BASE = "https://api.roapp.io/v2";
 var ROAPP_ASSET_BASES = [
-  "https://api.roapp.io/warehouse/assets",
-  `${ROAPP_BASE}/warehouse/assets`
+  `${ROAPP_BASE}/warehouse/assets`,
+  "https://api.roapp.io/warehouse/assets"
 ];
 var ORDER_PAGE_SIZE = 100;
 var MAX_ORDER_PAGES = 45;
@@ -260,6 +260,37 @@ async function findAssetByVin(env, vin) {
   return assets.find((asset) => assetVin(asset) === vin) || null;
 }
 __name(findAssetByVin, "findAssetByVin");
+async function inferCustomerVehicleGroup(env, customerId) {
+  try {
+    const assets = await getCustomerAssets(env, customerId);
+    for (const asset of assets) {
+      const group = valueTitle(asset?.group).trim();
+      if (group) return group;
+    }
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "asset_group_from_assets",
+      success: false,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+  try {
+    const orderResult = await getAllCustomerOrders(env, customerId);
+    for (const order of orderResult.orders) {
+      const asset = order?.asset || order?.vehicle || order?.customer_asset;
+      const group = valueTitle(asset?.group).trim();
+      if (group) return group;
+    }
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: "asset_group_from_orders",
+      success: false,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
+  return "Автомобіль";
+}
+__name(inferCustomerVehicleGroup, "inferCustomerVehicleGroup");
 async function createCustomerAsset(request, env, customerId, responseHeaders) {
   let body;
   try {
@@ -305,14 +336,31 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
     }, 200, responseHeaders);
   }
 
-  const createResponse = await roappAssetRequest(
+const createPayload = { uid: vin, owner_id: numericCustomerId };
+let createResponse;
+try {
+  createResponse = await roappAssetRequest(
     env,
     (baseUrl) => baseUrl,
     {
       method: "POST",
-      body: JSON.stringify({ uid: vin, owner_id: numericCustomerId })
+      body: JSON.stringify(createPayload)
     }
   );
+} catch (error) {
+  const errorText = String(error?.message || "");
+  const needsGroup = Number(error?.status) === 400 && /group|груп/i.test(errorText);
+  if (!needsGroup) throw error;
+  const group = await inferCustomerVehicleGroup(env, numericCustomerId);
+  createResponse = await roappAssetRequest(
+    env,
+    (baseUrl) => baseUrl,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...createPayload, group })
+    }
+  );
+}
   let asset = extractRecord(createResponse.data, ["asset"]);
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -352,6 +400,44 @@ async function roappAssetRequest(env, buildUrl, options = {}) {
   throw lastError || new Error("RO App не повернув API автомобілів");
 }
 __name(roappAssetRequest, "roappAssetRequest");
+function readableRoappError(value, path = "", depth = 0) {
+  if (depth > 5 || value === null || value === undefined) return "";
+  if (["string", "number", "boolean"].includes(typeof value)) {
+    const text = String(value).trim();
+    if (!text) return "";
+    return path ? `${friendlyErrorField(path)}: ${text}` : text;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => readableRoappError(item, path, depth + 1)).filter(Boolean).join(" · ");
+  }
+  if (typeof value !== "object") return "";
+  for (const key of ["message", "detail", "description"]) {
+    const text = readableRoappError(value[key], path, depth + 1);
+    if (text) return text;
+  }
+  return Object.entries(value)
+    .filter(([key]) => !["status", "status_code", "code"].includes(key))
+    .map(([key, nested]) => {
+      const nextPath = ["error", "errors", "data"].includes(key) ? path : key;
+      return readableRoappError(nested, nextPath, depth + 1);
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+__name(readableRoappError, "readableRoappError");
+function friendlyErrorField(value) {
+  const labels = {
+    uid: "VIN",
+    owner_id: "Власник",
+    group: "Група автомобіля",
+    reg_number: "Державний номер",
+    brand: "Марка",
+    model: "Модель",
+    year: "Рік"
+  };
+  return labels[value] || String(value).replaceAll("_", " ");
+}
+__name(friendlyErrorField, "friendlyErrorField");
 async function roappRequest(env, url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -372,9 +458,10 @@ async function roappRequest(env, url, options = {}) {
     }
   }
   if (!response.ok) {
-    const message = data?.message || data?.error || data?.detail || `RO App \u043F\u043E\u0432\u0435\u0440\u043D\u0443\u0432 \u043F\u043E\u043C\u0438\u043B\u043A\u0443 ${response.status}`;
-    const error = new Error(String(message));
+    const message = readableRoappError(data) || `RO App returned error ${response.status}`;
+    const error = new Error(message.slice(0, 900));
     error.status = response.status;
+    error.data = data;
     throw error;
   }
   return { status: response.status, data };

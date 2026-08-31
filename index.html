@@ -783,7 +783,7 @@ async function addCarByVin(){
       return;
     }
     if (!res.ok || !data.success){
-      throw new Error(data.error || 'Не вдалося додати автомобіль.');
+      throw new Error(readableUiError(data.error || data, 'Не вдалося додати автомобіль.'));
     }
 
     const notice = data.already_exists
@@ -822,6 +822,28 @@ function formatVinInput(input){
   input.value = normalizeVin(input.value).slice(0,17);
 }
 
+function readableUiError(value, fallback='Сталася помилка.'){
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value === 'string') return value.trim() || fallback;
+  if (['number','boolean'].includes(typeof value)) return String(value);
+  if (Array.isArray(value)){
+    const items = value.map(item => readableUiError(item, '')).filter(Boolean);
+    return items.join(' · ') || fallback;
+  }
+  if (typeof value === 'object'){
+    for (const key of ['message','detail','description']){
+      if (value[key]) return readableUiError(value[key], fallback);
+    }
+    const items = Object.entries(value).map(([key,nested]) => {
+      const message = readableUiError(nested, '');
+      if (!message) return '';
+      return ['error','errors','data'].includes(key) ? message : `${key}: ${message}`;
+    }).filter(Boolean);
+    return items.join(' · ') || fallback;
+  }
+  return fallback;
+}
+
 function escapeHtml(value){
   return String(value ?? '')
     .replaceAll('&','&amp;')
@@ -839,7 +861,7 @@ function showStatus(message, type='error', elementId='loginStatus'){
     box.className = 'status';
     return;
   }
-  box.textContent = message;
+  box.textContent = readableUiError(message, 'Сталася помилка.');
   box.className = `status show ${type}`;
 }
 
