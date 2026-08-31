@@ -1,0 +1,129 @@
+name: Probe RO App frontend VIN endpoints
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-roapp-frontend-vin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Inspect public RO App frontend bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urljoin
+          import json, re, requests
+
+          session = requests.Session()
+          session.headers.update({
+              "User-Agent": "Mozilla/5.0 (compatible; KarpserviceEndpointProbe/1.0)",
+              "Accept-Language": "uk,en;q=0.8",
+          })
+          start_urls = [
+              "https://web.roapp.io/",
+              "https://web.roapp.io/settings/integrations",
+          ]
+          scripts = []
+          pages = []
+          for start in start_urls:
+              try:
+                  response = session.get(start, timeout=25, allow_redirects=True)
+                  pages.append({
+                      "requested": start,
+                      "status": response.status_code,
+                      "url": response.url,
+                      "content_type": response.headers.get("content-type", ""),
+                      "length": len(response.content),
+                  })
+                  if response.ok:
+                      for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', response.text, re.I):
+                          absolute = urljoin(response.url, src)
+                          if absolute not in scripts:
+                              scripts.append(absolute)
+              except Exception as error:
+                  pages.append({"requested": start, "error": type(error).__name__ + ": " + str(error)})
+
+          patterns = [
+              r".{0,220}vin.{0,420}",
+              r".{0,220}lookup.{0,420}",
+              r".{0,220}warehouse/assets.{0,420}",
+              r".{0,220}integration.{0,420}",
+              r".{0,220}asset.{0,420}",
+          ]
+          regexes = [re.compile(p, re.I | re.S) for p in patterns]
+          results = {"pages": pages, "scripts": [], "matches": []}
+
+          for script_url in scripts[:80]:
+              try:
+                  response = session.get(script_url, timeout=35)
+                  info = {
+                      "url": script_url,
+                      "status": response.status_code,
+                      "content_type": response.headers.get("content-type", ""),
+                      "length": len(response.content),
+                  }
+                  results["scripts"].append(info)
+                  if not response.ok or len(response.content) > 15_000_000:
+                      continue
+                  text = response.text
+                  for regex in regexes:
+                      for match in regex.finditer(text):
+                          snippet = re.sub(r"\s+", " ", match.group(0)).strip()
+                          if snippet and all(snippet != item["snippet"] for item in results["matches"]):
+                              results["matches"].append({"script": script_url, "snippet": snippet[:1000]})
+                          if len(results["matches"]) >= 250:
+                              break
+                      if len(results["matches"]) >= 250:
+                          break
+                  source_map = re.search(r"sourceMappingURL=([^\s*]+)", text[-1000:])
+                  if source_map and len(results["matches"]) < 250:
+                      map_url = urljoin(script_url, source_map.group(1).strip())
+                      try:
+                          map_response = session.get(map_url, timeout=35)
+                          if map_response.ok and len(map_response.content) < 25_000_000:
+                              map_text = map_response.text
+                              for regex in regexes:
+                                  for match in regex.finditer(map_text):
+                                      snippet = re.sub(r"\s+", " ", match.group(0)).strip()
+                                      if snippet and all(snippet != item["snippet"] for item in results["matches"]):
+                                          results["matches"].append({"script": map_url, "snippet": snippet[:1000]})
+                                      if len(results["matches"]) >= 250:
+                                          break
+                                  if len(results["matches"]) >= 250:
+                                      break
+                      except Exception:
+                          pass
+              except Exception as error:
+                  results["scripts"].append({"url": script_url, "error": type(error).__name__ + ": " + str(error)})
+
+          Path("tmp").mkdir(exist_ok=True)
+          Path("tmp/roapp-frontend-vin-probe.json").write_text(
+              json.dumps(results, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Publish probe and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/roapp-frontend-vin-probe.json
+          git rm -f .github/workflows/probe-roapp-frontend-vin.yml
+          git commit -m "Probe RO App frontend VIN integration endpoints"
+          git push origin HEAD:main
