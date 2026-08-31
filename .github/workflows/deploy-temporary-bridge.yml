@@ -1,0 +1,110 @@
+name: Deploy temporary Karpservice API bridge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "bridge/**"
+      - ".github/workflows/deploy-temporary-bridge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Deploy bridge and connect GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Wrangler
+        run: npm install --no-save wrangler@4.127.1
+
+      - name: Deploy temporary bridge
+        id: bridge
+        working-directory: bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --temporary 2>&1 | tee ../bridge-deploy.log
+          BRIDGE_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev[^[:space:]]*' ../bridge-deploy.log | head -n 1 | sed 's/[),;]*$//')"
+          if [ -z "$BRIDGE_URL" ]; then
+            echo "Could not find the temporary Worker URL in Wrangler output."
+            cat ../bridge-deploy.log
+            exit 1
+          fi
+          BRIDGE_URL="${BRIDGE_URL%/}/"
+          echo "url=$BRIDGE_URL" >> "$GITHUB_OUTPUT"
+          echo "Temporary bridge: $BRIDGE_URL"
+
+      - name: Point the app to the bridge
+        env:
+          BRIDGE_URL: ${{ steps.bridge.outputs.url }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+          bridge_url = os.environ["BRIDGE_URL"]
+
+          old_api = "const API_URL = new URL('/api/', window.location.origin).href;"
+          if old_api in text:
+              text = text.replace(old_api, f"const API_URL = {bridge_url!r};", 1)
+          else:
+              import re
+              text, count = re.subn(
+                  r"const API_URL = ['\"]https://[^'\"]+['\"];",
+                  f"const API_URL = {bridge_url!r};",
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit("API_URL declaration was not found")
+
+          old_verify = """    setAuthSession(true);
+    clearLegacyAuthToken();
+    authChallengeId = '';
+    await loadCustomer();"""
+          new_verify = """    if (typeof data.token === 'string' && /^[A-Za-z0-9_-]{40,100}$/.test(data.token)){
+      legacyAuthToken = data.token;
+      try{ window.sessionStorage.setItem(LEGACY_AUTH_TOKEN_KEY, data.token); }catch{}
+    }else{
+      throw new Error('Сервіс не повернув токен входу.');
+    }
+    setAuthSession(true);
+    authChallengeId = '';
+    await loadCustomer();"""
+
+          if old_verify in text:
+              text = text.replace(old_verify, new_verify, 1)
+          elif "window.sessionStorage.setItem(LEGACY_AUTH_TOKEN_KEY, data.token)" not in text:
+              raise SystemExit("Telegram verification block was not found")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Publish app connection update
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "index.html is already connected to this bridge."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Connect GitHub Pages app to temporary API bridge"
+          git push origin HEAD:main
