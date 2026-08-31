@@ -1,0 +1,64 @@
+name: Probe JSON VIN lookup sources
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-vin-json-sources.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Probe JSON endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          vins = ['TMBDX41U79B008586','JMBSRCS3A6U011108']
+          templates = {
+            'dbvin': 'https://db.vin/api/v1/vin/{vin}',
+            'vinwhere': 'https://vinwhere.com/api/v1/decode?vin={vin}',
+            'carwhere': 'https://www.carwhere.com/api/public/vin/{vin}',
+          }
+          out = {}
+          for vin in vins:
+            out[vin] = {}
+            for name, template in templates.items():
+              url = template.format(vin=vin)
+              req = urllib.request.Request(url, headers={
+                'Accept':'application/json',
+                'User-Agent':'Mozilla/5.0 Karpservice VIN lookup probe'
+              })
+              try:
+                with urllib.request.urlopen(req, timeout=25) as res:
+                  body = res.read(120000).decode('utf-8','replace')
+                  try: data = json.loads(body)
+                  except Exception: data = {'raw': body[:1000]}
+                  out[vin][name] = {'status': res.status, 'content_type': res.headers.get('content-type',''), 'data': data}
+              except Exception as exc:
+                out[vin][name] = {'error': f'{type(exc).__name__}: {exc}'}
+          with open('tmp/vin-json-source-probe.json','w',encoding='utf-8') as f:
+            json.dump(out,f,ensure_ascii=False,indent=2)
+          PY
+      - name: Publish probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/vin-json-source-probe.json
+          git rm -f .github/workflows/probe-vin-json-sources.yml
+          git rm -f tmp/jina-vin-probe.txt || true
+          git commit -m "Record JSON VIN source probe"
+          git push origin HEAD:main
