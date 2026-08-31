@@ -1,0 +1,85 @@
+name: Extract RO App request transport module
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/extract-roapp-request-module.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Find request and configuration modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          python - <<'PY'
+          import concurrent.futures, re, urllib.request
+
+          origin = 'https://web.roapp.io/static/dist/js/'
+          runtime_url = origin + 'start~35c7f2b5.a4b8f1211425d91a18ca.js'
+          headers = {'User-Agent':'Mozilla/5.0 Chrome/126 Safari/537.36','Accept':'application/javascript,*/*'}
+
+          def get(url, cap=12_000_000):
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  return response.read(cap).decode('utf-8','replace')
+
+          runtime = get(runtime_url, 3_000_000)
+          match = re.search(r'd\.u=function\(a\)\{return[\s\S]*?\{(.*?)\}\[a\]\+"\\?\.js"\}', runtime)
+          if not match:
+              raise SystemExit('chunk map not found')
+          entries = sorted(set((int(a), b) for a,b in re.findall(r'(\d+):"([a-f0-9]+)"', match.group(1))))
+          entries.extend([(91137,'1b6c324af54ec91fcc2c'),(44985,'984364f5665c79be25d3')])
+          entries = sorted(set(entries))
+
+          patterns = [
+              re.compile(r'(?<!\d)15268\s*:\s*'),
+              re.compile(r'(?<!\d)61998\s*:\s*'),
+              re.compile(r'(?<!\d)83454\s*:\s*'),
+          ]
+
+          def inspect(entry):
+              chunk,digest = entry
+              url=f'{origin}{chunk}.{digest}.js'
+              try:
+                  body=get(url)
+              except Exception as error:
+                  return []
+              hits=[]
+              for pattern in patterns:
+                  for found in pattern.finditer(body):
+                      hits.append((chunk,url,found.group(0),found.start(),body[max(0,found.start()-1500):min(len(body),found.start()+45000)]))
+              return hits
+
+          hits=[]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=24) as executor:
+              for group in executor.map(inspect,entries):
+                  hits.extend(group)
+
+          out=[f'CHUNKS={len(entries)} HITS={len(hits)}']
+          for chunk,url,pattern,pos,snippet in hits:
+              out.append(f'\n===== CHUNK {chunk} PATTERN {pattern} POS {pos} URL {url} =====\n{snippet}')
+          open('tmp/roapp-request-module-context.txt','w',encoding='utf-8').write('\n'.join(out)[:1500000])
+          if not hits:
+              raise SystemExit('modules not found')
+          PY
+
+      - name: Publish and clean workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/roapp-request-module-context.txt
+          git rm -f .github/workflows/extract-roapp-request-module.yml
+          git commit -m "Record RO App request transport modules"
+          git push origin HEAD:main
