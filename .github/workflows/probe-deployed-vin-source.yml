@@ -1,0 +1,39 @@
+name: Probe deployed VIN source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-deployed-vin-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Call deployed diagnostic route
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          curl --fail-with-body --silent --show-error \
+            --retry 5 --retry-delay 3 --retry-all-errors \
+            "https://karpservice-api.venyast31.workers.dev/health/vin-source" \
+            > tmp/deployed-vin-source.json
+          python -m json.tool tmp/deployed-vin-source.json >/dev/null
+
+      - name: Publish probe and clean workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/deployed-vin-source.json
+          git rm -f .github/workflows/probe-deployed-vin-source.yml
+          git commit -m "Record deployed VIN source diagnostic"
+          git push origin HEAD:main
