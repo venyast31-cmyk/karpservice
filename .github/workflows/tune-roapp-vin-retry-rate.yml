@@ -1,0 +1,58 @@
+name: Tune RO App VIN retry rate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/tune-roapp-vin-retry-rate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Respect RO App rate limit during encoding fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("worker/src/index.js")
+          text = path.read_text(encoding="utf-8")
+          anchor_start = text.index('async function findAssetAfterCreateAttempt')
+          anchor_end = text.index('__name(createRoappAssetCompatible, "createRoappAssetCompatible");', anchor_start)
+          block = text[anchor_start:anchor_end]
+          count = block.count('await delay(420);')
+          if count != 2:
+              raise SystemExit(f"Expected two VIN retry delays, found {count}")
+          block = block.replace('await delay(420);', 'await delay(650);')
+          text = text[:anchor_start] + block + text[anchor_end:]
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Verify
+        run: |
+          npm --prefix worker run check
+          npm --prefix worker test
+
+      - name: Publish and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/src/index.js
+          git rm -f .github/workflows/tune-roapp-vin-retry-rate.yml
+          git commit -m "Respect RO App rate limit in VIN creation retries"
+          git push origin HEAD:main
