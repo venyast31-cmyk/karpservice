@@ -558,7 +558,7 @@
 </nav>
 
 <script>
-const API_URL = 'https://karpservice-api-bridge.grass-sheep.workers.dev/';
+const API_URL = 'https://karpservice-api-bridge.scratched-wind.workers.dev/';
 const LEGACY_AUTH_TOKEN_KEY = "karpservice_auth_token";
 let legacyAuthToken = "";
 let hasAuthSession = false;
@@ -1011,7 +1011,6 @@ async function loadCustomer(options={}){
 
     customerData = data;
     setAuthSession(true);
-    clearLegacyAuthToken();
     renderCustomer();
     renderAllHistory();
     renderProfile();
