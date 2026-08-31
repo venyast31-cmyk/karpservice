@@ -126,4 +126,5 @@ jobs:
           git add tmp/roapp-frontend-vin-probe.json
           git rm -f .github/workflows/probe-roapp-frontend-vin.yml
           git commit -m "Probe RO App frontend VIN integration endpoints"
+          git pull --rebase origin main
           git push origin HEAD:main
