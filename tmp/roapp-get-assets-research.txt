@@ -1,0 +1,138 @@
+### Get Assets
+
+Source: https://roapp.readme.io/reference/assets
+
+Retrieves a list of assets based on provided filters such as IDs, serial numbers, warehouse IDs, or owner IDs.
+
+```APIDOC
+## GET /warehouse/assets
+
+### Description
+Get the list of Assets. Supports filtering by asset IDs, serial numbers (UIDs), warehouse IDs, and owner IDs.
+
+### Method
+GET
+
+### Endpoint
+https://api.roapp.io/warehouse/assets
+
+### Parameters
+#### Query Parameters
+- **ids[]** (array of int32s) - Optional - Assets id
+- **uid[]** (array of strings) - Optional - Serial numbers of assets (VIN, IMEI)
+- **warehouse_id[]** (array of int32s) - Optional - Warehouses ID
+- **owner_id[]** (array of int32s) - Optional - Assets owners ID
+
+### Request Example
+```json
+{
+  "example": "curl --request GET \
+     --url https://api.roapp.io/warehouse/assets \
+     --header 'accept: application/json'"
+}
+```
+
+### Response
+#### Success Response (200)
+- **(Response structure not detailed in provided text)**
+
+#### Response Example
+```json
+{
+  "example": "(Response examples not detailed in provided text)"
+}
+```
+
+#### Error Response (400)
+- **(Error structure not detailed in provided text)**
+```
+
+--------------------------------
+
+### Get Assets API Request (cURL)
+
+Source: https://roapp.readme.io/reference/assets
+
+Example cURL request to fetch a list of assets from the roapp.io warehouse. It specifies the GET method, the API endpoint URL, and the 'accept' header for JSON response.
+
+```shell
+curl --request GET \
+     --url https://api.roapp.io/warehouse/assets \
+     --header 'accept: application/json'
+```
+
+--------------------------------
+
+### Get Assets API Request (PHP)
+
+Source: https://roapp.readme.io/reference/assets
+
+Example PHP code to fetch assets using the roapp.io API. This snippet utilizes cURL functions to perform the GET request and retrieve the JSON response.
+
+```php
+<?php
+
+$ch = curl_init();
+
+curl_setopt($ch, CURLOPT_URL, 'https://api.roapp.io/warehouse/assets');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'GET');
+curl_setopt($ch, CURLOPT_HTTPHEADER, array('accept: application/json'));
+
+$response = curl_exec($ch);
+
+if (curl_errno($ch)) {
+    echo 'Error:' . curl_error($ch);
+} else {
+    echo $response;
+}
+
+curl_close($ch);
+?>
+```
+
+--------------------------------
+
+### Get Assets API Request (Node.js)
+
+Source: https://roapp.readme.io/reference/assets
+
+Example Node.js code to make a GET request to the roapp.io 'Get Assets' API. This snippet demonstrates how to construct the request and handle the response, assuming necessary libraries are installed.
+
+```javascript
+const axios = require('axios');
+
+const options = {
+  method: 'GET',
+  url: 'https://api.roapp.io/warehouse/assets',
+  headers: {
+    'accept': 'application/json'
+  }
+};
+
+axios.request(options).then(function (response) {
+  console.log(response.data);
+}).catch(function (error) {
+  console.error(error);
+});
+```
+
+--------------------------------
+
+### Get Assets API Request (Ruby)
+
+Source: https://roapp.readme.io/reference/assets
+
+Example Ruby code for making a GET request to the roapp.io 'Get Assets' API. This snippet shows how to use the 'httparty' gem (or similar) to send the request and process the JSON response.
+
+```ruby
+require 'httparty'
+
+response = HTTParty.get('https://api.roapp.io/warehouse/assets', headers: { 'accept' => 'application/json' })
+
+if response.success?
+  puts response.parsed_response
+else
+  puts "Error: #{response.code}"
+end
+```
