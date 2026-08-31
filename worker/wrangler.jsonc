@@ -7,7 +7,7 @@
   "keep_vars": true,
   "vars": {
     "ROAPP_BRANCH_ID": "136446",
-    "ALLOWED_ORIGINS": "https://karpservice-app.pages.dev",
+    "ALLOWED_ORIGINS": "https://karpservice-app.pages.dev,https://venyast31-cmyk.github.io",
     "TELEGRAM_WEBHOOK_ORIGIN": "https://karpservice-api.venyast31.workers.dev"
   },
   "d1_databases": [
