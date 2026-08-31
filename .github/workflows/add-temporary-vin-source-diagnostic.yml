@@ -19,70 +19,15 @@ jobs:
           fetch-depth: 0
 
       - name: Add fixed safe diagnostic route
-        shell: bash
+        env:
+          PATCH_B64: "CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcGF0aCA9IFBhdGgoIndvcmtlci9zcmMvaW5kZXguanMiKQp0ZXh0ID0gcGF0aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKbWFya2VyID0gJyAgICAgIGlmICh1cmwucGF0aG5hbWUgPT09ICIvaGVhbHRoIiAmJiByZXF1ZXN0Lm1ldGhvZCA9PT0gIkdFVCIpIHsnCmlmIHRleHQuY291bnQobWFya2VyKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdChmImhlYWx0aCBtYXJrZXIgY291bnQ6IHt0ZXh0LmNvdW50KG1hcmtlcil9IikKCnJvdXRlID0gcicnJyAgICAgIGlmICh1cmwucGF0aG5hbWUgPT09ICIvaGVhbHRoL3Zpbi1zb3VyY2UiICYmIHJlcXVlc3QubWV0aG9kID09PSAiR0VUIikgewogICAgICAgIGNvbnN0IHZpbiA9ICJUTUJEWDQxVTc5QjAwODU4NiI7CiAgICAgICAgY29uc3QgdGFyZ2V0ID0gYGh0dHBzOi8vYXV0b3VhLmNvbS51YS92aW4vJHt2aW59P2xhbmc9ZW5gOwogICAgICAgIGNvbnN0IHN0YXJ0ZWRBdCA9IERhdGUubm93KCk7CiAgICAgICAgdHJ5IHsKICAgICAgICAgIGNvbnN0IHJlc3BvbnNlID0gYXdhaXQgZmV0Y2godGFyZ2V0LCB7CiAgICAgICAgICAgIG1ldGhvZDogIkdFVCIsCiAgICAgICAgICAgIHJlZGlyZWN0OiAiZm9sbG93IiwKICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgIEFjY2VwdDogInRleHQvaHRtbCxhcHBsaWNhdGlvbi94aHRtbCt4bWwiLAogICAgICAgICAgICAgICJBY2NlcHQtTGFuZ3VhZ2UiOiAiZW4sdWs7cT0wLjkiLAogICAgICAgICAgICAgICJVc2VyLUFnZW50IjogIk1vemlsbGEvNS4wIChjb21wYXRpYmxlOyBLYXJwc2VydmljZS8xLjA7ICtodHRwczovL2thcnBzZXJ2aWNlLWFwcC5wYWdlcy5kZXYpIgogICAgICAgICAgICB9CiAgICAgICAgICB9KTsKICAgICAgICAgIGNvbnN0IGh0bWwgPSBhd2FpdCByZXNwb25zZS50ZXh0KCk7CiAgICAgICAgICBjb25zdCB0aXRsZSA9IGRlY29kZVZpbkh0bWxUZXh0KGh0bWwubWF0Y2goLzx0aXRsZVtePl0qPihbXHNcU10qPyk8XC90aXRsZT4vaSk/LlsxXSB8fCAiIik7CiAgICAgICAgICByZXR1cm4ganNvbjIoewogICAgICAgICAgICBzdWNjZXNzOiByZXNwb25zZS5vaywKICAgICAgICAgICAgc3RhdHVzOiByZXNwb25zZS5zdGF0dXMsCiAgICAgICAgICAgIHJlZGlyZWN0ZWQ6IHJlc3BvbnNlLnJlZGlyZWN0ZWQsCiAgICAgICAgICAgIGZpbmFsX3VybDogcmVzcG9uc2UudXJsLAogICAgICAgICAgICBjb250ZW50X3R5cGU6IHJlc3BvbnNlLmhlYWRlcnMuZ2V0KCJjb250ZW50LXR5cGUiKSB8fCAiIiwKICAgICAgICAgICAgc2VydmVyOiByZXNwb25zZS5oZWFkZXJzLmdldCgic2VydmVyIikgfHwgIiIsCiAgICAgICAgICAgIGNmX3JheTogcmVzcG9uc2UuaGVhZGVycy5nZXQoImNmLXJheSIpIHx8ICIiLAogICAgICAgICAgICBsZW5ndGg6IGh0bWwubGVuZ3RoLAogICAgICAgICAgICBjb250YWluc192aW46IGh0bWwudG9VcHBlckNhc2UoKS5pbmNsdWRlcyh2aW4pLAogICAgICAgICAgICB0aXRsZSwKICAgICAgICAgICAgbWFrZTogZXh0cmFjdFZpbkh0bWxGaWVsZChodG1sLCAiTWFrZSIpLAogICAgICAgICAgICBtb2RlbDogZXh0cmFjdFZpbkh0bWxGaWVsZChodG1sLCAiTW9kZWwiKSwKICAgICAgICAgICAgeWVhcjogZXh0cmFjdFZpbkh0bWxGaWVsZChodG1sLCAiWWVhciIpLAogICAgICAgICAgICBwcmV2aWV3OiBkZWNvZGVWaW5IdG1sVGV4dChodG1sKS5zbGljZSgwLCAzNTApLAogICAgICAgICAgICBlbGFwc2VkX21zOiBEYXRlLm5vdygpIC0gc3RhcnRlZEF0CiAgICAgICAgICB9LCAyMDAsIGNvcnNIZWFkZXJzKTsKICAgICAgICB9IGNhdGNoIChlcnJvcikgewogICAgICAgICAgcmV0dXJuIGpzb24yKHsKICAgICAgICAgICAgc3VjY2VzczogZmFsc2UsCiAgICAgICAgICAgIGVycm9yX25hbWU6IGVycm9yPy5uYW1lIHx8ICJFcnJvciIsCiAgICAgICAgICAgIGVycm9yOiBlcnJvciBpbnN0YW5jZW9mIEVycm9yID8gZXJyb3IubWVzc2FnZSA6IFN0cmluZyhlcnJvciksCiAgICAgICAgICAgIGVsYXBzZWRfbXM6IERhdGUubm93KCkgLSBzdGFydGVkQXQKICAgICAgICAgIH0sIDIwMCwgY29yc0hlYWRlcnMpOwogICAgICAgIH0KICAgICAgfQonJycKcGF0aC53cml0ZV90ZXh0KHRleHQucmVwbGFjZShtYXJrZXIsIHJvdXRlICsgbWFya2VyLCAxKSwgZW5jb2Rpbmc9InV0Zi04IikK"
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("worker/src/index.js")
-          text = path.read_text(encoding="utf-8")
-          marker = '      if (url.pathname === "/health" && request.method === "GET") {'
-          if text.count(marker) != 1:
-              raise SystemExit(f"health marker count: {text.count(marker)}")
-
-          route = r'''      if (url.pathname === "/health/vin-source" && request.method === "GET") {
-        const vin = "TMBDX41U79B008586";
-        const target = `https://autoua.com.ua/vin/${vin}?lang=en`;
-        const startedAt = Date.now();
-        try {
-          const response = await fetch(target, {
-            method: "GET",
-            redirect: "follow",
-            headers: {
-              Accept: "text/html,application/xhtml+xml",
-              "Accept-Language": "en,uk;q=0.9",
-              "User-Agent": "Mozilla/5.0 (compatible; Karpservice/1.0; +https://karpservice-app.pages.dev)"
-            }
-          });
-          const html = await response.text();
-          const title = decodeVinHtmlText(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
-          return json2({
-            success: response.ok,
-            status: response.status,
-            redirected: response.redirected,
-            final_url: response.url,
-            content_type: response.headers.get("content-type") || "",
-            server: response.headers.get("server") || "",
-            cf_ray: response.headers.get("cf-ray") || "",
-            length: html.length,
-            contains_vin: html.toUpperCase().includes(vin),
-            title,
-            make: extractVinHtmlField(html, "Make"),
-            model: extractVinHtmlField(html, "Model"),
-            year: extractVinHtmlField(html, "Year"),
-            preview: decodeVinHtmlText(html).slice(0, 350),
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        } catch (error) {
-          return json2({
-            success: false,
-            error_name: error?.name || "Error",
-            error: error instanceof Error ? error.message : String(error),
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        }
-      }
-'''
-          path.write_text(text.replace(marker, route + marker, 1), encoding="utf-8")
-          PY
+          python -c 'import os,base64; exec(base64.b64decode(os.environ["PATCH_B64"]))'
           npm --prefix worker run check
           npm --prefix worker test
 
       - name: Publish and clean workflow
-        shell: bash
         run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add worker/src/index.js
