@@ -1,0 +1,423 @@
+name: Add VIN-only vehicle creation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/add-vin-vehicle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Add VIN vehicle flow to frontend and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              return text.replace(old, new, 1)
+
+          # -------------------------
+          # Backend Worker
+          # -------------------------
+          worker_path = Path("worker/src/index.js")
+          worker = worker_path.read_text(encoding="utf-8")
+
+          worker = replace_once(
+              worker,
+              '  const orderResult = await getAllCustomerOrders(env, customer.id);\n  const cars = buildCarsFromOrders(orderResult.orders);',
+              '  const orderResult = await getAllCustomerOrders(env, customer.id);\n  const assets = await getCustomerAssets(env, customer.id);\n  const cars = mergeCustomerAssets(assets, orderResult.orders);',
+              "customer assets loading",
+          )
+
+          asset_helpers = r'''
+async function getCustomerAssets(env, customerId) {
+  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
+  assetsUrl.searchParams.append("owner_id", String(customerId));
+  const response = await roappRequest(env, assetsUrl.toString());
+  const assets = extractList(response.data, ["assets"]);
+  return assets.filter((asset) => {
+    const ownerId = assetOwnerId(asset);
+    return ownerId === 0 || ownerId === Number(customerId);
+  });
+}
+__name(getCustomerAssets, "getCustomerAssets");
+function normalizeVin(value) {
+  return String(value || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
+}
+__name(normalizeVin, "normalizeVin");
+function assetVin(asset) {
+  return normalizeVin(
+    asset?.uid || asset?.vin || asset?.serial || asset?.serial_number || ""
+  );
+}
+__name(assetVin, "assetVin");
+function assetOwnerId(asset) {
+  return Number(
+    asset?.owner_id ?? asset?.owner?.id ?? asset?.client_id ?? asset?.client?.id ?? 0
+  ) || 0;
+}
+__name(assetOwnerId, "assetOwnerId");
+function publicAssetCar(asset, history = []) {
+  const vin = assetVin(asset);
+  const brand = valueTitle(asset?.brand);
+  const model = valueTitle(asset?.model);
+  const decodedTitle = [brand, model].filter(Boolean).join(" ").trim();
+  const rawTitle = firstText(asset?.title, asset?.name);
+  const title = decodedTitle || (
+    rawTitle && normalizeVin(rawTitle) !== vin ? rawTitle : "Автомобіль"
+  );
+  return {
+    id: Number(asset?.id) || stableNumber(vin),
+    title,
+    brand,
+    model,
+    modification: valueTitle(asset?.modification),
+    year: asset?.year || asset?.production_year || "",
+    vin,
+    history: Array.isArray(history) ? history : []
+  };
+}
+__name(publicAssetCar, "publicAssetCar");
+function mergeCustomerAssets(assets, orders) {
+  const cars = [];
+  const byId = /* @__PURE__ */ new Map();
+  const byVin = /* @__PURE__ */ new Map();
+  const remember = (car) => {
+    cars.push(car);
+    const id = Number(car?.id);
+    const vin = normalizeVin(car?.vin);
+    if (id > 0) byId.set(id, car);
+    if (vin) byVin.set(vin, car);
+  };
+  for (const asset of assets || []) {
+    remember(publicAssetCar(asset));
+  }
+  for (const orderCar of buildCarsFromOrders(orders)) {
+    const id = Number(orderCar?.id);
+    const vin = normalizeVin(orderCar?.vin);
+    const current = (id > 0 ? byId.get(id) : null) || (vin ? byVin.get(vin) : null);
+    if (!current) {
+      remember({ ...orderCar, vin });
+      continue;
+    }
+    current.history = Array.isArray(orderCar.history) ? orderCar.history : [];
+    for (const field of ["brand", "model", "modification", "year", "vin"]) {
+      if (!current[field] && orderCar[field]) current[field] = orderCar[field];
+    }
+    if ((!current.title || current.title === "Автомобіль") && orderCar.title) {
+      current.title = orderCar.title;
+    }
+  }
+  return cars;
+}
+__name(mergeCustomerAssets, "mergeCustomerAssets");
+async function findAssetByVin(env, vin) {
+  const assetsUrl = new URL(`${ROAPP_BASE}/warehouse/assets`);
+  assetsUrl.searchParams.append("uid", vin);
+  const response = await roappRequest(env, assetsUrl.toString());
+  const assets = extractList(response.data, ["assets"]);
+  return assets.find((asset) => assetVin(asset) === vin) || null;
+}
+__name(findAssetByVin, "findAssetByVin");
+async function createCustomerAsset(request, env, customerId, responseHeaders) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Некоректні дані запиту" }, 400, responseHeaders);
+  }
+  const vin = normalizeVin(body?.vin || body?.uid);
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+    return json({
+      success: false,
+      error: "VIN має містити рівно 17 символів без літер I, O та Q"
+    }, 400, responseHeaders);
+  }
+  const numericCustomerId = Number(customerId);
+  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
+    return json({ success: false, error: "Клієнта не знайдено" }, 404, responseHeaders);
+  }
+
+  const existing = await findAssetByVin(env, vin);
+  if (existing) {
+    const ownerId = assetOwnerId(existing);
+    let belongsToCustomer = ownerId === numericCustomerId;
+    if (!ownerId) {
+      const customerAssets = await getCustomerAssets(env, numericCustomerId);
+      belongsToCustomer = customerAssets.some((asset) => {
+        const sameId = Number(asset?.id) > 0 && Number(asset?.id) === Number(existing?.id);
+        return sameId || assetVin(asset) === vin;
+      });
+    }
+    if (!belongsToCustomer) {
+      return json({
+        success: false,
+        error: "Автомобіль з таким VIN уже зареєстрований у CRM. Зверніться до сервісу."
+      }, 409, responseHeaders);
+    }
+    return json({
+      success: true,
+      created: false,
+      already_exists: true,
+      message: "Цей автомобіль уже є у вашому профілі",
+      car: publicAssetCar(existing)
+    }, 200, responseHeaders);
+  }
+
+  const createResponse = await roappRequest(
+    env,
+    `${ROAPP_BASE}/warehouse/assets`,
+    {
+      method: "POST",
+      body: JSON.stringify({ uid: vin, owner_id: numericCustomerId })
+    }
+  );
+  let asset = extractRecord(createResponse.data, ["asset"]);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const hasDecodedData = valueTitle(asset?.brand) || valueTitle(asset?.model);
+    if (hasDecodedData) break;
+    await delay(650);
+    const refreshed = await findAssetByVin(env, vin);
+    if (refreshed) asset = refreshed;
+  }
+
+  return json({
+    success: true,
+    created: true,
+    already_exists: false,
+    message: "Автомобіль додано до CRM",
+    car: publicAssetCar(asset || { uid: vin })
+  }, 200, responseHeaders);
+}
+__name(createCustomerAsset, "createCustomerAsset");
+'''.strip("\n")
+
+          worker = replace_once(
+              worker,
+              '__name(getAllCustomerOrders, "getAllCustomerOrders");\nasync function roappRequest',
+              '__name(getAllCustomerOrders, "getAllCustomerOrders");\n' + asset_helpers + '\nasync function roappRequest',
+              "asset helper insertion",
+          )
+
+          worker = replace_once(
+              worker,
+              '      if (["/", "/order", "/availability", "/booking"].includes(url.pathname)) {',
+              '      if (["/", "/order", "/availability", "/booking", "/cars"].includes(url.pathname)) {',
+              "protected cars route",
+          )
+
+          worker = replace_once(
+              worker,
+              '      if (url.pathname === "/order" && request.method === "GET") {\n        const protectedUrl = new URL(request.url);\n        protectedUrl.searchParams.set("phone", authSession.phone);\n        return await getOrderDetails(protectedUrl, env, corsHeaders);\n      }\n\n      const branchId = getBranchId(env);',
+              '      if (url.pathname === "/order" && request.method === "GET") {\n        const protectedUrl = new URL(request.url);\n        protectedUrl.searchParams.set("phone", authSession.phone);\n        return await getOrderDetails(protectedUrl, env, corsHeaders);\n      }\n      if (url.pathname === "/cars" && request.method === "POST") {\n        return await createCustomerAsset(\n          request,\n          env,\n          Number(authSession.customer_id),\n          corsHeaders\n        );\n      }\n\n      const branchId = getBranchId(env);',
+              "cars route handler",
+          )
+
+          worker_path.write_text(worker, encoding="utf-8")
+
+          # -------------------------
+          # Frontend
+          # -------------------------
+          index_path = Path("index.html")
+          html = index_path.read_text(encoding="utf-8")
+
+          html = replace_once(
+              html,
+              '  .vin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;color:#aeb7c3}\n  .empty{text-align:center;padding:24px 12px;color:var(--muted)}',
+              '  .vin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;word-break:break-all;color:#aeb7c3}\n  .add-car-button{margin:0 0 18px;border-style:dashed;border-color:rgba(114,230,170,.34)}\n  .vin-input{text-transform:uppercase;letter-spacing:1.6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:750}\n  .vin-help{margin:9px 1px 0;line-height:1.45}\n  .empty{text-align:center;padding:24px 12px;color:var(--muted)}',
+              "VIN frontend styles",
+          )
+
+          old_cars_section = '''  <section id="cars" class="screen">
+    <div id="carsLoader" class="loader">Завантаження…</div>
+    <h2 id="carsHeading" class="section-title">Ваш автомобіль</h2>
+    <div id="carsList"></div>
+  </section>'''
+          new_cars_section = '''  <section id="cars" class="screen">
+    <div id="carsLoader" class="loader">Завантаження…</div>
+    <h2 id="carsHeading" class="section-title">Ваш автомобіль</h2>
+    <button class="secondary add-car-button" type="button" onclick="openAddCar()">+ Додати автомобіль за VIN</button>
+    <div id="carsStatus" class="status"></div>
+    <div id="carsList"></div>
+  </section>
+
+  <section id="addCar" class="screen">
+    <button class="back" type="button" onclick="openCars()">← До автомобілів</button>
+    <h1>Додати автомобіль</h1>
+    <p>Введіть VIN-код. Марку, модель та інші дані підтягне інтеграція CRM.</p>
+    <div class="card">
+      <label for="carVin">VIN-код</label>
+      <input id="carVin" class="vin-input" inputmode="text" autocomplete="off"
+        autocapitalize="characters" spellcheck="false" maxlength="17"
+        placeholder="WVWZZZ1JZXW000001" oninput="formatVinInput(this)" />
+      <div class="tiny vin-help">17 символів. Літери I, O та Q у VIN не використовуються.</div>
+      <button id="addCarBtn" class="primary" type="button" onclick="addCarByVin()">Додати автомобіль</button>
+      <div id="addCarStatus" class="status"></div>
+    </div>
+  </section>'''
+          html = replace_once(html, old_cars_section, new_cars_section, "cars screen")
+
+          html = replace_once(
+              html,
+              "    home:'homeNav', cars:'carsNav',\n    service:'bookingNav'",
+              "    home:'homeNav', cars:'carsNav', addCar:'carsNav',\n    service:'bookingNav'",
+              "add car navigation",
+          )
+
+          open_cars_block = '''function openCars(){
+  if (!customerData){
+    openClientHome();
+    return;
+  }
+  renderCustomer();
+  show('cars');
+}'''
+          add_car_functions = '''function openCars(){
+  if (!customerData){
+    openClientHome();
+    return;
+  }
+  renderCustomer();
+  show('cars');
+}
+
+function openAddCar(){
+  if (!customerData){
+    openClientHome();
+    return;
+  }
+  const input = document.getElementById('carVin');
+  if (input) input.value = '';
+  showStatus('', 'error', 'addCarStatus');
+  showStatus('', 'error', 'carsStatus');
+  show('addCar');
+  window.requestAnimationFrame(() => input?.focus());
+}
+
+async function addCarByVin(){
+  const input = document.getElementById('carVin');
+  const btn = document.getElementById('addCarBtn');
+  const vin = normalizeVin(input?.value);
+  if (input) input.value = vin;
+
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)){
+    showStatus('VIN має містити рівно 17 символів без літер I, O та Q.', 'error', 'addCarStatus');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Додаємо…';
+  showStatus('Перевіряємо VIN у CRM…', 'ok', 'addCarStatus');
+
+  try{
+    const res = await apiFetch('cars', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({vin})
+    });
+    const data = await responseJson(res);
+
+    if (res.status === 401){
+      setAuthSession(false);
+      clearLegacyAuthToken();
+      resetAuthFlow({message:'Сесія завершилася. Підтвердьте вхід через Telegram ще раз.'});
+      show('login');
+      return;
+    }
+    if (!res.ok || !data.success){
+      throw new Error(data.error || 'Не вдалося додати автомобіль.');
+    }
+
+    const notice = data.already_exists
+      ? 'Цей автомобіль уже є у вашому профілі.'
+      : 'Автомобіль додано. Марка й модель підтягнуться з CRM автоматично.';
+    const refreshed = await loadCustomer({targetScreen:'cars'});
+    if (refreshed) showStatus(notice, 'ok', 'carsStatus');
+  }catch(err){
+    showStatus(err.message || 'Не вдалося додати автомобіль.', 'error', 'addCarStatus');
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Додати автомобіль';
+  }
+}'''
+          html = replace_once(html, open_cars_block, add_car_functions, "add car functions")
+
+          html = replace_once(
+              html,
+              '''function normalizePhone(value){
+  return String(value || '').replace(/\\D/g,'');
+}''',
+              '''function normalizePhone(value){
+  return String(value || '').replace(/\\D/g,'');
+}
+
+function normalizeVin(value){
+  return String(value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g,'');
+}
+
+function formatVinInput(input){
+  if (!input) return;
+  input.value = normalizeVin(input.value).slice(0,17);
+}''',
+              "VIN normalization",
+          )
+
+          html = replace_once(
+              html,
+              "    setAuthenticatedUi(true);\n    show('home');\n    return true;",
+              "    setAuthenticatedUi(true);\n    show(options.targetScreen || 'home');\n    return true;",
+              "target screen after reload",
+          )
+
+          html = replace_once(
+              html,
+              '    list.innerHTML = `<div class="card empty">У знайдених замовленнях поки немає прив’язаних автомобілів.</div>`;',
+              '    list.innerHTML = `<div class="card empty">Автомобілів поки немає. Додайте авто за VIN-кодом.</div>`;',
+              "empty cars message",
+          )
+
+          index_path.write_text(html, encoding="utf-8")
+          PY
+
+      - name: Verify changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix worker run check
+          npm --prefix worker test
+          grep -q 'id="addCar"' index.html
+          grep -q "apiFetch('cars'" index.html
+          grep -q 'url.pathname === "/cars"' worker/src/index.js
+          grep -q 'warehouse/assets' worker/src/index.js
+
+      - name: Publish feature and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html worker/src/index.js
+          git rm .github/workflows/add-vin-vehicle.yml
+          git commit -m "Add VIN-only vehicle creation linked to CRM"
+          git push origin HEAD:main
