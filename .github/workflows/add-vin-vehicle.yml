@@ -22,6 +22,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prepare resilient customer assets loading
+        run: python scripts/fix_vin_patch.py
+
       - name: Patch frontend and API
         run: python scripts/add_vin_vehicle.py
 
@@ -43,6 +46,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html worker/src/index.js
-          git rm .github/workflows/add-vin-vehicle.yml scripts/add_vin_vehicle.py
+          git rm .github/workflows/add-vin-vehicle.yml scripts/add_vin_vehicle.py scripts/fix_vin_patch.py
           git commit -m "Add VIN-only vehicle creation linked to CRM"
           git push origin HEAD:main
