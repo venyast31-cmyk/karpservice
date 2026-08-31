@@ -1,0 +1,44 @@
+name: Verify claimed Karpservice edge app
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/verify-claimed-edge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify claimed Worker and API proxy
+        env:
+          APP_URL: "https://karpservice-app.venyast31.workers.dev"
+        run: |
+          set -euo pipefail
+
+          echo "=== HEALTH ==="
+          curl --fail --silent --show-error "$APP_URL/healthz" | tee /tmp/health.json
+          grep '"success":true' /tmp/health.json
+
+          echo "=== HOME ==="
+          curl --fail --silent --show-error "$APP_URL/" | tee /tmp/home.html >/dev/null
+          grep -q '>Новини<' /tmp/home.html
+          grep -q 'bottom-nav-label">Новини<' /tmp/home.html
+
+          echo "=== API PROXY ==="
+          status="$(curl --silent --show-error --write-out '%{http_code}' --output /tmp/auth.json \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{"phone":"123"}' \
+            "$APP_URL/api/auth/request")"
+          cat /tmp/auth.json
+          test "$status" = "400"
+          grep '"success":false' /tmp/auth.json
+
+          echo "CLAIMED_EDGE_OK"
