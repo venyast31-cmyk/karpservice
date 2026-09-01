@@ -1,0 +1,78 @@
+name: Inspect RO App asset deletion API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-roapp-delete-asset.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Inspect official RO App AI index and OpenAPI hints
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import requests
+
+          session = requests.Session()
+          session.headers.update({"User-Agent": "KarpserviceDocsCheck/1.0"})
+          urls = [
+              "https://roappua.readme.io/llms.txt",
+              "https://roappua.readme.io/reference/llms.txt",
+              "https://roappua.readme.io/sitemap.xml",
+          ]
+          chunks = []
+          for url in urls:
+              try:
+                  response = session.get(url, timeout=30)
+                  chunks.append(f"===== {url} HTTP {response.status_code} {response.headers.get('content-type','')} =====\n{response.text[:250000]}")
+              except Exception as error:
+                  chunks.append(f"===== {url} ERROR {type(error).__name__}: {error} =====")
+
+          text = "\n\n".join(chunks)
+          lines = text.splitlines()
+          out = []
+          patterns = [
+              re.compile(r"warehouse/assets", re.I),
+              re.compile(r"delete[-_ ]?asset", re.I),
+              re.compile(r"видал.{0,30}(виріб|актив|транспорт|авто)", re.I),
+              re.compile(r"(виріб|asset).{0,30}видал", re.I),
+          ]
+          for index, line in enumerate(lines):
+              if any(pattern.search(line) for pattern in patterns):
+                  start = max(0, index - 5)
+                  end = min(len(lines), index + 8)
+                  block = "\n".join(lines[start:end])
+                  if block not in out:
+                      out.append(block)
+          Path("tmp/roapp-delete-asset-docs.txt").write_text(
+              "\n\n--- MATCH ---\n\n".join(out) or text[:100000],
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Publish result and remove workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tmp/roapp-delete-asset-docs.txt
+          git rm -f .github/workflows/inspect-roapp-delete-asset.yml
+          git commit -m "Record RO App asset deletion API notes"
+          git pull --rebase origin main
+          git push origin HEAD:main
