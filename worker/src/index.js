@@ -342,38 +342,87 @@ function validDecodedVehicleText(value, maxLength) {
   return text;
 }
 __name(validDecodedVehicleText, "validDecodedVehicleText");
+function cleanVehicleIdentityText(value, maxLength) {
+  const text = String(value ?? "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+  if (!text || /^(?:unknown|null|undefined|n\/a|not found|-)$/i.test(text)) {
+    return "";
+  }
+  return text;
+}
+__name(cleanVehicleIdentityText, "cleanVehicleIdentityText");
 async function lookupVehicleIdentityByVin(vin) {
+  const normalizedVin = normalizeVin(vin);
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) return null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  const timer = setTimeout(() => controller.abort(), 6500);
   try {
     const response = await fetch(
-      `https://autoua.com.ua/vin/${encodeURIComponent(vin)}?lang=en`,
+      `https://db.vin/api/v1/vin/${encodeURIComponent(normalizedVin)}`,
       {
         method: "GET",
         redirect: "follow",
         signal: controller.signal,
         headers: {
-          Accept: "text/html,application/xhtml+xml",
-          "Accept-Language": "en,uk;q=0.9",
+          Accept: "application/json",
           "User-Agent": "Karpservice/1.0 VIN lookup"
         }
       }
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(JSON.stringify({
+        event: "vin_identity_lookup",
+        source: "db_vin",
+        success: false,
+        reason: "http_error",
+        status: response.status
+      }));
+      return null;
+    }
     const contentType = response.headers.get("content-type") || "";
-    if (!/text\/html/i.test(contentType)) return null;
-    const html = await response.text();
-    if (html.length > 600000 || !html.toUpperCase().includes(vin)) return null;
-
-    const brand = validDecodedVehicleText(extractVinHtmlField(html, "Make"), 80);
-    const model = validDecodedVehicleText(extractVinHtmlField(html, "Model"), 120);
-    const rawYear = extractVinHtmlField(html, "Year");
-    const year = /^\d{4}$/.test(rawYear) ? rawYear : "";
+    if (!/application\/json/i.test(contentType)) {
+      console.warn(JSON.stringify({
+        event: "vin_identity_lookup",
+        source: "db_vin",
+        success: false,
+        reason: "unexpected_content_type"
+      }));
+      return null;
+    }
+    const raw = await response.text();
+    if (!raw || raw.length > 200000) return null;
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!data || typeof data !== "object") return null;
+    if (normalizeVin(data.vin) !== normalizedVin) {
+      console.warn(JSON.stringify({
+        event: "vin_identity_lookup",
+        source: "db_vin",
+        success: false,
+        reason: "vin_mismatch"
+      }));
+      return null;
+    }
+    const brand = cleanVehicleIdentityText(data.brand ?? data.make, 80);
+    const model = cleanVehicleIdentityText(data.model, 120);
+    const numericYear = Number(data.year ?? data.modelYear ?? data.model_year);
+    const maxYear = new Date().getUTCFullYear() + 2;
+    const year = Number.isInteger(numericYear) && numericYear >= 1886 && numericYear <= maxYear
+      ? String(numericYear)
+      : "";
     if (!brand || !model) return null;
     return { brand, model, year };
   } catch (error) {
     console.warn(JSON.stringify({
       event: "vin_identity_lookup",
+      source: "db_vin",
       success: false,
       reason: error?.name === "AbortError" ? "timeout" : "request_failed"
     }));
@@ -1136,294 +1185,19 @@ var index_default = {
       });
       if (authResponse) return authResponse;
 
-      if (url.pathname === "/health/vin-source" && request.method === "GET") {
-        const vin = "TMBDX41U79B008586";
-        const target = `https://autoua.com.ua/vin/${vin}?lang=en`;
-        const startedAt = Date.now();
-        try {
-          const response = await fetch(target, {
-            method: "GET",
-            redirect: "follow",
-            headers: {
-              Accept: "text/html,application/xhtml+xml",
-              "Accept-Language": "en,uk;q=0.9",
-              "User-Agent": "Mozilla/5.0 (compatible; Karpservice/1.0; +https://karpservice-app.pages.dev)"
-            }
-          });
-          const html = await response.text();
-          const title = decodeVinHtmlText(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
-          return json2({
-            success: response.ok,
-            status: response.status,
-            redirected: response.redirected,
-            final_url: response.url,
-            content_type: response.headers.get("content-type") || "",
-            server: response.headers.get("server") || "",
-            cf_ray: response.headers.get("cf-ray") || "",
-            length: html.length,
-            contains_vin: html.toUpperCase().includes(vin),
-            title,
-            make: extractVinHtmlField(html, "Make"),
-            model: extractVinHtmlField(html, "Model"),
-            year: extractVinHtmlField(html, "Year"),
-            preview: decodeVinHtmlText(html).slice(0, 350),
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        } catch (error) {
-          return json2({
-            success: false,
-            error_name: error?.name || "Error",
-            error: error instanceof Error ? error.message : String(error),
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        }
-      }
-      if (url.pathname === "/health/roapp-vin-lookup" && request.method === "GET") {
-        const vin = "TMBDX41U79B008586";
-        const variant = String(url.searchParams.get("variant") || "");
-        const apiKey = String(env.ROAPP_API_KEY || "");
-        const encodedVin = encodeURIComponent(vin);
-        const baseHeaders = {
-          Accept: "application/json,text/plain,*/*",
-          "X-Requested-With": "XMLHttpRequest",
-          Origin: "https://web.roapp.io",
-          Referer: "https://web.roapp.io/"
-        };
-        const variants = {
-          api_v2_get_bearer: {
-            target: `https://api.roapp.io/v2/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` }
-            }
-          },
-          api_get_bearer: {
-            target: `https://api.roapp.io/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` }
-            }
-          },
-          api_v2_get_query: {
-            target: `https://api.roapp.io/v2/integrations/service/vin-lookup?vin=${encodedVin}&token=${encodeURIComponent(apiKey)}`,
-            init: { method: "GET", headers: baseHeaders }
-          },
-          api_get_query: {
-            target: `https://api.roapp.io/integrations/service/vin-lookup?vin=${encodedVin}&token=${encodeURIComponent(apiKey)}`,
-            init: { method: "GET", headers: baseHeaders }
-          },
-          api_v2_post_bearer_json: {
-            target: "https://api.roapp.io/v2/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                ...baseHeaders,
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ vin })
-            }
-          },
-          api_post_bearer_form: {
-            target: "https://api.roapp.io/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                ...baseHeaders,
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-              },
-              body: new URLSearchParams({ vin }).toString()
-            }
-          },
-          web_get_bearer: {
-            target: `https://web.roapp.io/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` }
-            }
-          },
-          web_post_bearer_form: {
-            target: "https://web.roapp.io/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                ...baseHeaders,
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-              },
-              body: new URLSearchParams({ vin }).toString()
-            }
-          },
-          remonline_api_get_bearer: {
-            target: `https://api.remonline.app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` }
-            }
-          },
-          remonline_web_get_bearer: {
-            target: `https://web.remonline.app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: { ...baseHeaders, Authorization: `Bearer ${apiKey}` }
-            }
-          }
-        };
-        const probe = variants[variant];
-        if (!probe) {
-          return json2({
-            success: false,
-            error: "Unknown variant",
-            variants: Object.keys(variants)
-          }, 400, corsHeaders);
-        }
-        const startedAt = Date.now();
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 8000);
-        try {
-          const response = await fetch(probe.target, {
-            ...probe.init,
-            redirect: "manual",
-            signal: controller.signal
-          });
-          const text = await response.text();
-          let data = null;
-          try {
-            data = text ? JSON.parse(text) : null;
-          } catch {
-            data = text.slice(0, 1200);
-          }
-          const location = response.headers.get("location") || "";
-          return json2({
-            success: response.ok,
-            variant,
-            status: response.status,
-            status_text: response.statusText,
-            content_type: response.headers.get("content-type") || "",
-            location_host: location ? new URL(location, probe.target).host : "",
-            www_authenticate: response.headers.get("www-authenticate") || "",
-            allow: response.headers.get("allow") || "",
-            data,
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        } catch (error) {
-          return json2({
-            success: false,
-            variant,
-            error_name: error?.name || "Error",
-            error: error instanceof Error ? error.message : String(error),
-            elapsed_ms: Date.now() - startedAt
-          }, 200, corsHeaders);
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-      if (url.pathname === "/health/roapp-app-vin" && request.method === "GET") {
-        const vin = "TMBDX41U79B008586";
-        const encodedVin = encodeURIComponent(vin);
-        const apiKey = String(env.ROAPP_API_KEY || "");
-        const variants = [
-          {
-            name: "web_app_get_bearer",
-            target: `https://web.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest"
-              }
-            }
-          },
-          {
-            name: "api_app_get_bearer",
-            target: `https://api.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest"
-              }
-            }
-          },
-          {
-            name: "web_app_post_bearer_json",
-            target: "https://web.roapp.io/app/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ vin })
-            }
-          },
-          {
-            name: "api_app_post_bearer_json",
-            target: "https://api.roapp.io/app/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/jsom"
-              },
-              body: JSON.stringify({ vin })
-            }
-          }
-        ];
-        const results = [];
-        for (const variant of variants) {
-          const startedAt = Date.now();
-          try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 8000);
-            const response = await fetch(variant.target, {
-              ...variant.init,
-              redirect: "manual",
-              signal: controller.signal
-            });
-            clearTimeout(timer);
-            const text = await response.text();
-            let data = null;
-            try {
-              data = text ? JSON.parse(text) : null;
-            } catch {
-              data = text.slice(0, 1200);
-            }
-            results.push({
-              name: variant.name,
-              status: response.status,
-              status_text: response.statusText,
-              content_type: response.headers.get("content-type") || "",
-              location: response.headers.get("location") || "",
-              data,
-              elapsed_ms: Date.now() - startedAt
-            });
-          } catch (error) {
-            results.push({
-              name: variant.name,
-              status: 0,
-              error_name: error?.name || "Error",
-              error: error instanceof Error ? error.message : String(error),
-              elapsed_ms: Date.now() - startedAt
-            });
-          }
-        }
-        return json2({ marker: "roapp_app_vin_probe_v1", results }, 200, corsHeaders);
+      if (url.pathname === "/health/vin-decoder-check" && request.method === "GET") {
+        const identity = await lookupVehicleIdentityByVin("TMBDX41U79B008586");
+        const success = Boolean(
+          identity &&
+          String(identity.brand).toLowerCase() === "skoda" &&
+          String(identity.model).toLowerCase() === "octavia" &&
+          String(identity.year) === "2008"
+        );
+        return json2({
+          marker: "vin_decoder_dbvin_v1",
+          success,
+          identity
+        }, success ? 200 : 502, corsHeaders);
       }
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);

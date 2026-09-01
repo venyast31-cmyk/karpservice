@@ -89,24 +89,18 @@ test("protected API derives ownership from the Telegram session", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
-    if (url.hostname === "autoua.com.ua") {
+    if (url.hostname === "db.vin") {
       vinIdentityLookups += 1;
-      if (url.pathname.includes("TMBDX41U79B008586")) {
-        return new Response(`<!doctype html><html><head>
-          <title>Skoda Octavia 2008 - Vehicle Information TMBDX41U79B008586</title>
-          </head><body><table>
-          <tr><th>Make</th><td>Skoda</td></tr>
-          <tr><th>Model</th><td>Octavia</td></tr>
-          <tr><th>Year</th><td>2008</td></tr>
-          </table></body></html>`, {
-          status: 200,
-          headers: { "Content-Type": "text/html; charset=UTF-8" }
+      const vin = url.pathname.split("/").at(-1);
+      if (vin === "TMBDX41U79B008586") {
+        return Response.json({
+          vin,
+          brand: "Skoda",
+          model: "Octavia",
+          year: 2008
         });
       }
-      return new Response("Not found", {
-        status: 404,
-        headers: { "Content-Type": "text/html; charset=UTF-8" }
-      });
+      return Response.json({ message: "Not found" }, { status: 404 });
     }
     assert.equal(url.hostname, "api.roapp.io");
     const method = String(init.method || "GET").toUpperCase();
