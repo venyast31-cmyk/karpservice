@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 
 SOURCE = Path("worker/src/index.js")
+TEST = Path("worker/test/worker-security.test.mjs")
 HEALTH_MARKER = '      if (url.pathname === "/health" && request.method === "GET") {'
 CHECK_ROUTE_START = '      if (url.pathname === "/health/vin-decoder-check" && request.method === "GET") {'
 
@@ -112,6 +113,21 @@ CHECK_ROUTE = r'''      if (url.pathname === "/health/vin-decoder-check" && requ
       }
 '''
 
+TEST_DB_VIN_BLOCK = r'''    if (url.hostname === "db.vin") {
+      vinIdentityLookups += 1;
+      const vin = url.pathname.split("/").at(-1);
+      if (vin === "TMBDX41U79B008586") {
+        return Response.json({
+          vin,
+          brand: "Skoda",
+          model: "Octavia",
+          year: 2008
+        });
+      }
+      return Response.json({ message: "Not found" }, { status: 404 });
+    }
+'''
+
 
 def remove_old_diagnostics(text: str) -> str:
     health_pos = text.find(HEALTH_MARKER)
@@ -128,6 +144,21 @@ def remove_old_diagnostics(text: str) -> str:
         if (pos := text.find(marker)) >= 0 and pos < health_pos
     ]
     return text[:min(positions)] + text[health_pos:] if positions else text
+
+
+def patch_test() -> None:
+    text = TEST.read_text(encoding="utf-8")
+    old_start = '    if (url.hostname === "autoua.com.ua") {'
+    next_marker = '    assert.equal(url.hostname, "api.roapp.io");'
+    start = text.find(old_start)
+    if start < 0:
+        if TEST_DB_VIN_BLOCK in text:
+            return
+        raise RuntimeError("old VIN decoder test mock not found")
+    end = text.find(next_marker, start)
+    if end < 0:
+        raise RuntimeError("RO App test request marker not found")
+    TEST.write_text(text[:start] + TEST_DB_VIN_BLOCK + text[end:], encoding="utf-8")
 
 
 def patch() -> None:
@@ -147,6 +178,7 @@ def patch() -> None:
         raise RuntimeError("health route marker disappeared")
     text = text[:health_pos] + CHECK_ROUTE + text[health_pos:]
     SOURCE.write_text(text, encoding="utf-8")
+    patch_test()
 
 
 def cleanup() -> None:
