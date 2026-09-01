@@ -19,127 +19,10 @@ jobs:
           fetch-depth: 0
 
       - name: Add temporary Worker probe
-        shell: bash
+        env:
+          PATCH_B64: "CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcGF0aCA9IFBhdGgoIndvcmtlci9zcmMvaW5kZXguanMiKQp0ZXh0ID0gcGF0aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKbWFya2VyID0gJyAgICAgIGlmICh1cmwucGF0aG5hbWUgPT09ICIvaGVhbHRoIiAmJiByZXF1ZXN0Lm1ldGhvZCA9PT0gIkdFVCIpIHsnCmlmIHRleHQuY291bnQobWFya2VyKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdChmImhlYWx0aCBtYXJrZXIgY291bnQ9e3RleHQuY291bnQobWFya2VyKX0iKQoKcm91dGUgPSByJycnICAgICAgaWYgKHVybC5wYXRobmFtZSA9PT0gIi9oZWFsdGgvcm9hcHAtYXBwLXZpbiIgJiYgcmVxdWVzdC5tZXRob2QgPT09ICJHRVQiKSB7CiAgICAgICAgY29uc3QgdmluID0gIlRNQkRYNDFVNzlCMDA4NTg2IjsKICAgICAgICBjb25zdCBlbmNvZGVkVmluID0gZW5jb2RlVVJJQ29tcG9uZW50KHZpbik7CiAgICAgICAgY29uc3QgYXBpS2V5ID0gU3RyaW5nKGVudi5ST0FQUF9BUElfS0VZIHx8ICIiKTsKICAgICAgICBjb25zdCB2YXJpYW50cyA9IFsKICAgICAgICAgIHsKICAgICAgICAgICAgbmFtZTogIndlYl9hcHBfZ2V0X2JlYXJlciIsCiAgICAgICAgICAgIHRhcmdldDogYGh0dHBzOi8vd2ViLnJvYXBwLmlvL2FwcC9pbnRlZ3JhdGlvbnMvc2VydmljZS92aW4tbG9va3VwP3Zpbj0ke2VuY29kZWRWaW59YCwKICAgICAgICAgICAgaW5pdDogewogICAgICAgICAgICAgIG1ldGhvZDogIkdFVCIsCiAgICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgICAgQWNjZXB0OiAiYXBwbGljYXRpb24vanNvbix0ZXh0L3BsYWluLCovKiIsCiAgICAgICAgICAgICAgICBBdXRob3JpemF0aW9uOiBgQmVhcmVyICR7YXBpS2V5fWAsCiAgICAgICAgICAgICAgICBPcmlnaW46ICJodHRwczovL3dlYi5yb2FwcC5pbyIsCiAgICAgICAgICAgICAgICBSZWZlcmVyOiAiaHR0cHM6Ly93ZWIucm9hcHAuaW8vIiwKICAgICAgICAgICAgICAgICJYLVJlcXVlc3RlZC1XaXRoIjogIlhNTEh0dHBSZXF1ZXN0IgogICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgbmFtZTogImFwaV9hcHBfZ2V0X2JlYXJlciIsCiAgICAgICAgICAgIHRhcmdldDogYGh0dHBzOi8vYXBpLnJvYXBwLmlvL2FwcC9pbnRlZ3JhdGlvbnMvc2VydmljZS92aW4tbG9va3VwP3Zpbj0ke2VuY29kZWRWaW59YCwKICAgICAgICAgICAgaW5pdDogewogICAgICAgICAgICAgIG1ldGhvZDogIkdFVCIsCiAgICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgICAgQWNjZXB0OiAiYXBwbGljYXRpb24vanNvbix0ZXh0L3BsYWluLCovKiIsCiAgICAgICAgICAgICAgICBBdXRob3JpemF0aW9uOiBgQmVhcmVyICR7YXBpS2V5fWAsCiAgICAgICAgICAgICAgICBPcmlnaW46ICJodHRwczovL3dlYi5yb2FwcC5pbyIsCiAgICAgICAgICAgICAgICBSZWZlcmVyOiAiaHR0cHM6Ly93ZWIucm9hcHAuaW8vIiwKICAgICAgICAgICAgICAgICJYLVJlcXVlc3RlZC1XaXRoIjogIlhNTEh0dHBSZXF1ZXN0IgogICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgfSwKICAgICAgICAgIHsKICAgICAgICAgICAgbmFtZTogIndlYl9hcHBfcG9zdF9iZWFyZXJfanNvbiIsCiAgICAgICAgICAgIHRhcmdldDogImh0dHBzOi8vd2ViLnJvYXBwLmlvL2FwcC9pbnRlZ3JhdGlvbnMvc2VydmljZS92aW4tbG9va3VwIiwKICAgICAgICAgICAgaW5pdDogewogICAgICAgICAgICAgIG1ldGhvZDogIlBPU1QiLAogICAgICAgICAgICAgIGhlYWRlcnM6IHsKICAgICAgICAgICAgICAgIEFjY2VwdDogImFwcGxpY2F0aW9uL2pzb24sdGV4dC9wbGFpbiwqLyoiLAogICAgICAgICAgICAgICAgQXV0aG9yaXphdGlvbjogYEJlYXJlciAke2FwaUtleX1gLAogICAgICAgICAgICAgICAgT3JpZ2luOiAiaHR0cHM6Ly93ZWIucm9hcHAuaW8iLAogICAgICAgICAgICAgICAgUmVmZXJlcjogImh0dHBzOi8vd2ViLnJvYXBwLmlvLyIsCiAgICAgICAgICAgICAgICAiWC1SZXF1ZXN0ZWQtV2l0aCI6ICJYTUxIdHRwUmVxdWVzdCIsCiAgICAgICAgICAgICAgICAiQ29udGVudC1UeXBlIjogImFwcGxpY2F0aW9uL2pzb24iCiAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IHZpbiB9KQogICAgICAgICAgICB9CiAgICAgICAgICB9LAogICAgICAgICAgewogICAgICAgICAgICBuYW1lOiAiYXBpX2FwcF9wb3N0X2JlYXJlcl9qc29uIiwKICAgICAgICAgICAgdGFyZ2V0OiAiaHR0cHM6Ly9hcGkucm9hcHAuaW8vYXBwL2ludGVncmF0aW9ucy9zZXJ2aWNlL3Zpbi1sb29rdXAiLAogICAgICAgICAgICBpbml0OiB7CiAgICAgICAgICAgICAgbWV0aG9kOiAiUE9TVCIsCiAgICAgICAgICAgICAgaGVhZGVyczogewogICAgICAgICAgICAgICAgQWNjZXB0OiAiYXBwbGljYXRpb24vanNvbix0ZXh0L3BsYWluLCovKiIsCiAgICAgICAgICAgICAgICBBdXRob3JpemF0aW9uOiBgQmVhcmVyICR7YXBpS2V5fWAsCiAgICAgICAgICAgICAgICBPcmlnaW46ICJodHRwczovL3dlYi5yb2FwcC5pbyIsCiAgICAgICAgICAgICAgICBSZWZlcmVyOiAiaHR0cHM6Ly93ZWIucm9hcHAuaW8vIiwKICAgICAgICAgICAgICAgICJYLVJlcXVlc3RlZC1XaXRoIjogIlhNTEh0dHBSZXF1ZXN0IiwKICAgICAgICAgICAgICAgICJDb250ZW50LVR5cGUiOiAiYXBwbGljYXRpb24vanNvbSIKICAgICAgICAgICAgICB9LAogICAgICAgICAgICAgIGJvZHk6IEpTT04uc3RyaW5naWZ5KHsgdmluIH0pCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgICBdOwogICAgICAgIGNvbnN0IHJlc3VsdHMgPSBbXTsKICAgICAgICBmb3IgKGNvbnN0IHZhcmlhbnQgb2YgdmFyaWFudHMpIHsKICAgICAgICAgIGNvbnN0IHN0YXJ0ZWRBdCA9IERhdGUubm93KCk7CiAgICAgICAgICB0cnkgewogICAgICAgICAgICBjb25zdCBjb250cm9sbGVyID0gbmV3IEFib3J0Q29udHJvbGxlcigpOwogICAgICAgICAgICBjb25zdCB0aW1lciA9IHNldFRpbWVvdXQoKCkgPT4gY29udHJvbGxlci5hYm9ydCgpLCA4MDAwKTsKICAgICAgICAgICAgY29uc3QgcmVzcG9uc2UgPSBhd2FpdCBmZXRjaCh2YXJpYW50LnRhcmdldCwgewogICAgICAgICAgICAgIC4uLnZhcmlhbnQuaW5pdCwKICAgICAgICAgICAgICByZWRpcmVjdDogIm1hbnVhbCIsCiAgICAgICAgICAgICAgc2lnbmFsOiBjb250cm9sbGVyLnNpZ25hbAogICAgICAgICAgICB9KTsKICAgICAgICAgICAgY2xlYXJUaW1lb3V0KHRpbWVyKTsKICAgICAgICAgICAgY29uc3QgdGV4dCA9IGF3YWl0IHJlc3BvbnNlLnRleHQoKTsKICAgICAgICAgICAgbGV0IGRhdGEgPSBudWxsOwogICAgICAgICAgICB0cnkgewogICAgICAgICAgICAgIGRhdGEgPSB0ZXh0ID8gSlNPTi5wYXJzZSh0ZXh0KSA6IG51bGw7CiAgICAgICAgICAgIH0gY2F0Y2ggewogICAgICAgICAgICAgIGRhdGEgPSB0ZXh0LnNsaWNlKDAsIDEyMDApOwogICAgICAgICAgICB9CiAgICAgICAgICAgIHJlc3VsdHMucHVzaCh7CiAgICAgICAgICAgICAgbmFtZTogdmFyaWFudC5uYW1lLAogICAgICAgICAgICAgIHN0YXR1czogcmVzcG9uc2Uuc3RhdHVzLAogICAgICAgICAgICAgIHN0YXR1c190ZXh0OiByZXNwb25zZS5zdGF0dXNUZXh0LAogICAgICAgICAgICAgIGNvbnRlbnRfdHlwZTogcmVzcG9uc2UuaGVhZGVycy5nZXQoImNvbnRlbnQtdHlwZSIpIHx8ICIiLAogICAgICAgICAgICAgIGxvY2F0aW9uOiByZXNwb25zZS5oZWFkZXJzLmdldCgibG9jYXRpb24iKSB8fCAiIiwKICAgICAgICAgICAgICBkYXRhLAogICAgICAgICAgICAgIGVsYXBzZWRfbXM6IERhdGUubm93KCkgLSBzdGFydGVkQXQKICAgICAgICAgICAgfSk7CiAgICAgICAgICB9IGNhdGNoIChlcnJvcikgewogICAgICAgICAgICByZXN1bHRzLnB1c2goewogICAgICAgICAgICAgIG5hbWU6IHZhcmlhbnQubmFtZSwKICAgICAgICAgICAgICBzdGF0dXM6IDAsCiAgICAgICAgICAgICAgZXJyb3JfbmFtZTogZXJyb3I/Lm5hbWUgfHwgIkVycm9yIiwKICAgICAgICAgICAgICBlcnJvcjogZXJyb3IgaW5zdGFuY2VvZiBFcnJvciA/IGVycm9yLm1lc3NhZ2UgOiBTdHJpbmcoZXJyb3IpLAogICAgICAgICAgICAgIGVsYXBzZWRfbXM6IERhdGUubm93KCkgLSBzdGFydGVkQXQKICAgICAgICAgICAgfSk7CiAgICAgICAgICB9CiAgICAgICAgfQogICAgICAgIHJldHVybiBqc29uMih7IG1hcmtlcjogInJvYXBwX2FwcF92aW5fcHJvYmVfdjEiLCByZXN1bHRzIH0sIDIwMCwgY29yc0hlYWRlcnMpOwogICAgICB9CicnJwpwYXRoLndyaXRlX3RleHQodGV4dC5yZXBsYWNlKG1hcmtlciwgcm91dGUgKyBtYXJrZXIsIDEpLCBlbmNvZGluZz0idXRmLTgiKQo="
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('worker/src/index.js')
-          text = path.read_text(encoding='utf-8')
-          marker = '      if (url.pathname === "/health" && request.method === "GET") {'
-          if text.count(marker) != 1:
-              raise SystemExit(f'health marker count={text.count(marker)}')
-
-          route = r'''      if (url.pathname === "/health/roapp-app-vin" && request.method === "GET") {
-        const vin = "TMBDX41U79B008586";
-        const encodedVin = encodeURIComponent(vin);
-        const apiKey = String(env.ROAPP_API_KEY || "");
-        const variants = [
-          {
-            name: "web_app_get_bearer",
-            target: `https://web.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest"
-              }
-            }
-          },
-          {
-            name: "api_app_get_bearer",
-            target: `https://api.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
-            init: {
-              method: "GET",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest"
-              }
-            }
-          },
-          {
-            name: "web_app_post_bearer_json",
-            target: "https://web.roapp.io/app/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ vin })
-            }
-          },
-          {
-            name: "api_app_post_bearer_json",
-            target: "https://api.roapp.io/app/integrations/service/vin-lookup",
-            init: {
-              method: "POST",
-              headers: {
-                Accept: "application/json,text/plain,*/*",
-                Authorization: `Bearer ${apiKey}`,
-                Origin: "https://web.roapp.io",
-                Referer: "https://web.roapp.io/",
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ vin })
-            }
-          }
-        ];
-        const results = [];
-        for (const variant of variants) {
-          const startedAt = Date.now();
-          try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 8000);
-            const response = await fetch(variant.target, {
-              ...variant.init,
-              redirect: "manual",
-              signal: controller.signal
-            });
-            clearTimeout(timer);
-            const text = await response.text();
-            let data = null;
-            try {
-              data = text ? JSON.parse(text) : null;
-            } catch {
-              data = text.slice(0, 1200);
-            }
-            results.push({
-              name: variant.name,
-              status: response.status,
-              status_text: response.statusText,
-              content_type: response.headers.get("content-type") || "",
-              location: response.headers.get("location") || "",
-              data,
-              elapsed_ms: Date.now() - startedAt
-            });
-          } catch (error) {
-            results.push({
-              name: variant.name,
-              status: 0,
-              error_name: error?.name || "Error",
-              error: error instanceof Error ? error.message : String(error),
-              elapsed_ms: Date.now() - startedAt
-            });
-          }
-        }
-        return json2({ marker: "roapp_app_vin_probe_v1", results }, 200, corsHeaders);
-      }
-'''
-          path.write_text(text.replace(marker, route + marker, 1), encoding='utf-8')
-          PY
+          python -c 'import os,base64; exec(base64.b64decode(os.environ["PATCH_B64"]))'
           npm --prefix worker run check
           npm --prefix worker test
 
@@ -177,7 +60,6 @@ jobs:
           fi
           python -m json.tool tmp/roapp-app-vin-probe.json > tmp/roapp-app-vin-probe.pretty.json
           mv tmp/roapp-app-vin-probe.pretty.json tmp/roapp-app-vin-probe.json
-
           git add tmp/roapp-app-vin-probe.json
           git commit -m "Record RO App app-route VIN probe"
           git pull --rebase origin main
