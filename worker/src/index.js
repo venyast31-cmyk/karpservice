@@ -1319,6 +1319,112 @@ var index_default = {
           clearTimeout(timer);
         }
       }
+      if (url.pathname === "/health/roapp-app-vin" && request.method === "GET") {
+        const vin = "TMBDX41U79B008586";
+        const encodedVin = encodeURIComponent(vin);
+        const apiKey = String(env.ROAPP_API_KEY || "");
+        const variants = [
+          {
+            name: "web_app_get_bearer",
+            target: `https://web.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
+            init: {
+              method: "GET",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest"
+              }
+            }
+          },
+          {
+            name: "api_app_get_bearer",
+            target: `https://api.roapp.io/app/integrations/service/vin-lookup?vin=${encodedVin}`,
+            init: {
+              method: "GET",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest"
+              }
+            }
+          },
+          {
+            name: "web_app_post_bearer_json",
+            target: "https://web.roapp.io/app/integrations/service/vin-lookup",
+            init: {
+              method: "POST",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ vin })
+            }
+          },
+          {
+            name: "api_app_post_bearer_json",
+            target: "https://api.roapp.io/app/integrations/service/vin-lookup",
+            init: {
+              method: "POST",
+              headers: {
+                Accept: "application/json,text/plain,*/*",
+                Authorization: `Bearer ${apiKey}`,
+                Origin: "https://web.roapp.io",
+                Referer: "https://web.roapp.io/",
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/jsom"
+              },
+              body: JSON.stringify({ vin })
+            }
+          }
+        ];
+        const results = [];
+        for (const variant of variants) {
+          const startedAt = Date.now();
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 8000);
+            const response = await fetch(variant.target, {
+              ...variant.init,
+              redirect: "manual",
+              signal: controller.signal
+            });
+            clearTimeout(timer);
+            const text = await response.text();
+            let data = null;
+            try {
+              data = text ? JSON.parse(text) : null;
+            } catch {
+              data = text.slice(0, 1200);
+            }
+            results.push({
+              name: variant.name,
+              status: response.status,
+              status_text: response.statusText,
+              content_type: response.headers.get("content-type") || "",
+              location: response.headers.get("location") || "",
+              data,
+              elapsed_ms: Date.now() - startedAt
+            });
+          } catch (error) {
+            results.push({
+              name: variant.name,
+              status: 0,
+              error_name: error?.name || "Error",
+              error: error instanceof Error ? error.message : String(error),
+              elapsed_ms: Date.now() - startedAt
+            });
+          }
+        }
+        return json2({ marker: "roapp_app_vin_probe_v1", results }, 200, corsHeaders);
+      }
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);
         return json2({
