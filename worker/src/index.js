@@ -1185,20 +1185,6 @@ var index_default = {
       });
       if (authResponse) return authResponse;
 
-      if (url.pathname === "/health/vin-decoder-check" && request.method === "GET") {
-        const identity = await lookupVehicleIdentityByVin("TMBDX41U79B008586");
-        const success = Boolean(
-          identity &&
-          String(identity.brand).toLowerCase() === "skoda" &&
-          String(identity.model).toLowerCase() === "octavia" &&
-          String(identity.year) === "2008"
-        );
-        return json2({
-          marker: "vin_decoder_dbvin_v1",
-          success,
-          identity
-        }, success ? 200 : 502, corsHeaders);
-      }
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);
         return json2({
