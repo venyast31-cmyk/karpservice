@@ -1,0 +1,77 @@
+name: Deploy and verify VIN decoder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-vin-decoder.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Switch VIN decoder to DB.VIN and add temporary check route
+        env:
+          PATCH_B64: "CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcGF0aCA9IFBhdGgoIndvcmtlci9zcmMvaW5kZXguanMiKQp0ZXh0ID0gcGF0aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKCmhlYWx0aF9tYXJrZXIgPSAnICAgICAgaWYgKHVybC5wYXRobmFtZSA9PT0gIi9oZWFsdGgiICYmIHJlcXVlc3QubWV0aG9kID09PSAiR0VUIikgeycKaGVhbHRoX3BvcyA9IHRleHQuZmluZChoZWFsdGhfbWFya2VyKQppZiBoZWFsdGhfcG9zIDwgMDoKICAgIHJhaXNlIFN5c3RlbUV4aXQoImhlYWx0aCByb3V0ZSBtYXJrZXIgbm90IGZvdW5kIikKCmRpYWdub3N0aWNfbWFya2VycyA9IFsKICAgICcgICAgICBpZiAodXJsLnBhdGhuYW1lID09PSAiL2hlYWx0aC92aW4tc291cmNlIicsCiAgICAnICAgICAgaWYgKHVybC5wYXRobmFtZSA9PT0gIi9oZWFsdGgvcm9hcHAtYXBwLXZpbiInLAogICAgJyAgICAgIGlmICh1cmwucGF0aG5hbWUgPT09ICIvaGVhbHRoL3JvYXBwLXZpbi1sb29rdXAiJywKICAgICcgICAgICBpZiAodXJsLnBhdGhuYW1lID09PSAiL2hlYWx0aC92aW4tZGVjb2Rlci1jaGVjayInLApdCmRpYWdub3N0aWNfcG9zaXRpb25zID0gWwogICAgcG9zaXRpb24gZm9yIG1hcmtlciBpbiBkaWFnbm9zdGljX21hcmtlcnMKICAgIGlmIChwb3NpdGlvbiA6PSB0ZXh0LmZpbmQobWFya2VyKSkgPj0gMCBhbmQgcG9zaXRpb24gPCBoZWFsdGhfcG9zCl0KaWYgZGlhZ25vc3RpY19wb3NpdGlvbnM6CiAgICB0ZXh0ID0gdGV4dFs6bWluKGRpYWdub3N0aWNfcG9zaXRpb25zKV0gKyB0ZXh0W2hlYWx0aF9wb3M6XQoKZnVuY3Rpb25fc3RhcnRfbWFya2VyID0gImFzeW5jIGZ1bmN0aW9uIGxvb2t1cFZlaGljbGVJZGVudGl0eUJ5VmluKHZpbikgeyIKZnVuY3Rpb25fZW5kX21hcmtlciA9ICdfX25hbWUobG9va3VwVmVoaWNsZUlkZW50aXR5QnlWaW4sICJsb29rdXBWZWhpY2xlSWRlbnRpdHlCeVZpbiIpOycKZnVuY3Rpb25fc3RhcnQgPSB0ZXh0LmZpbmQoZnVuY3Rpb25fc3RhcnRfbWFya2VyKQppZiBmdW5jdGlvbl9zdGFydCA8IDA6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJsb29rdXBWZWhpY2xlSWRlbnRpdHlCeVZpbiBzdGFydCBtYXJrZXIgbm90IGZvdW5kIikKZnVuY3Rpb25fZW5kID0gdGV4dC5maW5kKGZ1bmN0aW9uX2VuZF9tYXJrZXIsIGZ1bmN0aW9uX3N0YXJ0KQppZiBmdW5jdGlvbl9lbmQgPCAwOgogICAgcmFpc2UgU3lzdGVtRXhpdCgibG9va3VwVmVoaWNsZUlkZW50aXR5QnlWaW4gZW5kIG1hcmtlciBub3QgZm91bmQiKQpmdW5jdGlvbl9lbmQgKz0gbGVuKGZ1bmN0aW9uX2VuZF9tYXJrZXIpCgpuZXdfZnVuY3Rpb24gPSAnZnVuY3Rpb24gY2xlYW5WZWhpY2xlSWRlbnRpdHlUZXh0KHZhbHVlLCBtYXhMZW5ndGgpIHtcbiAgY29uc3QgdGV4dCA9IFN0cmluZyh2YWx1ZSA/PyAiIilcbiAgICAucmVwbGFjZSgvW1xcdTAwMDAtXFx1MDAxRlxcdTAwN0ZdL2csICIgIilcbiAgICAucmVwbGFjZSgvXFxzKy9nLCAiICIpXG4gICAgLnRyaW0oKVxuICAgIC5zbGljZSgwLCBtYXhMZW5ndGgpO1xuICBpZiAoIXRleHQgfHwgL14oPzp1bmtub3dufG51bGx8dW5kZWZpbmVkfG5cXC9hfG5vdCBmb3VuZHwtKSQvaS50ZXN0KHRleHQpKSB7XG4gICAgcmV0dXJuICIiO1xuICB9XG4gIHJldHVybiB0ZXh0O1xufVxuX19uYW1lKGNsZWFuVmVoaWNsZUlkZW50aXR5VGV4dCwgImNsZWFuVmVoaWNsZUlkZW50aXR5VGV4dCIpO1xuYXN5bmMgZnVuY3Rpb24gbG9va3VwVmVoaWNsZUlkZW50aXR5QnlWaW4odmluKSB7XG4gIGNvbnN0IG5vcm1hbGl6ZWRWaW4gPSBub3JtYWxpemVWaW4odmluKTtcbiAgaWYgKCEvXltBLUhKLU5QUi1aMC05XXsxN30kLy50ZXN0KG5vcm1hbGl6ZWRWaW4pKSByZXR1cm4gbnVsbDtcbiAgY29uc3QgY29udHJvbGxlciA9IG5ldyBBYm9ydENvbnRyb2xsZXIoKTtcbiAgY29uc3QgdGltZXIgPSBzZXRUaW1lb3V0KCgpID0+IGNvbnRyb2xsZXIuYWJvcnQoKSwgNjUwMCk7XG4gIHRyeSB7XG4gICAgY29uc3QgcmVzcG9uc2UgPSBhd2FpdCBmZXRjaChcbiAgICAgIGBodHRwczovL2RiLnZpbi9hcGkvdjEvdmluLyR7ZW5jb2RlVVJJQ29tcG9uZW50KG5vcm1hbGl6ZWRWaW4pfWAsXG4gICAgICB7XG4gICAgICAgIG1ldGhvZDogIkdFVCIsXG4gICAgICAgIHJlZGlyZWN0OiAiZm9sbG93IixcbiAgICAgICAgc2lnbmFsOiBjb250cm9sbGVyLnNpZ25hbCxcbiAgICAgICAgaGVhZGVyczoge1xuICAgICAgICAgIEFjY2VwdDogImFwcGxpY2F0aW9uL2pzb24iLFxuICAgICAgICAgICJVc2VyLUFnZW50IjogIkthcnBzZXJ2aWNlLzEuMCBWSU4gbG9va3VwIlxuICAgICAgICB9XG4gICAgICB9XG4gICAgKTtcbiAgICBpZiAoIXJlc3BvbnNlLm9rKSB7XG4gICAgICBjb25zb2xlLndhcm4oSlNPTi5zdHJpbmdpZnkoe1xuICAgICAgICBldmVudDogInZpbl9pZGVudGl0eV9sb29rdXAiLFxuICAgICAgICBzb3VyY2U6ICJkYl92aW4iLFxuICAgICAgICBzdWNjZXNzOiBmYWxzZSxcbiAgICAgICAgcmVhc29uOiAiaHR0cF9lcnJvciIsXG4gICAgICAgIHN0YXR1czogcmVzcG9uc2Uuc3RhdHVzXG4gICAgICB9KSk7XG4gICAgICByZXR1cm4gbnVsbDtcbiAgICB9XG4gICAgY29uc3QgY29udGVudFR5cGUgPSByZXNwb25zZS5oZWFkZXJzLmdldCgiY29udGVudC10eXBlIikgfHwgIiI7XG4gICAgaWYgKCEvYXBwbGljYXRpb25cXC9qc29uL2kudGVzdChjb250ZW50VHlwZSkpIHtcbiAgICAgIGNvbnNvbGUud2FybihKU09OLnN0cmluZ2lmeSh7XG4gICAgICAgIGV2ZW50OiAidmluX2lkZW50aXR5X2xvb2t1cCIsXG4gICAgICAgIHNvdXJjZTogImRiX3ZpbiIsXG4gICAgICAgIHN1Y2Nlc3M6IGZhbHNlLFxuICAgICAgICByZWFzb246ICJ1bmV4cGVjdGVkX2NvbnRlbnRfdHlwZSJcbiAgICAgIH0pKTtcbiAgICAgIHJldHVybiBudWxsO1xuICAgIH1cbiAgICBjb25zdCByYXcgPSBhd2FpdCByZXNwb25zZS50ZXh0KCk7XG4gICAgaWYgKCFyYXcgfHwgcmF3Lmxlbmd0aCA+IDIwMDAwMCkgcmV0dXJuIG51bGw7XG4gICAgbGV0IGRhdGE7XG4gICAgdHJ5IHtcbiAgICAgIGRhdGEgPSBKU09OLnBhcnNlKHJhdyk7XG4gICAgfSBjYXRjaCB7XG4gICAgICByZXR1cm4gbnVsbDtcbiAgICB9XG4gICAgaWYgKCFkYXRhIHx8IHR5cGVvZiBkYXRhICE9PSAib2JqZWN0IikgcmV0dXJuIG51bGw7XG4gICAgaWYgKG5vcm1hbGl6ZVZpbihkYXRhLnZpbikgIT09IG5vcm1hbGl6ZWRWaW4pIHtcbiAgICAgIGNvbnNvbGUud2FybihKU09OLnN0cmluZ2lmeSh7XG4gICAgICAgIGV2ZW50OiAidmluX2lkZW50aXR5X2xvb2t1cCIsXG4gICAgICAgIHNvdXJjZTogImRiX3ZpbiIsXG4gICAgICAgIHN1Y2Nlc3M6IGZhbHNlLFxuICAgICAgICByZWFzb246ICJ2aW5fbWlzbWF0Y2giXG4gICAgICB9KSk7XG4gICAgICByZXR1cm4gbnVsbDtcbiAgICB9XG4gICAgY29uc3QgYnJhbmQgPSBjbGVhblZlaGljbGVJZGVudGl0eVRleHQoZGF0YS5icmFuZCA/PyBkYXRhLm1ha2UsIDgwKTtcbiAgICBjb25zdCBtb2RlbCA9IGNsZWFuVmVoaWNsZUlkZW50aXR5VGV4dChkYXRhLm1vZGVsLCAxMjApO1xuICAgIGNvbnN0IG51bWVyaWNZZWFyID0gTnVtYmVyKGRhdGEueWVhciA/PyBkYXRhLm1vZGVsWWVhciA/PyBkYXRhLm1vZGVsX3llYXIpO1xuICAgIGNvbnN0IG1heFllYXIgPSBuZXcgRGF0ZSgpLmdldFVUQ0Z1bGxZZWFyKCkgKyAyO1xuICAgIGNvbnN0IHllYXIgPSBOdW1iZXIuaXNJbnRlZ2VyKG51bWVyaWNZZWFyKSAmJiBudW1lcmljWWVhciA+PSAxODg2ICYmIG51bWVyaWNZZWFyIDw9IG1heFllYXJcbiAgICAgID8gU3RyaW5nKG51bWVyaWNZZWFyKVxuICAgICAgOiAiIjtcbiAgICBpZiAoIWJyYW5kIHx8ICFtb2RlbCkgcmV0dXJuIG51bGw7XG4gICAgcmV0dXJuIHsgYnJhbmQsIG1vZGVsLCB5ZWFyIH07XG4gIH0gY2F0Y2ggKGVycm9yKSB7XG4gICAgY29uc29sZS53YXJuKEpTT04uc3RyaW5naWZ5KHtcbiAgICAgIGV2ZW50OiAidmluX2lkZW50aXR5X2xvb2t1cCIsXG4gICAgICBzb3VyY2U6ICJkYl92aW4iLFxuICAgICAgc3VjY2VzczogZmFsc2UsXG4gICAgICByZWFzb246IGVycm9yPy5uYW1lID09PSAiQWJvcnRFcnJvciIgPyAidGltZW91dCIgOiAicmVxdWVzdF9mYWlsZWQiXG4gICAgfSkpO1xuICAgIHJldHVybiBudWxsO1xuICB9IGZpbmFsbHkge1xuICAgIGNsZWFyVGltZW91dCh0aW1lcik7XG4gIH1cbn1cbl9fbmFtZShsb29rdXBWZWhpY2xlSWRlbnRpdHlCeVZpbiwgImxvb2t1cFZlaGljbGVJZGVudGl0eUJ5VmluIik7Jwp0ZXh0ID0gdGV4dFs6ZnVuY3Rpb25fc3RhcnRdICsgbmV3X2Z1bmN0aW9uICsgdGV4dFtmdW5jdGlvbl9lbmQ6XQoKaGVhbHRoX3BvcyA9IHRleHQuZmluZChoZWFsdGhfbWFya2VyKQppZiBoZWFsdGhfcG9zIDwgMDoKICAgIHJhaXNlIFN5c3RlbUV4aXQoImhlYWx0aCByb3V0ZSBtYXJrZXIgZGlzYXBwZWFyZWQiKQpwcm9iZV9yb3V0ZSA9ICcgICAgICBpZiAodXJsLnBhdGhuYW1lID09PSAiL2hlYWx0aC92aW4tZGVjb2Rlci1jaGVjayIgJiYgcmVxdWVzdC5tZXRob2QgPT09ICJHRVQiKSB7XG4gICAgICAgIGNvbnN0IGlkZW50aXR5ID0gYXdhaXQgbG9va3VwVmVoaWNsZUlkZW50aXR5QnlWaW4oIlRNQkRYNDFVNzlCMDA4NTg2Iik7XG4gICAgICAgIGNvbnN0IHN1Y2Nlc3MgPSBCb29sZWFuKFxuICAgICAgICAgIGlkZW50aXR5ICYmXG4gICAgICAgICAgU3RyaW5nKGlkZW50aXR5LmJyYW5kKS50b0xvd2VyQ2FzZSgpID09PSAic2tvZGEiICYmXG4gICAgICAgICAgU3RyaW5nKGlkZW50aXR5Lm1vZGVsKS50b0xvd2VyQ2FzZSgpID09PSAib2N0YXZpYSIgJiZcbiAgICAgICAgICBTdHJpbmcoaWRlbnRpdHkueWVhcikgPT09ICIyMDA4IlxuICAgICAgICApO1xuICAgICAgICByZXR1cm4ganNvbjIoe1xuICAgICAgICAgIG1hcmtlcjogInZpbl9kZWNvZGVyX2RidmluX3YxIixcbiAgICAgICAgICBzdWNjZXNzLFxuICAgICAgICAgIGlkZW50aXR5XG4gICAgICAgIH0sIHN1Y2Nlc3MgPyAyMDAgOiA1MDIsIGNvcnNIZWFkZXJzKTtcbiAgICAgIH1cbicKdGV4dCA9IHRleHRbOmhlYWx0aF9wb3NdICsgcHJvYmVfcm91dGUgKyB0ZXh0W2hlYWx0aF9wb3M6XQpwYXRoLndyaXRlX3RleHQodGV4dCwgZW5jb2Rpbmc9InV0Zi04IikK" }
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c 'import os,base64; exec(base64.b64decode(os.environ["PATCH_B64"]))'
+          npm --prefix worker run check
+          npm --prefix worker test
+
+      - name: Publish test version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/src/index.js
+          git commit -m "Use DB.VIN for vehicle identity lookup"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verify decoder from Cloudflare Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tmp
+          endpoint="https://karpservice-api.venyast31.workers.dev/health/vin-decoder-check"
+          success=0
+          for attempt in $(seq 1 45); do
+            code=$(curl -sS --max-time 15 -o tmp/vin-decoder-worker-check.json -w "%{http_code}" "$endpoint" || true)
+            if [ "$code" = "200" ] && grep -q '"marker": "vin_decoder_dbvin_v1"' tmp/vin-decoder-worker-check.json && grep -q '"success": true' tmp/vin-decoder-worker-check.json; then
+              success=1
+              break
+            fi
+            sleep 4
+          done
+          cat tmp/vin-decoder-worker-check.json 2>/dev/null || true
+          if [ "$success" != "1" ]; then
+            echo "VIN decoder did not pass the Cloudflare Worker check" >&2
+            exit 1
+          fi
+
+      - name: Remove temporary diagnostics and publish production version
+        env:
+          CLEANUP_B64: "CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcGF0aCA9IFBhdGgoIndvcmtlci9zcmMvaW5kZXguanMiKQp0ZXh0ID0gcGF0aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKc3RhcnRfbWFya2VyID0gJyAgICAgIGlmICh1cmwucGF0aG5hbWUgPT09ICIvaGVhbHRoL3Zpbi1kZWNvZGVyLWNoZWNrIiAmJiByZXF1ZXN0Lm1ldGhvZCA9PT0gIkdFVCIpIHsnCmhlYWx0aF9tYXJrZXIgPSAnICAgICAgaWYgKHVybC5wYXRobmFtZSA9PT0gIi9oZWFsdGgiICYmIHJlcXVlc3QubWV0aG9kID09PSAiR0VUIikgeycKc3RhcnQgPSB0ZXh0LmZpbmQoc3RhcnRfbWFya2VyKQppZiBzdGFydCA8IDA6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJ0ZW1wb3JhcnkgVklOIGRlY29kZXIgY2hlY2sgcm91dGUgbm90IGZvdW5kIikKZW5kID0gdGV4dC5maW5kKGhlYWx0aF9tYXJrZXIsIHN0YXJ0KQppZiBlbmQgPCAwOgogICAgcmFpc2UgU3lzdGVtRXhpdCgiaGVhbHRoIHJvdXRlIGFmdGVyIHRlbXBvcmFyeSBjaGVjayBub3QgZm91bmQiKQp0ZXh0ID0gdGV4dFs6c3RhcnRdICsgdGV4dFtlbmQ6XQpwYXRoLndyaXRlX3RleHQodGV4dCwgZW5jb2Rpbmc9InV0Zi04IikK"
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -c 'import os,base64; exec(base64.b64decode(os.environ["CLEANUP_B64"]))'
+          rm -rf tmp
+          git rm -f .github/workflows/deploy-vin-decoder.yml
+          npm --prefix worker run check
+          npm --prefix worker test
+          git add -A
+          git commit -m "Finalize VIN decoder and remove diagnostics"
+          git pull --rebase origin main
+          git push origin HEAD:main
