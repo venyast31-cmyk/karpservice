@@ -1,0 +1,468 @@
+SITEMAP_URLS=118
+ASSET_URLS=0
+
+===== https://roappua.readme.io/reference/create-asset.md HTTP 200 text/markdown; charset=utf-8 =====
+---
+updatedAt: 2025-11-28T16:48:22.000Z
+---
+
+Fetch the complete documentation index at: https://roappua.readme.io/llms.txt. Use this file to discover all available pages before exploring further. Append .md to any documentation page URL to get its markdown version.
+
+# Створити виріб
+
+Використовуйте цей метод для створення нових виробів у RemOnline.
+
+# OpenAPI definition
+
+```json
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ro-app-public-api-v2_1",
+    "version": "2.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.roapp.io/v2"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "api_key": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "api_key": []
+    }
+  ],
+  "paths": {
+    "/warehouse/assets": {
+      "post": {
+        "summary": "Створити виріб",
+        "description": "Використовуйте цей метод для створення нових виробів у RemOnline.",
+        "operationId": "create-asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uid": {
+                    "type": "string",
+                    "description": "Серійний номер виробу (VIN, IMEI)"
+                  },
+                  "reg_number": {
+                    "type": "string",
+                    "description": "Державний номер авто"
+                  },
+                  "group": {
+                    "type": "string",
+                    "description": "Група виробу"
+                  },
+                  "brand": {
+                    "type": "string",
+                    "description": "Бренд виробу"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Модель виробу"
+                  },
+                  "modification": {
+                    "type": "string",
+                    "description": "Модифікація виробу"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "Колір виробу"
+                  },
+                  "state": {
+                    "type": "string",
+                    "description": "Стан виробу"
+                  },
+                  "cost": {
+                    "type": "string",
+                    "description": "Вартість виробу"
+                  },
+                  "year": {
+                    "type": "string",
+                    "description": "Рік виробу"
+                  },
+                  "owner_id": {
+                    "type": "integer",
+                    "description": "ID власника",
+                    "format": "int32"
+                  },
+                  "warehouse_id": {
+                    "type": "integer",
+                    "description": "ID складу",
+                    "format": "int32"
+                  },
+                  "custom_fields": {
+                    "type": "string",
+                    "description": "Користувальницькі поля",
+                    "format": "json"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "x-readme": {
+    "headers": [],
+    "explorer-enabled": true,
+    "proxy-enabled": false
+  },
+  "x-readme-fauxas": true
+}
+```
+
+===== https://roappua.readme.io/reference/get-assets.md HTTP 200 text/markdown; charset=utf-8 =====
+---
+updatedAt: 2025-11-28T16:48:21.000Z
+---
+
+Fetch the complete documentation index at: https://roappua.readme.io/llms.txt. Use this file to discover all available pages before exploring further. Append .md to any documentation page URL to get its markdown version.
+
+# Отримати вироби
+
+Використовуйте цей метод для отримання списку виробів у вашому аккаунті.
+
+# OpenAPI definition
+
+```json
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ro-app-public-api-v2_1",
+    "version": "2.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.roapp.io/v2"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "api_key": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "api_key": []
+    }
+  ],
+  "paths": {
+    "/warehouse/assets": {
+      "get": {
+        "summary": "Отримати вироби",
+        "description": "Використовуйте цей метод для отримання списку виробів у вашому аккаунті.",
+        "operationId": "get-assets",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "description": "Ідентифікатор виробу",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "description": "Серійний номер виробу (VIN, IMEI)",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "description": "Ідентифікатор складу",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "name": "owner_id",
+            "in": "query",
+            "description": "Ідентифікатор власника виробу",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "x-readme": {
+    "headers": [],
+    "explorer-enabled": true,
+    "proxy-enabled": false
+  },
+  "x-readme-fauxas": true
+}
+```
+
+===== https://roappua.readme.io/reference/update-asset.md HTTP 200 text/markdown; charset=utf-8 =====
+---
+updatedAt: 2025-11-28T16:48:23.000Z
+---
+
+Fetch the complete documentation index at: https://roappua.readme.io/llms.txt. Use this file to discover all available pages before exploring further. Append .md to any documentation page URL to get its markdown version.
+
+# Оновити виріб
+
+Використовуйте цей метод для оновлення даних вже наявних у RemOnline виробів.
+
+# OpenAPI definition
+
+```json
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ro-app-public-api-v2_1",
+    "version": "2.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.roapp.io/v2"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "api_key": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "api_key": []
+    }
+  ],
+  "paths": {
+    "/warehouse/assets/{asset_id}": {
+      "post": {
+        "summary": "Оновити виріб",
+        "description": "Використовуйте цей метод для оновлення даних вже наявних у RemOnline виробів.",
+        "operationId": "update-asset",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "ID виробу",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uid": {
+                    "type": "string",
+                    "description": "Серійний номер виробу (VIN, IMEI)"
+                  },
+                  "reg_number": {
+                    "type": "string",
+                    "description": "Державний номер авто"
+                  },
+                  "group": {
+                    "type": "string",
+                    "description": "Група виробу"
+                  },
+                  "brand": {
+                    "type": "string",
+                    "description": "Бренд виробу"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Модель виробу"
+                  },
+                  "modification": {
+                    "type": "string",
+                    "description": "Модифікація виробу"
+                  },
+                  "color": {
+                    "type": "string",
+                    "description": "Колір виробу"
+                  },
+                  "state": {
+                    "type": "string",
+                    "description": "Стан виробу"
+                  },
+                  "cost": {
+                    "type": "string",
+                    "description": "Вартість виробу"
+                  },
+                  "year": {
+                    "type": "string",
+                    "description": "Рік виробу"
+                  },
+                  "owner_id": {
+                    "type": "integer",
+                    "description": "ID власника",
+                    "format": "int32"
+                  },
+                  "warehouse_id": {
+                    "type": "integer",
+                    "description": "ID складу",
+                    "format": "int32"
+                  },
+                  "custom_fields": {
+                    "type": "string",
+                    "description": "Користувальницькі поля",
+                    "format": "json"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "Result": {
+                    "value": "{}"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "x-readme": {
+    "headers": [],
+    "explorer-enabled": true,
+    "proxy-enabled": false
+  },
+  "x-readme-fauxas": true
+}
+```
