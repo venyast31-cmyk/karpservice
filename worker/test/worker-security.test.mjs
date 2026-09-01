@@ -23,6 +23,10 @@ class D1Statement {
     return this.database.prepare(this.sql).get(...this.values) ?? null;
   }
 
+  async all() {
+    return { results: this.database.prepare(this.sql).all(...this.values) };
+  }
+
   async run() {
     const result = this.database.prepare(this.sql).run(...this.values);
     return { success: true, meta: { changes: Number(result.changes || 0) } };
@@ -279,6 +283,38 @@ test("protected API derives ownership from the Telegram session", async () => {
         !createAssetCalls[1].contentType,
       "a non-JSON format must be attempted after the data-type error"
     );
+
+    const removeCarResponse = await callWorker("/cars/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ car_id: 501, vin })
+    });
+    assert.equal(removeCarResponse.status, 200);
+    const removeCarData = await removeCarResponse.json();
+    assert.equal(removeCarData.success, true);
+    assert.equal(removeCarData.removed, true);
+
+    const hiddenProfileResponse = await callWorker("/");
+    assert.equal(hiddenProfileResponse.status, 200);
+    const hiddenProfile = await hiddenProfileResponse.json();
+    assert.equal(hiddenProfile.cars.some((car) => car.vin === vin), false);
+    assert.equal(hiddenProfile.history_cars.some((car) => car.vin === vin), true);
+
+    const restoreCarResponse = await callWorker("/cars", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vin })
+    });
+    assert.equal(restoreCarResponse.status, 200);
+    const restoreCarData = await restoreCarResponse.json();
+    assert.equal(restoreCarData.success, true);
+    assert.equal(restoreCarData.already_exists, true);
+    assert.equal(restoreCarData.restored, true);
+
+    const restoredProfileResponse = await callWorker("/");
+    assert.equal(restoredProfileResponse.status, 200);
+    const restoredProfile = await restoredProfileResponse.json();
+    assert.equal(restoredProfile.cars.some((car) => car.vin === vin), true);
 
     const unknownVinResponse = await callWorker("/cars", {
       method: "POST",

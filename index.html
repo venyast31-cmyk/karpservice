@@ -78,6 +78,15 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 12px 24px rgba(42,171,238,.24)
   }
   .secondary{background:#20262f;color:white;border:1px solid #333b47;box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+  .vehicle-actions{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:10px;align-items:stretch}
+  .vehicle-actions button{margin:0}
+  .delete-car-button{
+    width:auto;min-width:0;min-height:72px;display:flex;align-items:center;justify-content:center;gap:8px;
+    color:#ff9a9a;background:rgba(255,104,104,.07);border:1px solid rgba(255,104,104,.38);
+    border-radius:20px;box-shadow:none;font-size:14px
+  }
+  .delete-car-button .action-icon{width:20px;height:20px;display:grid;place-items:center;flex:0 0 20px}
+  .delete-car-button .action-icon svg{width:20px;height:20px;display:block}
   .back{width:auto;background:none;color:#b9c2ce;padding:8px 0;margin:0;border:0;box-shadow:none}
   .row{display:flex;gap:10px}.row>*{flex:1}
   .vehicle-block{margin:0 0 20px}
@@ -307,6 +316,8 @@
     .car{padding:16px}
     .car-logo{width:56px;height:56px;flex-basis:56px}
     .action-row{padding-left:13px;padding-right:13px}
+    .vehicle-actions{grid-template-columns:1fr}
+    .delete-car-button{width:100%;min-height:52px}
     .bottom-nav{width:calc(100vw - 14px);bottom:max(4px,calc(env(safe-area-inset-bottom,0px) - 12px))}
     .bottom-nav button{font-size:9px}
     .news-banner{min-height:160px;padding:18px}
@@ -603,7 +614,8 @@ const UI_ICONS = Object.freeze({
   calendar:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="3"/><path d="M8 3.5v4M16 3.5v4M3.5 10h17"/></svg>`,
   clock:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
   phone:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.4 3.7 5.2 4.9c-1 .6-1.4 1.8-1 2.9 2.1 5.9 6.1 9.9 12 12 1.1.4 2.3 0 2.9-1l1.2-2.2a1.7 1.7 0 0 0-.6-2.2l-2.8-1.7a1.7 1.7 0 0 0-2.1.3l-1.2 1.3a13 13 0 0 1-4-4L11 9.2a1.7 1.7 0 0 0 .3-2.1L9.6 4.3a1.7 1.7 0 0 0-2.2-.6Z"/></svg>`,
-  chevron:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`
+  chevron:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>`,
+  trash:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>`
 });
 
 const CAR_BRANDS = [
@@ -797,6 +809,59 @@ async function addCarByVin(){
   }finally{
     btn.disabled = false;
     btn.textContent = 'Додати автомобіль';
+  }
+}
+
+async function deleteCarFromProfile(button){
+  const carId = Number(button?.dataset?.carId);
+  const car = getCar(carId);
+  if (!car){
+    showStatus('Автомобіль не знайдено. Оновіть список.', 'error', 'carsStatus');
+    return;
+  }
+
+  const title = carName(car);
+  const confirmed = window.confirm(
+    `Видалити ${title} зі вкладки «Авто»?\n\nІсторія обслуговування в CRM збережеться. Автомобіль можна буде додати знову за VIN.`
+  );
+  if (!confirmed) return;
+
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.textContent = 'Видаляємо…';
+  showStatus('Видаляємо автомобіль із профілю…', 'ok', 'carsStatus');
+
+  try{
+    const res = await apiFetch('cars/remove', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({car_id:car.id, vin:car.vin || ''})
+    });
+    const data = await responseJson(res);
+
+    if (res.status === 401){
+      setAuthSession(false);
+      clearLegacyAuthToken();
+      resetAuthFlow({message:'Сесія завершилася. Підтвердьте вхід через Telegram ще раз.'});
+      show('login');
+      return;
+    }
+    if (!res.ok || !data.success){
+      throw new Error(readableUiError(data.error || data, 'Не вдалося видалити автомобіль.'));
+    }
+
+    const refreshed = await loadCustomer({targetScreen:'cars'});
+    if (refreshed){
+      showStatus(data.message || 'Автомобіль видалено з профілю.', 'ok', 'carsStatus');
+    }
+  }catch(err){
+    showStatus(err.message || 'Не вдалося видалити автомобіль.', 'error', 'carsStatus');
+    console.error(err);
+  }finally{
+    if (button?.isConnected){
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    }
   }
 }
 
@@ -1173,17 +1238,24 @@ function renderCustomer(){
           </div>
           ${active ? `<div style="margin-top:12px"><span class="pill warn">Активний запис: ${escapeHtml(latest.status || 'Новий')}</span></div>` : ''}
         </div>
-        <button class="primary action-primary" type="button" onclick="startBooking(${Number(car.id)})">
-          <span class="action-icon">${UI_ICONS.calendar}</span>
-          <span>Записати на сервіс</span>
-        </button>
+        <div class="vehicle-actions">
+          <button class="primary action-primary" type="button" onclick="startBooking(${Number(car.id)})">
+            <span class="action-icon">${UI_ICONS.calendar}</span>
+            <span>Записати на сервіс</span>
+          </button>
+          <button class="delete-car-button" type="button" data-car-id="${Number(car.id)}"
+            aria-label="Видалити ${escapeHtml(title)}" onclick="deleteCarFromProfile(this)">
+            <span class="action-icon">${UI_ICONS.trash}</span>
+            <span>Видалити</span>
+          </button>
+        </div>
       </div>
     `;
   }).join('');
 }
 
 function allCustomerOrders(){
-  return (customerData?.cars || []).flatMap(car =>
+  return (customerData?.history_cars || customerData?.cars || []).flatMap(car =>
     (car.history || []).map(order => ({...order, carId:car.id, carTitle:carName(car)}))
   ).sort((a,b) =>
     new Date(b.scheduled_for || b.created_at || 0) - new Date(a.scheduled_for || a.created_at || 0)

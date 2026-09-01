@@ -39,7 +39,18 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
   } catch (error) {
     console.error(JSON.stringify({ event: "customer_assets_load", success: false, message: error instanceof Error ? error.message : String(error) }));
   }
-  const cars = mergeCustomerAssets(assets, orderResult.orders);
+  const historyCars = mergeCustomerAssets(assets, orderResult.orders);
+  let cars = historyCars;
+  try {
+    const hiddenCars = await getHiddenCustomerCars(env, customer.id);
+    cars = historyCars.filter((car) => !isCustomerCarHidden(car, hiddenCars));
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: "hidden_customer_cars_load",
+      success: false,
+      message: error instanceof Error ? error.message : String(error)
+    }));
+  }
   return json({
     success: true,
     found: true,
@@ -50,6 +61,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
       phone: `+${phone}`
     },
     cars,
+    history_cars: historyCars,
     history: {
       loaded: orderResult.orders.length,
       total: orderResult.total,
@@ -260,6 +272,122 @@ async function findAssetByVin(env, vin) {
   return assets.find((asset) => assetVin(asset) === vin) || null;
 }
 __name(findAssetByVin, "findAssetByVin");
+var HIDDEN_CUSTOMER_CARS_SCHEMA = `CREATE TABLE IF NOT EXISTS hidden_customer_cars (
+  customer_id INTEGER NOT NULL,
+  car_key TEXT NOT NULL,
+  asset_id INTEGER NOT NULL DEFAULT 0,
+  vin TEXT NOT NULL DEFAULT '',
+  hidden_at INTEGER NOT NULL,
+  PRIMARY KEY (customer_id, car_key)
+)`;
+async function ensureHiddenCustomerCarsTable(env) {
+  if (!env?.AUTH_DB) throw new Error("Сховище профілю недоступне");
+  await env.AUTH_DB.prepare(HIDDEN_CUSTOMER_CARS_SCHEMA).run();
+}
+__name(ensureHiddenCustomerCarsTable, "ensureHiddenCustomerCarsTable");
+async function getHiddenCustomerCars(env, customerId) {
+  await ensureHiddenCustomerCarsTable(env);
+  const result = await env.AUTH_DB.prepare(
+    "SELECT asset_id, vin FROM hidden_customer_cars WHERE customer_id = ?"
+  ).bind(Number(customerId)).all();
+  return Array.isArray(result?.results) ? result.results : [];
+}
+__name(getHiddenCustomerCars, "getHiddenCustomerCars");
+function isCustomerCarHidden(car, hiddenCars) {
+  const carId = Number(car?.id) || 0;
+  const vin = normalizeVin(car?.vin);
+  return (hiddenCars || []).some((item) => {
+    const hiddenId = Number(item?.asset_id) || 0;
+    const hiddenVin = normalizeVin(item?.vin);
+    return Boolean(
+      (carId > 0 && hiddenId > 0 && carId === hiddenId) ||
+      (vin && hiddenVin && vin === hiddenVin)
+    );
+  });
+}
+__name(isCustomerCarHidden, "isCustomerCarHidden");
+async function hideCustomerCar(env, customerId, car) {
+  await ensureHiddenCustomerCarsTable(env);
+  const assetId = Number(car?.id) || 0;
+  const vin = normalizeVin(car?.vin);
+  if (!assetId && !vin) throw new Error("Не вдалося визначити автомобіль");
+  const carKey = vin ? `vin:${vin}` : `id:${assetId}`;
+  await env.AUTH_DB.prepare(
+    `INSERT INTO hidden_customer_cars
+      (customer_id, car_key, asset_id, vin, hidden_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(customer_id, car_key) DO UPDATE SET
+       asset_id = excluded.asset_id,
+       vin = excluded.vin,
+       hidden_at = excluded.hidden_at`
+  ).bind(Number(customerId), carKey, assetId, vin, Math.floor(Date.now() / 1000)).run();
+}
+__name(hideCustomerCar, "hideCustomerCar");
+async function unhideCustomerCar(env, customerId, assetId, vin) {
+  await ensureHiddenCustomerCarsTable(env);
+  const id = Number(assetId) || 0;
+  const normalizedVin = normalizeVin(vin);
+  if (!id && !normalizedVin) return false;
+  let result;
+  if (id && normalizedVin) {
+    result = await env.AUTH_DB.prepare(
+      "DELETE FROM hidden_customer_cars WHERE customer_id = ? AND (asset_id = ? OR vin = ?)"
+    ).bind(Number(customerId), id, normalizedVin).run();
+  } else if (id) {
+    result = await env.AUTH_DB.prepare(
+      "DELETE FROM hidden_customer_cars WHERE customer_id = ? AND asset_id = ?"
+    ).bind(Number(customerId), id).run();
+  } else {
+    result = await env.AUTH_DB.prepare(
+      "DELETE FROM hidden_customer_cars WHERE customer_id = ? AND vin = ?"
+    ).bind(Number(customerId), normalizedVin).run();
+  }
+  return Number(result?.meta?.changes || 0) > 0;
+}
+__name(unhideCustomerCar, "unhideCustomerCar");
+async function removeCustomerCarFromProfile(request, env, customerId, responseHeaders) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Некоректні дані запиту" }, 400, responseHeaders);
+  }
+  const numericCustomerId = Number(customerId);
+  const requestedId = Number(body?.car_id ?? body?.id) || 0;
+  const requestedVin = normalizeVin(body?.vin);
+  if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
+    return json({ success: false, error: "Клієнта не знайдено" }, 404, responseHeaders);
+  }
+  if (!requestedId && !requestedVin) {
+    return json({ success: false, error: "Не вдалося визначити автомобіль" }, 400, responseHeaders);
+  }
+
+  const assets = await getCustomerAssets(env, numericCustomerId);
+  const orderResult = await getAllCustomerOrders(env, numericCustomerId);
+  const cars = mergeCustomerAssets(assets, orderResult.orders);
+  const idMatch = requestedId
+    ? cars.find((car) => Number(car?.id) === requestedId)
+    : null;
+  const vinMatch = requestedVin
+    ? cars.find((car) => normalizeVin(car?.vin) === requestedVin)
+    : null;
+  if (idMatch && vinMatch && idMatch !== vinMatch) {
+    return json({ success: false, error: "Дані автомобіля не збігаються" }, 409, responseHeaders);
+  }
+  const car = idMatch || vinMatch;
+  if (!car) {
+    return json({ success: false, error: "Автомобіль не знайдено у вашому профілі" }, 404, responseHeaders);
+  }
+
+  await hideCustomerCar(env, numericCustomerId, car);
+  return json({
+    success: true,
+    removed: true,
+    message: "Автомобіль видалено з профілю. Історію обслуговування збережено.",
+    car: publicAssetCar(car, car.history)
+  }, 200, responseHeaders);
+}
+__name(removeCustomerCarFromProfile, "removeCustomerCarFromProfile");
 async function inferCustomerVehicleGroup(env, customerId) {
   try {
     const assets = await getCustomerAssets(env, customerId);
@@ -546,11 +674,20 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
         error: "Автомобіль з таким VIN уже зареєстрований у CRM. Зверніться до сервісу."
       }, 409, responseHeaders);
     }
+    const restored = await unhideCustomerCar(
+      env,
+      numericCustomerId,
+      Number(existing?.id) || 0,
+      vin
+    );
     return json({
       success: true,
       created: false,
       already_exists: true,
-      message: "Цей автомобіль уже є у вашому профілі",
+      restored,
+      message: restored
+        ? "Автомобіль повернуто у ваш профіль"
+        : "Цей автомобіль уже є у вашому профілі",
       car: publicAssetCar(existing)
     }, 200, responseHeaders);
   }
@@ -612,6 +749,12 @@ let asset = extractRecord(createResponse.data, ["asset"]);
     if (refreshed) asset = refreshed;
   }
 
+  await unhideCustomerCar(
+    env,
+    numericCustomerId,
+    Number(asset?.id) || 0,
+    vin
+  );
   return json({
     success: true,
     created: true,
@@ -1204,7 +1347,7 @@ var index_default = {
       }
 
       let authSession = null;
-      if (["/", "/order", "/availability", "/booking", "/cars"].includes(url.pathname)) {
+      if (["/", "/order", "/availability", "/booking", "/cars", "/cars/remove"].includes(url.pathname)) {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
@@ -1217,6 +1360,14 @@ var index_default = {
       }
       if (url.pathname === "/cars" && request.method === "POST") {
         return await createCustomerAsset(
+          request,
+          env,
+          Number(authSession.customer_id),
+          corsHeaders
+        );
+      }
+      if (url.pathname === "/cars/remove" && request.method === "POST") {
+        return await removeCustomerCarFromProfile(
           request,
           env,
           Number(authSession.customer_id),
