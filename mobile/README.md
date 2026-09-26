@@ -16,7 +16,7 @@ npm run open
 
 Select the **App** scheme and an iPhone simulator in Xcode. The bundle identifier is provisionally `ua.karpservice.client`; register/confirm it when the owner's Apple team is available. The app targets iOS 15+ and iPhone, portrait orientation. The Xcode project is `ios/App/App.xcodeproj` and uses Swift Package Manager, not CocoaPods.
 
-The GitHub workflow `iOS preparation` builds and launches an unsigned simulator app and exports logs, a ZIP and a login-screen capture. Its artifact **cannot be installed on a physical iPhone or uploaded to App Store Connect**. The workflow does not require signing secrets and does not deploy the web frontend or API.
+The GitHub workflow `iOS preparation` builds and launches a simulator app with local ad-hoc signing and exports logs, a ZIP and a login-screen capture. Local signing preserves the Keychain entitlements; disabling signing entirely breaks secure storage in Simulator. Its artifact **cannot be installed on a physical iPhone or uploaded to App Store Connect**. The workflow does not require an Apple account or signing secrets and does not deploy the web frontend or API.
 
 ## What is implemented
 

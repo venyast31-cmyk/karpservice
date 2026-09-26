@@ -51,12 +51,21 @@ jobs:
           xcodebuild -version
       - run: npm ci --no-audit --no-fund && npm run sync
         working-directory: mobile
-      - name: Build unsigned iPhone simulator app
+      - name: Build locally signed iPhone simulator app
         working-directory: mobile
         run: |
           mkdir -p artifacts
           set -o pipefail
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build > artifacts/xcodebuild.log 2>&1 || { tail -100 artifacts/xcodebuild.log; exit 1; }
+          # Local simulator signing needs no Apple account and preserves Keychain entitlements.
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build > artifacts/xcodebuild.log 2>&1 || { tail -100 artifacts/xcodebuild.log; exit 1; }
+          codesign --verify --deep --strict DerivedData/Build/Products/Release-iphonesimulator/App.app
+          codesign -d --entitlements - --xml DerivedData/Build/Products/Release-iphonesimulator/App.app > artifacts/simulator-entitlements.plist
+          python3 - <<'PY'
+          import plistlib
+          with open('artifacts/simulator-entitlements.plist', 'rb') as f:
+              entitlements = plistlib.load(f)
+          assert entitlements.get('application-identifier', '').endswith('ua.karpservice.client'), 'Simulator Keychain requires an application identifier'
+          PY
           ditto -c -k --sequesterRsrc --keepParent DerivedData/Build/Products/Release-iphonesimulator/App.app artifacts/Karpservice-Simulator.zip
       - name: Smoke launch and capture the login screen
         working-directory: mobile
