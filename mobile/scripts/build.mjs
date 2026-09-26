@@ -23,11 +23,13 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 .native-actions{margin:16px 0}
 .native-actions button{margin-top:10px}
 .native-ios input,.native-ios textarea,.native-ios select{font-size:16px}
+.native-ios::after{content:"";position:fixed;z-index:10000;top:0;right:0;left:0;height:env(safe-area-inset-top,0px);background:#0d1014;pointer-events:none}
 </style>`);
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>');
 replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Введіть номер, який ви залишали в сервісі, та підтвердьте вхід через Telegram.');
 replaceOnce('Запис успішно створено в RO App. Майстра сервіс призначить окремо.', 'Ваш запис на сервіс створено. До зустрічі в Karpservice!');
 replaceOnce('<div class="slot" onclick="pickSlot(this)">09:00</div>', '<div class="slot" onclick="pickSlot(this)">09:30</div>');
+replaceOnce("  window.requestAnimationFrame(() => document.getElementById('phone')?.focus());", '  // On iPhone, open the phone keyboard only after the user taps the field.');
 replaceOnce([
   "    if (typeof data.token === 'string' && /^[A-Za-z0-9_-]{40,100}$/.test(data.token)){",
   "      legacyAuthToken = data.token;",
