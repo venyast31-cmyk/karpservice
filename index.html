@@ -1063,6 +1063,7 @@ function clearLegacyAuthToken(){
 }
 
 function apiFetch(path='', options={}){
+  if (window.KarpNative) return window.KarpNative.request(path, options);
   const headers = new Headers(options.headers || {});
   if (legacyAuthToken) headers.set('Authorization', `Bearer ${legacyAuthToken}`);
   return fetch(new URL(path, API_URL), {...options, headers, credentials:'same-origin'});
@@ -1738,6 +1739,7 @@ function visitWord(n){
 
 function logout(){
   apiFetch('auth/logout', {method:'POST'}).catch(() => {});
+  window.KarpNative?.didLogout();
   setAuthSession(false);
   clearLegacyAuthToken();
   stopTelegramLinkPolling();
@@ -2056,6 +2058,7 @@ async function createBooking(){
     }
 
     document.getElementById('doneCar').textContent = carName(car);
+    window.KarpNative?.didBook({scheduledFor, car:carName(car), service:selectedService});
     show('done');
   }catch(err){
     status.textContent = 'Не вдалося створити запис: ' + err.message;

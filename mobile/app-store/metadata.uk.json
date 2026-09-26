@@ -1,0 +1,16 @@
+{
+  "name": "Karpservice",
+  "subtitle": "Запис та історія вашого авто",
+  "primaryLanguage": "uk",
+  "proposedCategory": "UTILITIES",
+  "proposedBundleId": "ua.karpservice.client",
+  "proposedSKU": "KARP-IOS-001",
+  "version": "1.0.0",
+  "price": "Free",
+  "keywords": "СТО,автосервіс,Бориспіль,ремонт,авто,запис,мастило,техобслуговування",
+  "promotionalText": "Записуйте автомобіль у Karpservice, переглядайте історію обслуговування та додавайте нагадування про наступний візит — у своєму iPhone.",
+  "copyrightDraft": "2026 Karpservice — confirm the legal rights holder before submission",
+  "supportURL": null,
+  "privacyPolicyURL": null,
+  "status": "Draft. Public policy URLs and owner details must be completed before submission."
+}

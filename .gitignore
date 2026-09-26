@@ -3,3 +3,12 @@ node_modules/
 worker/.dev.vars
 worker/.wrangler/
 worker/dist/
+mobile/dist/
+mobile/ios/App/App/public/
+mobile/ios/App/App/capacitor.config.json
+mobile/ios/App/App.xcodeproj/xcuserdata/
+mobile/ios/App/App.xcworkspace/xcuserdata/
+mobile/DerivedData/
+mobile/artifacts/
+*.xcarchive
+*.ipa
