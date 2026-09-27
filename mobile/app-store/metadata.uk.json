@@ -2,10 +2,11 @@
   "name": "Karpservice",
   "subtitle": "Запис та історія вашого авто",
   "primaryLanguage": "uk",
-  "proposedCategory": "UTILITIES",
+  "category": "UTILITIES",
   "bundleId": "ua.karpservice.client",
   "sku": "karpservice-ios",
   "appleTeamId": "L6W4586456",
+  "appStoreAppleId": "6816711108",
   "appStoreRecordCreated": true,
   "version": "1.0",
   "price": "Free",
@@ -14,5 +15,5 @@
   "copyrightDraft": "2026 Karpservice — confirm the legal rights holder before submission",
   "supportURL": null,
   "privacyPolicyURL": null,
-  "status": "App Store Connect record created; text remains a draft. Signing credentials, public policy URLs, reviewer access and physical-device testing remain."
+  "status": "Ukrainian promotional text, description, keywords, subtitle and Utilities category saved in the App Store Connect draft on 2026-09-27. Signing credentials, public policy URLs, reviewer access and physical-device testing remain."
 }
