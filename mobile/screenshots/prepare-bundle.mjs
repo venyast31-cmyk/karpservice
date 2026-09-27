@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const [bundleArg, screen] = process.argv.slice(2);
-const screens = ['cars', 'service', 'time', 'history', 'order'];
+const screens = ['cars', 'service', 'time', 'history', 'order', 'done'];
 if (process.platform !== 'darwin' || process.env.GITHUB_ACTIONS !== 'true' || !screens.includes(screen)) {
   throw new Error('Only the GitHub macOS simulator capture job may prepare this bundle');
 }

@@ -14,10 +14,12 @@
   "promotionalText": "Записуйте автомобіль у Karpservice, переглядайте історію обслуговування та додавайте нагадування про наступний візит — у своєму iPhone.",
   "copyright": "2026 Karpservice",
   "supportURL": "https://karpservice-app.jeweled-astrodon.workers.dev/support/",
-  "privacyPolicyURL": null,
+  "privacyPolicyURL": "https://karpservice-app.jeweled-astrodon.workers.dev/privacy/",
   "selectedBuild": "3.1.0",
   "ageRating": "4+",
-  "availability": ["UA"],
+  "availability": [
+    "UA"
+  ],
   "releaseMode": "Automatic after App Review approval",
-  "status": "On 2026-09-27 the owner confirmed the corrected app works on iPhone and authorized publication. Build 1.0 (3.1.0), Ukrainian metadata, review contact, support URL, free pricing, Ukraine availability and age rating 4+ are saved in App Store Connect. Seven App Privacy data types are published for functionality, linked to the user and not tracking. Five native simulator screenshots with fictional data are uploaded to the Ukrainian iPhone 6.5-inch set in cars/service/time/history/order sequence; Apple CDN thumbnails persist after reloading Media Manager. Independent review login, the final public privacy policy and content-rights declaration remain unresolved. The tool's automatic safety review blocked Add for Review because reviewer credentials and the privacy-policy URL are missing; the action was not executed and this is not an Apple rejection. No App Review submission or public release."
+  "status": "Owner approved a visible local demo on 2026-09-27, identified the operator as ФОП Карпенко Євгеній Ігорович, confirmed indefinite service-history retention with deletion on request, and confirmed no rights to automaker logos. Updated code and policy are in preparation; selected Apple build 3.1.0 and current screenshots still precede these changes. New build, screenshot replacement and App Review access approval remain pending. No public release."
 }

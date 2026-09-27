@@ -661,6 +661,7 @@ let authLinkToken = "";
 let authPhoneMasked = "";
 let authLinkPollTimer = null;
 let customerData = null;
+let customerLoadVersion = 0;
 let selectedCarId = null;
 let selectedOrderId = null;
 let orderReturnScreen = 'history';
@@ -1280,11 +1281,14 @@ async function verifyTelegramCode(){
 }
 
 async function loadCustomer(options={}){
+  const loadVersion = ++customerLoadVersion;
   setAppLoading(true, 'Завантажуємо ваші автомобілі…');
 
   try{
     const res = await apiFetch('');
     const data = await responseJson(res);
+
+    if (loadVersion !== customerLoadVersion) return false;
 
     if (res.status === 401){
       setAuthSession(false);
@@ -1313,13 +1317,14 @@ async function loadCustomer(options={}){
     show(options.targetScreen || 'home');
     return true;
   }catch(err){
+    if (loadVersion !== customerLoadVersion) return false;
     const statusId = document.getElementById('codeAuthStep').hidden ? 'loginStatus' : 'codeStatus';
     showStatus(err.message || 'Помилка зв’язку. Спробуйте ще раз.', 'error', statusId);
     show('login');
     console.error(err);
     return false;
   }finally{
-    if (!initialLoadingPending) setAppLoading(false);
+    if (loadVersion === customerLoadVersion && !initialLoadingPending) setAppLoading(false);
   }
 }
 
@@ -1737,6 +1742,7 @@ function visitWord(n){
 }
 
 function logout(){
+  customerLoadVersion += 1;
   apiFetch('auth/logout', {method:'POST'}).catch(() => {});
   window.KarpNative?.didLogout();
   setAuthSession(false);
@@ -2057,6 +2063,7 @@ async function createBooking(){
     }
 
     document.getElementById('doneCar').textContent = carName(car);
+    if (data.demo === true) await loadCustomer({targetScreen:'done'});
     window.KarpNative?.didBook({scheduledFor, car:carName(car), service:selectedService});
     show('done');
   }catch(err){
