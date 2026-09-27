@@ -12,8 +12,12 @@
   "price": "Free",
   "keywords": "СТО,автосервіс,Бориспіль,ремонт,авто,запис,мастило,техобслуговування",
   "promotionalText": "Записуйте автомобіль у Karpservice, переглядайте історію обслуговування та додавайте нагадування про наступний візит — у своєму iPhone.",
-  "copyrightDraft": "2026 Karpservice — confirm the legal rights holder before submission",
-  "supportURL": null,
+  "copyright": "2026 Karpservice",
+  "supportURL": "https://karpservice-app.jeweled-astrodon.workers.dev/support/",
   "privacyPolicyURL": null,
-  "status": "Ukrainian promotional text, description, keywords, subtitle and Utilities category saved in the App Store Connect draft on 2026-09-27. Signing credentials, public policy URLs, reviewer access and physical-device testing remain."
+  "selectedBuild": "3.1.0",
+  "ageRating": "4+",
+  "availability": ["UA"],
+  "releaseMode": "Automatic after App Review approval",
+  "status": "On 2026-09-27 the owner confirmed the corrected app works on iPhone and authorized publication. Build 1.0 (3.1.0), Ukrainian metadata, review contact, support URL, free pricing, Ukraine availability and age rating 4+ are saved in App Store Connect. Seven App Privacy data types are configured for functionality, linked to the user and not tracking; privacy publication remains pending. Five native simulator screenshots are prepared and visually checked, but upload has not been confirmed. Independent review login, the final public privacy policy and content-rights declaration remain unresolved. No App Review submission or public release."
 }
