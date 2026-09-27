@@ -5,21 +5,37 @@ import { Share } from '@capacitor/share';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { createTransport } from './transport.mjs';
 import { reminderDate, notificationId } from './reminder.mjs';
+import { createDemoSession } from './demo.mjs';
 
 if (Capacitor.isNativePlatform()) {
   const api = registerPlugin('KarpserviceAPI');
   let booking = null;
   let generation = 0;
   const transport = createTransport(api);
+  const demo = createDemoSession(transport);
+  const updateDemoUi = () => {
+    const banner = document.getElementById('nativeDemoBanner');
+    if (banner) banner.hidden = !demo.active;
+    const doneTitle = document.querySelector('#done h1');
+    if (doneTitle) doneTitle.textContent = demo.active ? 'Пробний запис готовий' : 'Готово!';
+    const doneCopy = document.querySelector('#done .card p');
+    if (doneCopy) doneCopy.textContent = demo.active
+      ? 'Це демонстрація. Візит у сервіс не заброньовано.' : 'Ваш запис на сервіс створено. До зустрічі в Karpservice!';
+  };
+  window.KarpDemo = {
+    start: () => { demo.start(); generation += 1; window.stopTelegramLinkPolling?.(); updateDemoUi(); },
+    get active() { return demo.active; }
+  };
   window.KarpNative = {
     request: async (path, options) => {
       const capturedGeneration = generation;
-      const response = await transport(path, options);
+      const response = await demo.request(path, options);
+      updateDemoUi();
       if (capturedGeneration !== generation && path !== 'auth/logout') throw new Error('Вхід завершено.');
       return response;
     },
     didBook: (details) => {
-      booking = { ...details };
+      booking = { ...details, demo: demo.active };
       const actions = document.getElementById('nativeBookingActions');
       if (actions) actions.hidden = false;
       const status = document.getElementById('nativeBookingStatus');
@@ -29,12 +45,22 @@ if (Capacitor.isNativePlatform()) {
     didLogout: () => {
       generation += 1;
       booking = null;
+      demo.stop();
+      updateDemoUi();
+      const actions = document.getElementById('nativeBookingActions');
+      if (actions) actions.hidden = true;
       LocalNotifications.getPending().then(({ notifications }) => LocalNotifications.cancel({ notifications })).catch(() => {});
     }
   };
 
   document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.classList.add('native-ios');
+    updateDemoUi();
+    document.getElementById('nativeDemoStart')?.addEventListener('click', async () => {
+      window.KarpDemo.start();
+      await window.loadCustomer?.({ targetScreen: 'cars' });
+    });
+    document.getElementById('nativeDemoExit')?.addEventListener('click', () => window.logout?.());
     document.getElementById('nativeReminder')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       const status = document.getElementById('nativeBookingStatus');
@@ -56,7 +82,8 @@ if (Capacitor.isNativePlatform()) {
         if (!at) { status.textContent = 'Час нагадування вже минув.'; return; }
         const id = notificationId(capturedBooking.scheduledFor);
         await LocalNotifications.schedule({ notifications: [{
-          id, title: 'Karpservice', body: 'Наближається ваш запис на сервіс.',
+          id, title: capturedBooking.demo ? 'Karpservice · Демо' : 'Karpservice',
+          body: capturedBooking.demo ? 'Пробне нагадування. Реального візиту немає.' : 'Наближається ваш запис на сервіс.',
           schedule: { at }, extra: { destination: 'profile' }
         }] });
         if (generation !== capturedGeneration) {
@@ -75,7 +102,7 @@ if (Capacitor.isNativePlatform()) {
         timeZone: 'Europe/Kyiv', dateStyle: 'long', timeStyle: 'short'
       }).format(new Date(booking.scheduledFor));
       try {
-        await Share.share({ title: 'Запис у Karpservice', text: `${date}\n${booking.car}\n${booking.service}\nБориспіль, Київський Шлях, 10\n073 44 47 344`, dialogTitle: 'Поділитися записом' });
+        await Share.share({ title: 'Запис у Karpservice', text: `${booking.demo ? 'ДЕМО — реального запису немає\n' : ''}${date}\n${booking.car}\n${booking.service}\nБориспіль, Київський Шлях, 10\n073 44 47 344`, dialogTitle: 'Поділитися записом' });
       } catch { /* Closing the share sheet is a normal action. */ }
     });
 

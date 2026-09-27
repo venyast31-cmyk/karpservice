@@ -1,34 +1,10 @@
 // Used only in the separate simulator copy prepared by capture-store-screenshots.sh.
-// Never bundled by build.mjs, exported to iPhone, or uploaded to TestFlight.
+// Navigation automation is never included in the physical-device build.
 (() => {
   if (!window.KarpNative) throw new Error('Screenshot capture requires the native iOS app');
-  const cars = [
-    { id: 1, brand: 'Toyota', model: 'Camry', year: 2021, vin: 'TEST0000000000001', history: [
-      { id: 1024, number: 'A1024', created_at: '2026-09-15T09:00:00Z', status: 'Закрито', total: 3500 },
-      { id: 1006, number: 'A1006', created_at: '2026-08-21T09:00:00Z', status: 'Закрито', total: 1800 }
-    ] },
-    { id: 2, brand: 'Skoda', model: 'Octavia', year: 2018, vin: 'TEST0000000000002', history: [
-      { id: 998, number: 'A998', created_at: '2026-08-10T09:00:00Z', status: 'Закрито', total: 4200 }
-    ] }
-  ];
-  window.KarpNative.request = async (path = '', options = {}) => {
-    if ((options.method || 'GET') !== 'GET') throw new Error('Screenshot fixture is read-only');
-    let data;
-    if (path === '') {
-      data = { success: true, found: true,
-        customer: { id: 1, first_name: 'Демонстраційний', last_name: 'клієнт', phone: '+380000000000' },
-        cars, history_cars: cars };
-    } else if (path.startsWith('order?')) {
-      data = { success: true, order: { id: 1024, number: 'A1024', created_at: '2026-09-15T09:00:00Z',
-        status: 'Закрито', total: 3500, items: [
-          { name: 'Заміна мастила та фільтра', kind: 'service', quantity: 1, total: 500 },
-          { name: 'Моторне мастило', kind: 'product', quantity: 5, uom: 'л', total: 2500 },
-          { name: 'Масляний фільтр', kind: 'product', quantity: 1, total: 500 }
-        ] } };
-    } else throw new Error('Unexpected screenshot request: ' + path);
-    return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  };
-  // Screenshots must never contact a real customer's account, Telegram or the CRM.
+  if (!window.KarpDemo) throw new Error('The production demo must be bundled');
+  window.KarpDemo.start();
+  // Exercise the public demo, with no screenshot-only data or real API calls.
   window.fetch = async () => { throw new Error('Network disabled in screenshot copy'); };
 
   window.addEventListener('load', async () => {
@@ -41,9 +17,9 @@
     if (screen === 'cars') document.getElementById('carsNav').click();
     else if (screen === 'history') document.getElementById('historyNav').click();
     else if (screen === 'order') await openOrder(1024, 'allHistory');
-    else if (screen === 'service' || screen === 'time') {
+    else if (screen === 'service' || screen === 'time' || screen === 'done') {
       startBooking(1);
-      if (screen === 'time') {
+      if (screen === 'time' || screen === 'done') {
         document.querySelector('.service').click();
         document.getElementById('serviceContinueBtn').click();
         const day = new Date();
@@ -53,6 +29,11 @@
         field.value = day.toISOString().slice(0, 10);
         field.dispatchEvent(new Event('change', { bubbles: true }));
         [...document.querySelectorAll('.slot')].find(slot => slot.textContent.trim() === '14:00').click();
+        if (screen === 'done') {
+          await createBooking();
+          if (!document.querySelector('#done.active') || !document.querySelector('#done .card p').textContent.includes('не заброньовано')) throw new Error('Demo booking did not finish transparently');
+          if (document.getElementById('nativeBookingActions').hidden) throw new Error('Native booking actions missing');
+        }
       }
     } else throw new Error('Unknown screenshot screen: ' + screen);
     document.body.dataset.screenshotReady = screen;

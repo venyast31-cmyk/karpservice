@@ -2063,6 +2063,7 @@ async function createBooking(){
     }
 
     document.getElementById('doneCar').textContent = carName(car);
+    if (data.demo === true) await loadCustomer({targetScreen:'done'});
     window.KarpNative?.didBook({scheduledFor, car:carName(car), service:selectedService});
     show('done');
   }catch(err){
