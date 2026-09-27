@@ -4,6 +4,7 @@ import {
   handleAuthRoute,
   requireAuthSession
 } from "./auth.js";
+import { handleDeletionRoute } from "./deletion.js";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -1327,6 +1328,8 @@ var index_default = {
         findCustomerByPhone
       });
       if (authResponse) return authResponse;
+      const deletionResponse = await handleDeletionRoute(request, env, corsHeaders);
+      if (deletionResponse) return deletionResponse;
 
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);

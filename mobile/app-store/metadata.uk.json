@@ -21,5 +21,5 @@
     "UA"
   ],
   "releaseMode": "Automatic after App Review approval",
-  "status": "Owner approved a visible local demo on 2026-09-27, identified the operator as ФОП Карпенко Євгеній Ігорович, confirmed indefinite service-history retention with deletion on request, and confirmed no rights to automaker logos. Updated code and policy are in preparation; selected Apple build 3.1.0 and current screenshots still precede these changes. New build, screenshot replacement and App Review access approval remain pending. No public release."
+  "status": "Demo removed on explicit owner instruction at 2026-09-27 22:52 Europe/Kyiv. Telegram login remains required. Build 4.1.0 contains the withdrawn demo; a replacement is being prepared. Privacy policy URL is saved in App Store Connect. Reviewer access and account-deletion rollout remain unresolved. No App Review submission or public release."
 }

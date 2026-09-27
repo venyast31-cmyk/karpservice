@@ -1,0 +1,71 @@
+diff --git a/mobile/ios/App/App/KarpserviceAPIPlugin.swift b/mobile/ios/App/App/KarpserviceAPIPlugin.swift
+index ef6ae2c..0bf5084 100644
+--- a/mobile/ios/App/App/KarpserviceAPIPlugin.swift
++++ b/mobile/ios/App/App/KarpserviceAPIPlugin.swift
+@@ -20,6 +20,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
+     private let routes: [String: String] = [
+         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
+         "cars/remove": "POST", "booking": "POST", "auth/request": "POST",
++        "account/deletion-policy": "GET", "account/deletion": "POST",
+         "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
+     ]
+     private lazy var session: URLSession = {
+diff --git a/mobile/scripts/build.mjs b/mobile/scripts/build.mjs
+index fd3379a..b2edb38 100644
+--- a/mobile/scripts/build.mjs
++++ b/mobile/scripts/build.mjs
+@@ -63,6 +63,7 @@ replaceOnce('    <button class="secondary" type="button" onclick="logout()">Ви
+       <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
+       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
+       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>
++      <button id="nativeDeleteAccount" class="secondary" type="button">Видалити профіль і дані</button>
+       <p id="nativeProfileStatus" class="native-note" role="status"></p>
+     </div>
+     <nav class="native-links" aria-label="Інформація"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
+diff --git a/mobile/src/native.js b/mobile/src/native.js
+index ae2bbbd..aebb721 100644
+--- a/mobile/src/native.js
++++ b/mobile/src/native.js
+@@ -108,6 +108,30 @@ if (Capacitor.isNativePlatform()) {
+ 
+     document.getElementById('nativeRefresh')?.addEventListener('click', () => window.loadCustomer?.({ targetScreen: 'profile' }));
+     document.getElementById('nativeOpenSettings')?.addEventListener('click', () => api.openSettings().catch(() => {}));
++    document.getElementById('nativeDeleteAccount')?.addEventListener('click', async (event) => {
++      const button = event.currentTarget;
++      const status = document.getElementById('nativeProfileStatus');
++      const capturedGeneration = generation;
++      button.disabled = true;
++      try {
++        const policyResponse = await window.KarpNative.request('account/deletion-policy');
++        const policy = await policyResponse.json();
++        if (!policyResponse.ok || !policy.success) throw new Error(policy.error);
++        if (capturedGeneration !== generation) return;
++        const message = demo.active
++          ? 'Це пробний запит із вигаданими даними. Реальні дані та повідомлення сервісу не зміняться. Продовжити?'
++          : `Ви подаєте запит на видалення профілю, прив’язки Telegram, автомобілів та історії обслуговування. Сервіс виконає його протягом ${policy.days} календарних днів і повідомить результат за вашим підтвердженим номером. Якщо окремі документи необхідно зберегти за законом, сервіс пояснить обсяг і підставу. Підтвердити запит?`;
++        if (!window.confirm(message)) return;
++        const response = await window.KarpNative.request('account/deletion', { method: 'POST', body: JSON.stringify({ confirmed: true }) });
++        const data = await response.json();
++        if (!response.ok || !data.success) throw new Error(data.error);
++        if (capturedGeneration !== generation) return;
++        status.textContent = demo.active ? 'Демонстрація завершена. Справжній запит на видалення не надіслано.'
++          : `Запит ${data.request_id} прийнято. Видалення ще не завершене. Строк виконання — до ${new Date(data.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}. Сервіс повідомить результат за вашим підтвердженим номером.`;
++      } catch (error) {
++        if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося подати запит. Спробуйте ще раз.';
++      } finally { button.disabled = false; }
++    });
+     document.getElementById('nativeClearReminders')?.addEventListener('click', async () => {
+       const status = document.getElementById('nativeProfileStatus');
+       try {
+diff --git a/mobile/src/transport.mjs b/mobile/src/transport.mjs
+index bfcc625..b93cf7f 100644
+--- a/mobile/src/transport.mjs
++++ b/mobile/src/transport.mjs
+@@ -1,6 +1,7 @@
+ const routes = new Map([
+   ['', 'GET'], ['order', 'GET'], ['availability', 'GET'],
+   ['cars', 'POST'], ['cars/remove', 'POST'], ['booking', 'POST'],
++  ['account/deletion-policy', 'GET'], ['account/deletion', 'POST'],
+   ['auth/request', 'POST'], ['auth/link-status', 'POST'],
+   ['auth/verify', 'POST'], ['auth/logout', 'POST'], ['auth/me', 'GET']
+ ]);

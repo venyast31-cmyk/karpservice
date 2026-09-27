@@ -58,3 +58,10 @@ The current app does not let users create CRM customer records. Access is throug
 Власник погодив відкритий локальний деморежим, указав оператора **ФОП Карпенко Євгеній Ігорович**, підтвердив постійне зберігання історії з видаленням на запит та відсутність прав на логотипи автомарок. Додано локальний деморежим із пробним бронюванням, оригінальні нейтральні іконки, рекламну картку без сторонніх зображень та остаточну політику. Демо не має облікового запису, секретного коду чи доступу до production API. Клієнтський Telegram-вхід і серверні дозволи незмінні. Модельні перевірки ізоляції та повернення до звичайного входу пройшли.
 
 Ці зміни потребують нової фізичної збірки та нових скриншотів; чинна 3.1.0 їх не містить. Попереднє автоматичне блокування Add for Review не обійдено. Apple 2.1(a) передбачає попереднє погодження деморежиму замість тестового акаунта. Політика чесно описує ручне видалення, але запуск запиту на видалення всередині застосунку ще не реалізований. Потрібно завершити це питання для Telegram-прив’язки перед подачею, не називати вихід або приховування авто видаленням профілю.
+
+
+## Superseding instruction — 2026-09-27 22:52 Europe/Kyiv
+
+The owner explicitly requested removal of demo mode. The public demo, entry button, banner, data module and demo-specific reminders/sharing have been removed. Telegram login remains mandatory. Neutral artwork and the confirmed privacy policy remain. Simulator screenshots use isolated fictional read-only fixtures that are never included in device builds. Build 4.1.0 contains the withdrawn demo and must not be selected for this release. A replacement build is required.
+
+Apple demo-approval request withdrawn and not sent. App Review now needs a usable review account/access arrangement for Telegram login. No reviewer credentials were invented. The account-deletion backend is prepared but not deployed; its UI integration is preserved separately in deletion-ui-preparation.patch and is not included in the app until the operator confirms a deadline and the backend is deployed. The patch was recorded before removal of demo and requires adapting to the current native.js.
