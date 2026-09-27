@@ -1,0 +1,13 @@
+{
+  "appId": "ua.karpservice.client",
+  "appName": "Karpservice",
+  "webDir": "dist",
+  "backgroundColor": "#0d1014",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": true,
+    "allowsLinkPreview": false,
+    "preferredContentMode": "mobile",
+    "webContentsDebuggingEnabled": false
+  }
+}

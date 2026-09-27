@@ -1,0 +1,132 @@
+name: iOS preparation
+on:
+  push:
+    branches: ['codex/ios-app-store-preparation']
+  pull_request:
+    paths: ['mobile/**', 'index.html', '.github/workflows/ios-prepare.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: mobile
+      - run: npm run check
+        working-directory: mobile
+      - run: npm test
+        working-directory: worker
+  device:
+    name: Compile iPhone archive without signing
+    runs-on: macos-15
+    needs: verify
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Select Xcode
+        run: bash mobile/scripts/select-xcode.sh
+      - run: npm ci --no-audit --no-fund && npm run sync
+        working-directory: mobile
+      - name: Compile the device archive
+        working-directory: mobile
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Karpservice-unsigned.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM=L6W4586456 archive > artifacts/iphone-archive.log 2>&1 \
+            || { tail -80 artifacts/iphone-archive.log; exit 1; }
+          python3 scripts/verify-archive.py "$RUNNER_TEMP/Karpservice-unsigned.xcarchive"
+          {
+            echo '### iPhone compilation passed'
+            echo 'This unsigned archive is a compilation check. It cannot be installed or uploaded.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Karpservice-iPhone-compile-log
+          path: mobile/artifacts/iphone-archive.log
+          retention-days: 14
+  simulator:
+    runs-on: macos-15
+    needs: verify
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Select an installed Xcode 26 SDK
+        shell: bash
+        run: |
+          XCODE_PATH=$(python3 - <<'PY'
+          import glob,re
+          paths=glob.glob('/Applications/Xcode_26*.app/Contents/Developer')
+          if not paths: raise SystemExit('Xcode 26 is required on this runner')
+          print(sorted(paths,key=lambda p:tuple(map(int,re.findall(r'\d+',p))))[-1])
+          PY
+          )
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+      - run: npm ci --no-audit --no-fund && npm run sync
+        working-directory: mobile
+      - name: Build locally signed iPhone simulator app
+        working-directory: mobile
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          # Local simulator signing needs no Apple account and preserves Keychain entitlements.
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build > artifacts/xcodebuild.log 2>&1 || { tail -100 artifacts/xcodebuild.log; exit 1; }
+          codesign --verify --deep --strict DerivedData/Build/Products/Release-iphonesimulator/App.app
+          # Simulator entitlements are linked into Mach-O, not stored in the code signature.
+          cp DerivedData/Build/Intermediates.noindex/App.build/Release-iphonesimulator/App.build/App.app-Simulated.xcent artifacts/simulator-entitlements.plist
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          with open('artifacts/simulator-entitlements.plist', 'rb') as f:
+              entitlements = plistlib.load(f)
+          app_id = entitlements.get('application-identifier', '')
+          assert app_id.endswith('ua.karpservice.client'), 'Simulator Keychain requires an application identifier'
+          assert app_id.encode() in Path('DerivedData/Build/Products/Release-iphonesimulator/App.app/App').read_bytes(), 'Simulator entitlement must be linked into the executable'
+          PY
+          ditto -c -k --sequesterRsrc --keepParent DerivedData/Build/Products/Release-iphonesimulator/App.app artifacts/Karpservice-Simulator.zip
+      - name: Smoke launch and capture the login screen
+        working-directory: mobile
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for v in d["devices"].values() for x in v if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$SIMULATOR_ID"
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          xcrun simctl status_bar "$SIMULATOR_ID" override --time '9:41' --batteryState charged --batteryLevel 100
+          xcrun simctl install "$SIMULATOR_ID" DerivedData/Build/Products/Release-iphonesimulator/App.app
+          xcrun simctl launch "$SIMULATOR_ID" ua.karpservice.client
+          sleep 8
+          xcrun simctl io "$SIMULATOR_ID" screenshot artifacts/ios-login.png
+          xcrun simctl shutdown "$SIMULATOR_ID"
+      - name: Capture App Store screenshots with fictional customer data
+        working-directory: mobile
+        run: bash scripts/capture-store-screenshots.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Karpservice-iOS-preparation
+          path: mobile/artifacts/
+          retention-days: 30
