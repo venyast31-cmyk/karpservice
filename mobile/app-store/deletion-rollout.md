@@ -13,6 +13,16 @@ The owner confirmed on 2026-09-27 that history is retained indefinitely and dele
 
 ## Operator completion procedure
 
+## Deployment access via GitHub Actions
+
+The prepared `.github/workflows/api-deploy.yml` runs only on an explicit push to `release/api`. It does not run on this preparation branch. It checks source and isolated tests, applies additive migrations, deploys the existing Worker, and checks public health. A successful health check alone does not verify customer deletion delivery.
+
+The owner must store `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the repository's Actions secrets, never in chat, source, or workflow inputs. Restrict the token to the relevant Cloudflare account, with Workers Scripts Edit for deployment and D1 Edit for migration; avoid unrelated permissions. Use a short expiry suitable for the release. Do not create or expand a token on the owner's behalf without authorization.
+
+After the secrets are provided, an explicitly authorized release branch push can run the prepared workflow. Existing Worker secrets and bindings are retained; the workflow does not send Telegram messages or initiate customer deletion requests. Continue rollout gates above before uploading the next native build.
+
+## Manual fulfillment
+
 The in-app request identifies the customer from the verified session and includes the entire profile and related data, not only the Telegram login. A request persists in AUTH_DB and is sent to the existing service Telegram chat. Delivery failures are shown to the customer; retrying uses the same ID. Staff must monitor the queue and meet the approved deadline.
 
 For each verified request:
