@@ -14,7 +14,7 @@ async function get(label, path) {
   return body.success === true ? body.result : null;
 }
 const verified = await get('token validity', '/user/tokens/verify');
-console.log(JSON.stringify({ token_status: verified?.status || 'unverified' }));
+console.log(JSON.stringify({ token_status: verified?.status || 'unverified', not_before: verified?.not_before || null, expires_on: verified?.expires_on || null, checked_at: new Date().toISOString() }));
 const databases = await get('D1 list', `/accounts/${account}/d1/database`);
 if (Array.isArray(databases)) console.log(JSON.stringify({ databases: databases.map(d => ({ name: d.name, uuid: d.uuid })) }));
 const settings = await get('Worker binding', `/accounts/${account}/workers/scripts/${config.name}/settings`);
