@@ -30,7 +30,14 @@ function command(program, args, input) {
     return execFileSync(program, args, { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 8 * 1024 * 1024 });
   } catch (error) {
     // execFile errors include argv. Never print them: argv may contain passwords.
-    throw new Error(`${path.basename(program)} failed (exit ${error.status ?? 'unknown'}); check signing credentials`);
+    const operation = path.basename(program) === 'security' ? `security ${args[0]}` : path.basename(program);
+    const hints = [
+      [/MAC verification failed/i, 'PKCS12 password or encryption format was rejected'],
+      [/Unknown format in import/i, 'unsupported certificate import format'],
+      [/User interaction is not allowed/i, 'the temporary signing keychain is locked'],
+    ];
+    const hint = hints.find(([pattern]) => pattern.test(String(error.stderr ?? '')))?.[1];
+    throw new Error(`${operation} failed (exit ${error.status ?? 'unknown'}); ${hint ?? 'check signing credentials'}`);
   }
 }
 
