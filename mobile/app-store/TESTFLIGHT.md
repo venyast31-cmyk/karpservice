@@ -2,6 +2,8 @@
 
 Зареєстровано: Apple Team `L6W4586456`, Bundle ID `ua.karpservice.client`, назва `Karpservice`, SKU `karpservice-ios`, версія `1.0`.
 
+Стан на 27 вересня 2026: ключ із роллю Developer, Apple Distribution сертифікат і профіль `Karpservice App Store` створено. Перевірено відповідність приватного ключа, сертифіката, команди та Bundle ID. Усі шість параметрів нижче збережено в GitHub Actions Secrets. Компіляцію для симулятора й iPhone вже перевірено; підписання та завантаження перевіряє окремий workflow `iOS TestFlight`.
+
 ## Одноразове підключення
 
 У GitHub → `venyast31-cmyk/karpservice` → Settings → Secrets and variables → Actions необхідно додати:
