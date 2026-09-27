@@ -1,0 +1,93 @@
+name: iOS TestFlight
+on:
+  # Creating/updating this dedicated branch is an explicit upload action.
+  # The preparation branch and pull requests never receive signing secrets.
+  push:
+    branches: ['release/ios-testflight']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: karpservice-testflight
+  cancel-in-progress: false
+jobs:
+  upload:
+    if: github.repository == 'venyast31-cmyk/karpservice' && (github.ref == 'refs/heads/release/ios-testflight' || github.ref == 'refs/heads/main')
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Select Xcode
+        run: bash mobile/scripts/select-xcode.sh
+      - name: Check and bundle the app
+        working-directory: mobile
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run sync
+          npm --prefix ../worker test
+      - name: Import signing credentials into a temporary keychain
+        working-directory: mobile
+        env:
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node scripts/ci-signing.mjs prepare
+      - name: Archive and verify the signed iPhone app
+        working-directory: mobile
+        shell: bash
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Karpservice.xcarchive" \
+            DEVELOPMENT_TEAM=L6W4586456 CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$IOS_SIGNING_SHA1" \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_UUID" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            MARKETING_VERSION=1.0 archive > "$RUNNER_TEMP/iphone-archive.log" 2>&1 \
+            || { tail -80 "$RUNNER_TEMP/iphone-archive.log"; exit 1; }
+          python3 scripts/verify-archive.py "$RUNNER_TEMP/Karpservice.xcarchive"
+          codesign --verify --deep --strict "$RUNNER_TEMP/Karpservice.xcarchive/Products/Applications/App.app"
+          codesign -d --entitlements :- "$RUNNER_TEMP/Karpservice.xcarchive/Products/Applications/App.app" > "$RUNNER_TEMP/karp-entitlements.plist"
+          python3 - <<'PY'
+          import os, plistlib
+          with open(os.path.join(os.environ['RUNNER_TEMP'], 'karp-entitlements.plist'), 'rb') as f:
+              e = plistlib.load(f)
+          assert e['application-identifier'] == 'L6W4586456.ua.karpservice.client'
+          assert e['com.apple.developer.team-identifier'] == 'L6W4586456'
+          assert not e.get('get-task-allow', False)
+          PY
+      - name: Upload to App Store Connect for TestFlight
+        working-directory: mobile
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Karpservice.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/karp-signing/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/Karpservice-export" \
+            -authenticationKeyPath "$RUNNER_TEMP/karp-signing/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            -allowProvisioningUpdates > "$RUNNER_TEMP/iphone-upload.log" 2>&1 \
+            || { tail -80 "$RUNNER_TEMP/iphone-upload.log"; exit 1; }
+          {
+            echo '### Karpservice uploaded to App Store Connect'
+            echo "Version: 1.0 ($IOS_BUILD_NUMBER)"
+            echo "Commit: $GITHUB_SHA"
+            echo 'Apple must finish processing before the build can be used in TestFlight.'
+            echo 'This workflow does not submit to App Review or release to the public.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove local signing credentials
+        if: always()
+        working-directory: mobile
+        run: node scripts/ci-signing.mjs cleanup

@@ -12,3 +12,11 @@ mobile/DerivedData/
 mobile/artifacts/
 *.xcarchive
 *.ipa
+# Apple signing material is supplied through GitHub Actions secrets only.
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.certSigningRequest
+*.key
+mobile/.signing/

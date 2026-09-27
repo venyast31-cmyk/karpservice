@@ -14,9 +14,11 @@ npm run sync
 npm run open
 ```
 
-Select the **App** scheme and an iPhone simulator in Xcode. The bundle identifier is provisionally `ua.karpservice.client`; register/confirm it when the owner's Apple team is available. The app targets iOS 15+ and iPhone, portrait orientation. The Xcode project is `ios/App/App.xcodeproj` and uses Swift Package Manager, not CocoaPods.
+Select the **App** scheme and an iPhone simulator in Xcode. The registered bundle identifier is `ua.karpservice.client`, Apple team `L6W4586456`. The app targets iOS 15+ and iPhone, portrait orientation. The Xcode project is `ios/App/App.xcodeproj` and uses Swift Package Manager, not CocoaPods.
 
 The GitHub workflow `iOS preparation` builds and launches a simulator app with local ad-hoc signing and exports logs, a ZIP and a login-screen capture. Local signing preserves the Keychain entitlements; disabling signing entirely breaks secure storage in Simulator. Its artifact **cannot be installed on a physical iPhone or uploaded to App Store Connect**. The workflow does not require an Apple account or signing secrets and does not deploy the web frontend or API.
+
+It also compiles an unsigned arm64 iPhone archive and checks its platform, app identity and bundled interface. The unsigned archive is only a compiler check, not an installable build. The separate `iOS TestFlight` workflow signs and uploads using Apple credentials in GitHub Actions secrets. See `app-store/TESTFLIGHT.md` for the one-time setup. No local Mac is needed for these cloud jobs.
 
 ## What is implemented
 
