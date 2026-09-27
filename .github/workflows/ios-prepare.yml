@@ -120,6 +120,10 @@ jobs:
           xcrun simctl launch "$SIMULATOR_ID" ua.karpservice.client
           sleep 8
           xcrun simctl io "$SIMULATOR_ID" screenshot artifacts/ios-login.png
+          xcrun simctl shutdown "$SIMULATOR_ID"
+      - name: Capture App Store screenshots with fictional customer data
+        working-directory: mobile
+        run: bash scripts/capture-store-screenshots.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
