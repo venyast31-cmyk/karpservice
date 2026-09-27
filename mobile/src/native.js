@@ -108,6 +108,30 @@ if (Capacitor.isNativePlatform()) {
 
     document.getElementById('nativeRefresh')?.addEventListener('click', () => window.loadCustomer?.({ targetScreen: 'profile' }));
     document.getElementById('nativeOpenSettings')?.addEventListener('click', () => api.openSettings().catch(() => {}));
+    document.getElementById('nativeDeleteAccount')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const status = document.getElementById('nativeProfileStatus');
+      const capturedGeneration = generation;
+      button.disabled = true;
+      try {
+        const policyResponse = await window.KarpNative.request('account/deletion-policy');
+        const policy = await policyResponse.json();
+        if (!policyResponse.ok || !policy.success) throw new Error(policy.error);
+        if (capturedGeneration !== generation) return;
+        const message = demo.active
+          ? 'Це пробний запит із вигаданими даними. Реальні дані та повідомлення сервісу не зміняться. Продовжити?'
+          : `Ви подаєте запит на видалення профілю, прив’язки Telegram, автомобілів та історії обслуговування. Сервіс виконає його протягом ${policy.days} календарних днів і повідомить результат за вашим підтвердженим номером. Якщо окремі документи необхідно зберегти за законом, сервіс пояснить обсяг і підставу. Підтвердити запит?`;
+        if (!window.confirm(message)) return;
+        const response = await window.KarpNative.request('account/deletion', { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error);
+        if (capturedGeneration !== generation) return;
+        status.textContent = demo.active ? 'Демонстрація завершена. Справжній запит на видалення не надіслано.'
+          : `Запит ${data.request_id} прийнято. Видалення ще не завершене. Строк виконання — до ${new Date(data.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}. Сервіс повідомить результат за вашим підтвердженим номером.`;
+      } catch (error) {
+        if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося подати запит. Спробуйте ще раз.';
+      } finally { button.disabled = false; }
+    });
     document.getElementById('nativeClearReminders')?.addEventListener('click', async () => {
       const status = document.getElementById('nativeProfileStatus');
       try {

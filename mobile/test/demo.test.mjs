@@ -13,6 +13,12 @@ test('demo reads, writes and unknown/auth routes never call the live transport',
     assert.equal((await demo.request(route, { method: 'POST', body: '{}' })).status, 403);
   }
   const post = (route, data) => demo.request(route, { method: 'POST', body: JSON.stringify(data) });
+  assert.equal((await (await demo.request('account/deletion-policy')).json()).days, 7);
+  assert.equal((await post('account/deletion', { confirmed: false })).status, 400);
+  const deletion = await (await post('account/deletion', { confirmed: true })).json();
+  assert.equal(deletion.demo, true);
+  assert.equal(deletion.status, 'demo');
+  assert.equal((await (await demo.request('')).json()).cars.length, 2);
   await post('cars/remove', { car_id: 1 });
   const hidden = await (await demo.request('')).json();
   assert.equal(hidden.cars.length, 1);

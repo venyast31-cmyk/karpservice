@@ -1,15 +1,15 @@
 # Account deletion rollout — prepared, not deployed
 
-The owner confirmed on 2026-09-27 that history is retained indefinitely and deleted on a customer's request. No execution deadline has been agreed. The new authenticated request flow is intentionally disabled until `ACCOUNT_DELETION_DAYS` is set to an owner-approved integer from 1 to 30. Seven days in the test is a fixture, not a production promise.
+The owner confirmed on 2026-09-27 that history is retained indefinitely and deleted on a customer's request. The owner explicitly confirmed a seven-calendar-day completion deadline and authorized rollout on 2026-09-27. `ACCOUNT_DELETION_DAYS=7` is now prepared in configuration. The native UI and isolated demo request are integrated in source, but not uploaded as a device build. Server deployment remains blocked by unavailable authenticated Cloudflare access.
 
 ## Rollout gates
 
-1. Obtain the operator's confirmed completion deadline and verify that the existing service Telegram chat is monitored for deletion requests.
+1. Deadline confirmed: seven calendar days. Requests are sent to the existing service Telegram chat.
 2. Obtain normal Cloudflare access; do not bypass the dashboard's browser-verification block or create credentials without approval.
 3. Apply `worker/migrations/0003_deletion_requests.sql` to the existing AUTH_DB, configure `ACCOUNT_DELETION_DAYS`, and deploy the Worker. Keep existing secrets and database binding. No customer rows are deleted by this migration.
 4. Verify configuration and a request against a dedicated fictional staging profile, never a real customer's profile. Confirm failures show errors and duplicate submissions retain their request number. The current automated tests mock all Telegram sends.
-5. Publish policy text describing the in-app path and the actual completion deadline. Retention remains indefinite until requested deletion; do not claim that accepting a request instantly erases data.
-6. Build/upload a new iOS version with the UI; build 4.1.0 does not contain this feature. Validate the profile button, confirmation, status and demo isolation before App Review.
+5. After successful backend rollout, publish policy text describing Profile → Delete profile and data and the confirmed seven-calendar-day completion deadline. Retention remains indefinite until requested deletion; do not claim that accepting a request instantly erases data.
+6. Build/upload a new iOS version with the integrated UI; build 6.1.0 does not contain this feature. Validate the profile button, confirmation, status and demo isolation before App Review.
 
 ## Operator completion procedure
 

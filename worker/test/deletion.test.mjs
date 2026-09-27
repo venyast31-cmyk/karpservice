@@ -41,7 +41,7 @@ test('deletion requires confirmed identity, an operator deadline and reliable no
   try {
     assert.equal((await call('deletion', 'POST', { confirmed: true }, false)).status, 401);
     assert.equal((await call('deletion-policy', 'GET')).status, 503);
-    env.ACCOUNT_DELETION_DAYS = '7'; // Fixture, not an agreed production deadline.
+    env.ACCOUNT_DELETION_DAYS = '7'; // Owner confirmed seven calendar days on 2026-09-27.
     assert.equal((await (await call('deletion-policy', 'GET')).json()).days, 7);
     assert.equal((await call('deletion', 'POST', { confirmed: false })).status, 400);
     assert.equal(db.prepare('SELECT COUNT(*) n FROM deletion_requests').get().n, 0);

@@ -51,6 +51,12 @@ export function createDemoSession(liveRequest) {
         state.orders.push(order);
         return reply({ success: true, demo: true, order });
       }
+      if (route === 'account/deletion-policy' && method === 'GET') return reply({ success: true, days: 7 });
+      if (route === 'account/deletion' && method === 'POST') {
+        if (body.confirmed !== true) return reject('Підтвердьте пробний запит на видалення.');
+        return reply({ success: true, demo: true, request_id: 'DEMO-DELETE',
+          deadline_at: Math.floor(Date.now() / 1000) + 7 * 86400, status: 'demo' });
+      }
       if (route === 'auth/logout' && method === 'POST') {
         state = null;
         return reply({ success: true });

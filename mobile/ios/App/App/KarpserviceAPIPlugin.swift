@@ -20,6 +20,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     private let routes: [String: String] = [
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
         "cars/remove": "POST", "booking": "POST", "auth/request": "POST",
+        "account/deletion-policy": "GET", "account/deletion": "POST",
         "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
     ]
     private lazy var session: URLSession = {
