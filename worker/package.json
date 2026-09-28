@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/auth.js && node --check src/index.js && node --check src/deletion.js",
+    "check": "node --check src/auth.js && node --check src/index.js && node --check src/deletion.js && node --check src/review-account.js",
     "test": "node --test test/*.test.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

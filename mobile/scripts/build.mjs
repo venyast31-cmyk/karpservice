@@ -41,7 +41,13 @@ replaceOnce([
   "      throw new Error('Сервіс не повернув токен входу.');",
   "    }"
 ].join('\n'), "    if (data.session_stored !== true) throw new Error('Не вдалося зберегти вхід.');\n    clearLegacyAuthToken();");
-replaceOnce('    <div class="security-note">', `    <button id="nativeDemoStart" class="secondary" type="button">Спробувати демо</button>
+replaceOnce('    <div class="security-note">', `    <details id="nativePasswordLogin"><summary>Вхід до тестового акаунта</summary>
+      <p class="native-note">Для наданого сервісом тестового акаунта: введіть номер у полі вище та пароль нижче.</p>
+      <input id="nativeReviewPassword" type="password" autocomplete="current-password" placeholder="Пароль тестового акаунта" aria-label="Пароль тестового акаунта" maxlength="128" />
+      <button id="nativeReviewLogin" class="secondary" type="button">Увійти з паролем</button>
+      <p id="nativeReviewStatus" class="native-note" role="status"></p>
+    </details>
+    <button id="nativeDemoStart" class="secondary" type="button">Спробувати демо</button>
     <p class="native-note">Перегляньте приклад авто, історію ремонту та спробуйте запис. Дані вигадані, справжній візит не створюється.</p>
     <nav class="native-links" aria-label="Інформація"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
     <div class="security-note">`);

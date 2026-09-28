@@ -1,3 +1,4 @@
+import { handleReviewAccount } from "./review-account.js";
 import {
   authConfigured,
   corsHeadersFor,
@@ -1320,6 +1321,8 @@ var index_default = {
     }
     try {
       const url = new URL(request.url);
+      const reviewResponse = await handleReviewAccount(request, env, corsHeaders);
+      if (reviewResponse) return reviewResponse;
       const authResponse = await handleAuthRoute({
         request,
         env,

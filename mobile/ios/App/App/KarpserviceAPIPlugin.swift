@@ -19,7 +19,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     private let vault = SessionVault()
     private let routes: [String: String] = [
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
-        "cars/remove": "POST", "booking": "POST", "auth/request": "POST",
+        "cars/remove": "POST", "booking": "POST", "auth/request": "POST", "auth/password": "POST",
         "account/deletion-policy": "GET", "account/deletion": "POST",
         "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
     ]
@@ -73,7 +73,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                 let saved = try self.vault.read()
                 let token = (saved?.expiresAt ?? 0) > Date().timeIntervalSince1970 ? saved?.token : nil
                 if saved != nil && token == nil { try self.vault.clear() }
-                let publicRoute = ["auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
+                let publicRoute = ["auth/password", "auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
                 if !publicRoute && token == nil {
                     call.resolve(["status": 401, "data": ["success": false, "error": "Підтвердьте вхід через Telegram."]])
                     return
@@ -106,7 +106,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                             return
                         }
                         do {
-                            if route == "auth/verify", (200..<300).contains(response.statusCode), result["success"] as? Bool == true {
+                            if ["auth/verify", "auth/password"].contains(route), (200..<300).contains(response.statusCode), result["success"] as? Bool == true {
                                 guard let rawToken = result["token"] as? String,
                                       rawToken.range(of: "^[A-Za-z0-9_-]{40,100}$", options: .regularExpression) != nil,
                                       let expiry = result["expires_at"] as? Double,

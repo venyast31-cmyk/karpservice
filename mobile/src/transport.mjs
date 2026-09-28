@@ -2,7 +2,7 @@ const routes = new Map([
   ['', 'GET'], ['order', 'GET'], ['availability', 'GET'],
   ['cars', 'POST'], ['cars/remove', 'POST'], ['booking', 'POST'],
   ['account/deletion-policy', 'GET'], ['account/deletion', 'POST'],
-  ['auth/request', 'POST'], ['auth/link-status', 'POST'],
+  ['auth/password', 'POST'], ['auth/request', 'POST'], ['auth/link-status', 'POST'],
   ['auth/verify', 'POST'], ['auth/logout', 'POST'], ['auth/me', 'GET']
 ]);
 

@@ -11,15 +11,22 @@ if (Capacitor.isNativePlatform()) {
   const api = registerPlugin('KarpserviceAPI');
   let booking = null;
   let generation = 0;
+  let reviewAccount = false;
   const transport = createTransport(api);
   const demo = createDemoSession(transport);
   const updateDemoUi = () => {
     const banner = document.getElementById('nativeDemoBanner');
-    if (banner) banner.hidden = !demo.active;
+    if (banner) {
+      banner.hidden = !(demo.active || reviewAccount);
+      const copy = banner.querySelector('div');
+      if (copy) copy.innerHTML = reviewAccount
+        ? '<strong>Тестовий акаунт · вигадані дані</strong>Дані зберігаються на сервері. Справжній візит не створюється.'
+        : '<strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.';
+    }
     const doneTitle = document.querySelector('#done h1');
-    if (doneTitle) doneTitle.textContent = demo.active ? 'Пробний запис готовий' : 'Готово!';
+    if (doneTitle) doneTitle.textContent = (demo.active || reviewAccount) ? 'Пробний запис готовий' : 'Готово!';
     const doneCopy = document.querySelector('#done .card p');
-    if (doneCopy) doneCopy.textContent = demo.active
+    if (doneCopy) doneCopy.textContent = (demo.active || reviewAccount)
       ? 'Це демонстрація. Візит у сервіс не заброньовано.' : 'Ваш запис на сервіс створено. До зустрічі в Karpservice!';
   };
   window.KarpDemo = {
@@ -30,12 +37,14 @@ if (Capacitor.isNativePlatform()) {
     request: async (path, options) => {
       const capturedGeneration = generation;
       const response = await demo.request(path, options);
+      const payload = await response.clone().json().catch(() => null);
+      if (capturedGeneration === generation && payload?.success && payload.review_account === true) reviewAccount = true;
       updateDemoUi();
       if (capturedGeneration !== generation && path !== 'auth/logout') throw new Error('Вхід завершено.');
       return response;
     },
     didBook: (details) => {
-      booking = { ...details, demo: demo.active };
+      booking = { ...details, demo: demo.active || reviewAccount };
       const actions = document.getElementById('nativeBookingActions');
       if (actions) actions.hidden = false;
       const status = document.getElementById('nativeBookingStatus');
@@ -46,6 +55,7 @@ if (Capacitor.isNativePlatform()) {
       generation += 1;
       booking = null;
       demo.stop();
+      reviewAccount = false;
       updateDemoUi();
       const actions = document.getElementById('nativeBookingActions');
       if (actions) actions.hidden = true;
@@ -56,6 +66,28 @@ if (Capacitor.isNativePlatform()) {
   document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.classList.add('native-ios');
     updateDemoUi();
+    document.getElementById('nativeReviewLogin')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const input = document.getElementById('nativeReviewPassword');
+      const status = document.getElementById('nativeReviewStatus');
+      button.disabled = true;
+      status.textContent = '';
+      const capturedGeneration = generation;
+      try {
+        const response = await transport('auth/password', { method: 'POST', body: JSON.stringify({ phone: document.getElementById('phone').value, password: input.value }) });
+        input.value = '';
+        const data = await response.json();
+        if (capturedGeneration !== generation) return;
+        if (!response.ok || !data.success || !data.session_stored) throw new Error(data.error || 'Не вдалося зберегти вхід.');
+        demo.stop();
+        reviewAccount = true;
+        generation += 1;
+        window.stopTelegramLinkPolling?.();
+        updateDemoUi();
+        await window.loadCustomer?.({ targetScreen: 'cars' });
+      } catch (error) { if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося увійти.'; }
+      finally { input.value = ''; button.disabled = false; }
+    });
     document.getElementById('nativeDemoStart')?.addEventListener('click', async () => {
       window.KarpDemo.start();
       await window.loadCustomer?.({ targetScreen: 'cars' });
@@ -118,7 +150,9 @@ if (Capacitor.isNativePlatform()) {
         const policy = await policyResponse.json();
         if (!policyResponse.ok || !policy.success) throw new Error(policy.error);
         if (capturedGeneration !== generation) return;
-        const message = demo.active
+        const message = policy.review_account
+          ? 'Видалити серверні дані тестового акаунта та закрити доступ до нього? Цю дію не можна скасувати в застосунку.'
+          : demo.active
           ? 'Це пробний запит із вигаданими даними. Реальні дані та повідомлення сервісу не зміняться. Продовжити?'
           : `Ви подаєте запит на видалення профілю, прив’язки Telegram, автомобілів та історії обслуговування. Сервіс виконає його протягом ${policy.days} календарних днів і повідомить результат за вашим підтвердженим номером. Якщо окремі документи необхідно зберегти за законом, сервіс пояснить обсяг і підставу. Підтвердити запит?`;
         if (!window.confirm(message)) return;
@@ -126,6 +160,7 @@ if (Capacitor.isNativePlatform()) {
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.error);
         if (capturedGeneration !== generation) return;
+        if (data.status === 'deleted') { window.logout?.(); window.alert('Тестовий акаунт і його дані видалено.'); return; }
         status.textContent = demo.active ? 'Демонстрація завершена. Справжній запит на видалення не надіслано.'
           : `Запит ${data.request_id} прийнято. Видалення ще не завершене. Строк виконання — до ${new Date(data.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}. Сервіс повідомить результат за вашим підтвердженим номером.`;
       } catch (error) {

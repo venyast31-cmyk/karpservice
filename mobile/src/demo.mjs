@@ -7,7 +7,8 @@ export function createDemoSession(liveRequest) {
   const reject = (message, status = 400) => reply({ success: false, error: message }, status);
   return {
     get active() { return state !== null; },
-    start() { state = initialState(); },
+    start(saved) { state = saved ? JSON.parse(saved) : initialState(); state.hidden = new Set(state.hidden); },
+    snapshot() { return JSON.stringify({ ...state, hidden: [...state.hidden] }); },
     stop() { state = null; },
     async request(path = '', options = {}) {
       if (!state) return liveRequest(path, options);
