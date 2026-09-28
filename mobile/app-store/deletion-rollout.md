@@ -1,25 +1,20 @@
-# Account deletion rollout — prepared, not deployed
+# Account deletion rollout — 28 September 2026
 
-The owner confirmed on 2026-09-27 that history is retained indefinitely and deleted on a customer's request. The owner explicitly confirmed a seven-calendar-day completion deadline and authorized rollout on 2026-09-27. `ACCOUNT_DELETION_DAYS=7` is now prepared in configuration. The native UI and isolated demo request are integrated in source, but not uploaded as a device build. Server deployment remains blocked by unavailable authenticated Cloudflare access.
+## Verified state
 
-## Rollout gates
+- Owner approved manual fulfillment within seven calendar days and indefinite history retention until requested deletion.
+- Production API deployment succeeded: GitHub run 36353404777, attempt 2, Worker version df9772c9-f946-4d35-9eca-af6c84f44702. Migrations 0002 and 0003 applied; ACCOUNT_DELETION_DAYS=7. AUTH_DB binding retained.
+- iOS 7.1.0 uploaded successfully in run 36353757661 and selected/saved in App Store Connect. It includes the deletion UI.
+- On 28 September, the deletion integration test was changed to exercise the complete Worker request router with a fictional authenticated session and in-memory SQL database. It verifies unauthorized access, disabled configuration, confirmation, identity spoofing rejection, notification failure/retry, stable request ID and preservation of sessions while deletion is pending.
+- Five UI behavior tests execute the shipped native module with platform/DOM substitutes: cancel, confirm/pending, delivery failure/retry, demo isolation and logout during policy fetch. All 15 mobile tests and four backend tests pass; bundled app checks pass.
+- Public and bundled privacy/support texts now explain the in-app request, seven-day deadline, manual fulfillment, pending status, demo isolation and service Telegram notification data.
 
-1. Deadline confirmed: seven calendar days. Requests are sent to the existing service Telegram chat.
-2. Obtain normal Cloudflare access; do not bypass the dashboard's browser-verification block or create credentials without approval.
-3. Apply `worker/migrations/0003_deletion_requests.sql` to the existing AUTH_DB, configure `ACCOUNT_DELETION_DAYS`, and deploy the Worker. Keep existing secrets and database binding. No customer rows are deleted by this migration.
-4. Verify configuration and a request against a dedicated fictional staging profile, never a real customer's profile. Confirm failures show errors and duplicate submissions retain their request number. The current automated tests mock all Telegram sends.
-5. After successful backend rollout, publish policy text describing Profile → Delete profile and data and the confirmed seven-calendar-day completion deadline. Retention remains indefinite until requested deletion; do not claim that accepting a request instantly erases data.
-6. Build/upload a new iOS version with the integrated UI; build 6.1.0 does not contain this feature. Validate the profile button, confirmation, status and demo isolation before App Review.
+## Remaining verification and release gates
 
-## Operator completion procedure
-
-## Deployment access via GitHub Actions
-
-The prepared `.github/workflows/api-deploy.yml` runs only on an explicit push to `release/api`. It does not run on this preparation branch. It checks source and isolated tests, applies additive migrations, deploys the existing Worker, and checks public health. A successful health check alone does not verify customer deletion delivery.
-
-The owner must store `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the repository's Actions secrets, never in chat, source, or workflow inputs. Restrict the token to the relevant Cloudflare account, with Workers Scripts Edit for deployment and D1 Edit for migration; avoid unrelated permissions. Use a short expiry suitable for the release. Do not create or expand a token on the owner's behalf without authorization.
-
-After the secrets are provided, an explicitly authorized release branch push can run the prepared workflow. Existing Worker secrets and bindings are retained; the workflow does not send Telegram messages or initiate customer deletion requests. Continue rollout gates above before uploading the next native build.
+- These automated checks use a mocked Telegram response. Actual Telegram delivery of a deletion request has NOT been tested. No production customer request, deletion, booking or notification was initiated during QA.
+- A full operator fulfillment rehearsal and on-device confirmation of the new deletion screen remain unverified. Do not label automated tests as actual erasure of CRM data.
+- Updated bundled privacy/support text requires a replacement build after 7.1.0. Track its CI upload and App Store Connect selection separately.
+- Apple case 102977968533 requested prior approval for demo review access; no approval recorded. App Review submission and public release have not occurred.
 
 ## Manual fulfillment
 

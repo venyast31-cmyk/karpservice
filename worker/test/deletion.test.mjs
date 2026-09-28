@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, webcrypto } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { handleDeletionRoute } from '../src/deletion.js';
+import worker from '../src/index.js';
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 class Statement {
@@ -26,7 +26,7 @@ test('deletion requires confirmed identity, an operator deadline and reliable no
   const env = { AUTH_DB: { prepare: sql => new Statement(db, sql) },
     SESSION_SECRET: 'test-only-secret', TELEGRAM_BOT_TOKEN: 'test-only-token',
     TELEGRAM_WEBHOOK_SECRET: 'test-only-hook', TELEGRAM_CHAT_ID: 'service-test-chat' };
-  const call = (route, method, body, authenticated = true) => handleDeletionRoute(new Request(
+  const call = (route, method, body, authenticated = true) => worker.fetch(new Request(
     `https://example.test/account/${route}`, { method,
       headers: authenticated ? { Authorization: `Bearer ${token}` } : {},
       ...(body ? { body: JSON.stringify(body) } : {}) }), env, {});
