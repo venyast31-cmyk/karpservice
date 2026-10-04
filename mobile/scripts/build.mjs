@@ -74,6 +74,51 @@ replaceOnce('    <button class="secondary" type="button" onclick="logout()">Ви
     </div>
     <nav class="native-links" aria-label="Інформація"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
     <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>`);
+// Public catalogue uses the same services as booking, without CRM or demo data.
+const serviceSection = html.match(/<section id="service"[\s\S]*?<\/section>/)?.[0];
+const publicServices = [...(serviceSection || '').matchAll(/<div class="service" onclick="pick\(this\)">([\s\S]*?)\n    <\/div>/g)]
+  .map(([, content]) => `<article class="card">${content}</article>`).join('\n');
+if ((publicServices.match(/<article/g) || []).length !== 4) throw new Error('Review public service catalogue');
+replaceOnce('<section id="login" class="screen active">', `<section id="guestServices" class="screen">
+    <h1>Послуги Karpservice</h1>
+    <p>Переглядайте послуги без входу. Для оформлення запису потрібен ваш профіль та автомобіль.</p>
+    ${publicServices}
+    <p class="small">Тривалість орієнтовна. Вартість уточнюємо перед виконанням робіт.</p>
+    <button class="primary" type="button" onclick="customerData ? openQuickBooking() : openGuestLogin()">Записатися на сервіс</button>
+    <button class="secondary" type="button" onclick="show('guestContacts')">Контакти та години роботи</button>
+  </section>
+  <section id="guestContacts" class="screen">
+    <h1>Контакти Karpservice</h1>
+    <div class="card"><h2>Автосервіс у Борисполі</h2><p>вул. Київський Шлях, 10</p>
+    <p>Пн–Сб: 09:30–18:00<br>Неділя — вихідний</p>
+    <p><a href="tel:+380734447344">073 44 47 344</a></p></div>
+    <nav class="native-links" aria-label="Інформація сервісу"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
+    <button class="secondary" type="button" onclick="show('guestServices')">Переглянути послуги</button>
+  </section>
+  <section id="login" class="screen active">
+    <button class="secondary" type="button" onclick="show('guestServices')">Переглянути послуги без входу</button>`);
+replaceOnce('<section id="home" class="screen">', `<section id="home" class="screen">
+    <div class="native-actions">
+      <button class="primary" type="button" onclick="show('guestServices')">Послуги сервісу</button>
+      <button class="secondary" type="button" onclick="show('guestContacts')">Контакти та години роботи</button>
+    </div>`);
+replaceOnce('  body.is-authenticated .bottom-nav{display:grid}', '  .bottom-nav{display:grid}');
+replaceOnce('  body.is-authenticated .app{', '  .app{');
+replaceOnce('function show(id){', `function show(id){
+  if (!customerData && !['home', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';`);
+replaceOnce("    home:'homeNav', cars:'carsNav', addCar:'carsNav',", "    home:'homeNav', guestServices:'bookingNav', guestContacts:'profileNav', cars:'carsNav', addCar:'carsNav',");
+replaceOnce('async function openClientHome(){', `function openGuestLogin(){
+  resetAuthFlow();
+  show('login');
+}
+async function openClientHome(){
+  if (!customerData) { show('home'); return; }`);
+for (const name of ['openCars', 'openAddCar', 'openAllHistory']) {
+  replaceOnce(`function ${name}(){\n  if (!customerData){\n    openClientHome();`, `function ${name}(){\n  if (!customerData){\n    openGuestLogin();`);
+}
+replaceOnce('function openQuickBooking(){', "function openQuickBooking(){\n  if (!customerData) { show('guestServices'); return; }");
+replaceOnce("  resetAuthFlow();\n  show('login');\n}\n\nfunction updateBookingProgress", "  resetAuthFlow();\n  show('home');\n}\n\nfunction updateBookingProgress");
+replaceOnce('  await loadCustomer({initial:true});', "  await loadCustomer({initial:true});\n  if (!customerData) show('home');");
 await writeFile(`${out}/index.html`, html);
 for (const asset of ['logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });
