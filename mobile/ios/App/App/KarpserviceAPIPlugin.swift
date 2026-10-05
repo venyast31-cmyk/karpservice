@@ -2,6 +2,7 @@ import Foundation
 import Security
 import UIKit
 import Capacitor
+import AuthenticationServices
 
 // Session credentials stay in native code. JavaScript can call only these API routes.
 @objc(KarpserviceAPIPlugin)
@@ -10,6 +11,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     public let jsName = "KarpserviceAPI"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "request", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "signInWithApple", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openExternal", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
     ]
@@ -20,7 +22,8 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     private let routes: [String: String] = [
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
         "cars/remove": "POST", "booking": "POST", "auth/request": "POST",
-        "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
+        "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET",
+        "auth/apple": "POST", "auth/apple/link-phone": "POST"
     ]
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -72,7 +75,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                 let saved = try self.vault.read()
                 let token = (saved?.expiresAt ?? 0) > Date().timeIntervalSince1970 ? saved?.token : nil
                 if saved != nil && token == nil { try self.vault.clear() }
-                let publicRoute = ["auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
+                let publicRoute = ["auth/apple", "auth/logout"].contains(route)
                 if !publicRoute && token == nil {
                     call.resolve(["status": 401, "data": ["success": false, "error": "Підтвердьте вхід через Telegram."]])
                     return
@@ -105,7 +108,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                             return
                         }
                         do {
-                            if route == "auth/verify", (200..<300).contains(response.statusCode), result["success"] as? Bool == true {
+                            if ["auth/apple", "auth/verify"].contains(route), (200..<300).contains(response.statusCode), result["success"] as? Bool == true {
                                 guard let rawToken = result["token"] as? String,
                                       rawToken.range(of: "^[A-Za-z0-9_-]{40,100}$", options: .regularExpression) != nil,
                                       let expiry = result["expires_at"] as? Double,
@@ -125,6 +128,20 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                     }
                 }.resume()
             } catch { call.reject("Не вдалося відкрити захищене сховище iPhone. Розблокуйте пристрій і спробуйте ще раз.") }
+        }
+    }
+
+    @objc public func signInWithApple(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let provider = ASAuthorizationAppleIDProvider()
+            let request = provider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            let delegate = AppleAuthorizationDelegate(call: call)
+            objc_setAssociatedObject(controller, &AppleAuthorizationDelegate.key, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            controller.delegate = delegate
+            controller.presentationContextProvider = delegate
+            controller.performRequests()
         }
     }
 
@@ -198,4 +215,25 @@ private final class SessionVault {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw VaultError.storage(status) }
     }
     private enum VaultError: Error { case storage(OSStatus) }
+}
+
+private final class AppleAuthorizationDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    static var key: UInt8 = 0
+    private let call: CAPPluginCall
+    init(call: CAPPluginCall) { self.call = call }
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first ?? UIWindow()
+    }
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let data = credential.identityToken,
+              let token = String(data: data, encoding: .utf8) else {
+            call.reject("Apple не повернув токен входу."); return
+        }
+        call.resolve(["identityToken": token])
+    }
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        if let e = error as? ASAuthorizationError, e.code == .canceled { call.reject("Вхід через Apple скасовано."); return }
+        call.reject("Не вдалося увійти через Apple.")
+    }
 }
