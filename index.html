@@ -598,6 +598,14 @@
         <div class="profile-copy"><span>Номер телефону</span><strong id="profilePhone">—</strong></div>
       </div>
     </div>
+    <div id="applePhoneLink" class="card">
+      <h2>Підключити номер телефону</h2>
+      <p>Після підтвердження через Telegram ми знайдемо ваш профіль у CRM та відкриємо авто, історію і запис.</p>
+      <label for="applePhone">Номер телефону</label>
+      <input id="applePhone" inputmode="tel" autocomplete="tel" placeholder="+380 XX XXX XX XX" value="+380 " />
+      <button class="primary telegram-primary" type="button" onclick="linkApplePhone()">Підтвердити номер через Telegram</button>
+    </div>
+    <div id="nativeProfileStatus" class="status"></div>
     <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>
   </section>
 </div>
@@ -1412,12 +1420,27 @@ function openAllHistory(){
   show('allHistory');
 }
 
+async function linkApplePhone(){
+  const phone = normalizePhone(document.getElementById('applePhone')?.value);
+  if (phone.length < 10){ showStatus('Перевірте номер телефону.', 'error', 'nativeProfileStatus'); return; }
+  try{
+    const res = await apiFetch('auth/apple/link-phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});
+    const data = await responseJson(res);
+    if (!res.ok || !data.success) throw new Error(data.error || 'Не вдалося підключити номер.');
+    authPhoneMasked = String(data.phone_masked || '');
+    if (data.stage === 'telegram_link') showTelegramLinkStep(data);
+    else if (data.stage === 'code') showCodeStep(data.challenge_id, data.phone_masked);
+  }catch(err){ showStatus(err.message || 'Не вдалося підключити номер.', 'error', 'nativeProfileStatus'); }
+}
+
 function renderProfile(){
   const customer = customerData?.customer || {};
   const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ') || 'Клієнт Karpservice';
   const phone = formatProfilePhone(customer.phone || authPhoneMasked || '');
   document.getElementById('profileName').textContent = fullName;
-  document.getElementById('profilePhone').textContent = phone || 'Підтверджено через Telegram';
+  document.getElementById('profilePhone').textContent = phone || 'Номер ще не підключено';
+  const linkBox = document.getElementById('applePhoneLink');
+  if (linkBox) linkBox.hidden = Boolean(phone);
 }
 
 function formatProfilePhone(value){
