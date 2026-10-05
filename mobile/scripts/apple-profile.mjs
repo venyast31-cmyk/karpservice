@@ -17,8 +17,13 @@ export async function appleProfile({ env, original, decode, verify, request = fe
       headers: { Authorization: `Bearer ${data}.${signature}`, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {})
     });
-    // Do not print API response bodies, profile bytes, keys, or request headers.
-    if (!response.ok) throw new Error(`App Store profile API failed (${response.status}); check the API key's Certificates, Identifiers & Profiles access`);
+    // Report only the fixed operation and structured error identifiers, never bodies or credentials.
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      const safe = value => typeof value === 'string' && /^[A-Za-z0-9_.\[\]/-]{1,100}$/.test(value) ? value : 'unspecified';
+      const errors = (Array.isArray(failure.errors) ? failure.errors : []).map(e => `${safe(e.code)}:${safe(e.source?.parameter || e.source?.pointer)}`);
+      throw new Error(`App Store profile API failed (${response.status}) for ${body ? 'POST' : 'GET'} ${path}; codes ${errors.join(',') || 'none'}`);
+    }
     return response.json();
   };
   const bundle = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}`)).data;
