@@ -8,6 +8,8 @@ const APPLE_ISSUER = "https://appleid.apple.com";
 let telegramBotCache = null;
 let telegramBotCacheUntil = 0;
 let webhookConfiguredUntil = 0;
+let appleJwksCache = null;
+let appleJwksCacheUntil = 0;
 
 export function authConfigured(env) {
   return Boolean(
@@ -146,20 +148,7 @@ async function verifyAppleLogin(request, env, headers) {
   const body = await readJson(request);
   const identityToken = String(body?.identity_token || "");
   if (!identityToken) return authJson({ success:false, error:"Apple не повернув токен входу" }, 400, headers);
-  const parts = identityToken.split(".");
-  if (parts.length !== 3) return authJson({ success:false, error:"Некоректний Apple ID token" }, 401, headers);
-  let payload;
-  try {
-    payload = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[1])));
-  } catch {
-    return authJson({ success:false, error:"Некоректний Apple ID token" }, 401, headers);
-  }
-  const now = unixTime();
-  if (payload.iss !== APPLE_ISSUER || !payload.sub || Number(payload.exp || 0) <= now) {
-    return authJson({ success:false, error:"Apple ID token прострочений або недійсний" }, 401, headers);
-  }
-  // Signature verification is mandatory before production. The native client must send
-  // an Apple identity token; backend verification against Apple's JWKS is completed in the deploy step.
+  const payload = await verifyAppleIdentityToken(identityToken, env);
   const appleSub = String(payload.sub).slice(0,255);
   const email = typeof payload.email === "string" ? payload.email.slice(0,320) : "";
   await env.AUTH_DB.prepare(
@@ -182,6 +171,48 @@ async function verifyAppleLogin(request, env, headers) {
     success:true, token:rawSessionToken, token_type:"Bearer", expires_at:expiresAt,
     phone_linked:Boolean(account?.phone && Number(account?.customer_id))
   },200,headers);
+}
+
+async function verifyAppleIdentityToken(identityToken, env) {
+  const parts = String(identityToken).split(".");
+  if (parts.length !== 3) throw Object.assign(new Error("Некоректний Apple ID token"), {status:401});
+  let header, payload;
+  try {
+    header = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[0])));
+    payload = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[1])));
+  } catch {
+    throw Object.assign(new Error("Некоректний Apple ID token"), {status:401});
+  }
+  const now = unixTime();
+  const audience = String(env.APPLE_CLIENT_ID || "");
+  const tokenAudience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (payload.iss !== APPLE_ISSUER || !payload.sub || Number(payload.exp || 0) <= now ||
+      !audience || !tokenAudience.includes(audience) || header.alg !== "RS256" || !header.kid) {
+    throw Object.assign(new Error("Apple ID token недійсний"), {status:401});
+  }
+  const keys = await getAppleJwks();
+  const jwk = keys.find(key => key.kid === header.kid && key.kty === "RSA");
+  if (!jwk) throw Object.assign(new Error("Не вдалося перевірити ключ Apple"), {status:401});
+  const key = await crypto.subtle.importKey(
+    "jwk", jwk, {name:"RSASSA-PKCS1-v1_5", hash:"SHA-256"}, false, ["verify"]
+  );
+  const signed = new TextEncoder().encode(parts[0] + "." + parts[1]);
+  const signature = base64UrlBytes(parts[2]);
+  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, signed);
+  if (!valid) throw Object.assign(new Error("Підпис Apple ID token недійсний"), {status:401});
+  return payload;
+}
+
+async function getAppleJwks() {
+  const now = Date.now();
+  if (appleJwksCache && appleJwksCacheUntil > now) return appleJwksCache;
+  const response = await fetch("https://appleid.apple.com/auth/keys", {headers:{Accept:"application/json"}});
+  if (!response.ok) throw Object.assign(new Error("Apple keys недоступні"), {status:503});
+  const data = await response.json();
+  if (!Array.isArray(data?.keys)) throw Object.assign(new Error("Apple keys некоректні"), {status:503});
+  appleJwksCache = data.keys;
+  appleJwksCacheUntil = now + 6 * 60 * 60 * 1000;
+  return appleJwksCache;
 }
 
 async function requestApplePhoneLink(request, env, headers, session) {
