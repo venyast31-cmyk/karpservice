@@ -75,7 +75,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                 let saved = try self.vault.read()
                 let token = (saved?.expiresAt ?? 0) > Date().timeIntervalSince1970 ? saved?.token : nil
                 if saved != nil && token == nil { try self.vault.clear() }
-                let publicRoute = ["auth/apple", "auth/logout"].contains(route)
+                let publicRoute = ["auth/apple", "auth/logout", "auth/link-status", "auth/verify"].contains(route)
                 if !publicRoute && token == nil {
                     call.resolve(["status": 401, "data": ["success": false, "error": "Підтвердьте вхід через Telegram."]])
                     return
