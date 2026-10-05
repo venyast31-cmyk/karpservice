@@ -1351,6 +1351,17 @@ var index_default = {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
+        if (!authSession.apple_sub) {
+          return json2({success:false,stage:"apple_auth",error:"Увійдіть через Apple"},401,corsHeaders);
+        }
+        if (!authSession.phone || !Number(authSession.customer_id)) {
+          return json2({
+            success:false,
+            stage:"phone_link",
+            error:"Підключіть і підтвердьте номер телефону через Telegram",
+            phone_linked:false
+          },403,corsHeaders);
+        }
       }
 
       if (url.pathname === "/order" && request.method === "GET") {
