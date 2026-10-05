@@ -170,6 +170,7 @@ export async function handleAppleAuthRoute(request, env, headers) {
   if ((!existing && ![true, 'true'].includes(identity.email_verified)) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw fail();
   const name = existing?.customer_name || String(body.name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 160) || 'Клієнт Karpservice';
   // Never merge by name, email, client-supplied phone, VIN, or customer ID.
+  if (linkedSession && existing && !existing.customer_id && existing.crm_creation_started_at !== null) throw fail('Профіль синхронізується або видаляється. Спробуйте пізніше.', 409);
   if (linkedSession && existing?.customer_id && Number(existing.customer_id) !== Number(linkedSession.customer_id)) throw fail('Цей Apple Account уже підключений до іншого профілю Karpservice.', 409);
   if (linkedSession) {
     const other = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE customer_id = ?').bind(Number(linkedSession.customer_id)).first();
@@ -179,8 +180,12 @@ export async function handleAppleAuthRoute(request, env, headers) {
   await env.AUTH_DB.prepare(`INSERT INTO apple_accounts(subject_hash,customer_id,customer_name,email,phone,refresh_token,created_at,validated_at)
     VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(subject_hash) DO UPDATE SET refresh_token=excluded.refresh_token, validated_at=excluded.validated_at`)
     .bind(subject, linkedSession?.customer_id || null, linkedSession?.customer_name || name, email, linkedSession?.phone || '', encryptedRefresh, now(), now()).run();
-  if (linkedSession && !existing?.customer_id) await env.AUTH_DB.prepare('UPDATE apple_accounts SET customer_id=?,customer_name=?,phone=? WHERE subject_hash=? AND customer_id IS NULL')
-    .bind(linkedSession.customer_id, linkedSession.customer_name, linkedSession.phone, subject).run();
+  if (linkedSession && !existing?.customer_id) {
+    await env.AUTH_DB.prepare('UPDATE apple_accounts SET customer_id=?,customer_name=?,phone=? WHERE subject_hash=? AND customer_id IS NULL AND crm_creation_started_at IS NULL AND disabled_at IS NULL')
+      .bind(linkedSession.customer_id, linkedSession.customer_name, linkedSession.phone, subject).run();
+    const bound = await env.AUTH_DB.prepare('SELECT customer_id FROM apple_accounts WHERE subject_hash=? AND disabled_at IS NULL').bind(subject).first();
+    if (Number(bound?.customer_id) !== Number(linkedSession.customer_id)) throw fail('Профіль змінився під час входу. Спробуйте ще раз.', 409);
+  }
   const rawToken = `apple_${randomToken(32)}`;
   const expires = now() + SESSION_SECONDS;
   await env.AUTH_DB.prepare('INSERT INTO apple_sessions(token_hash,subject_hash,created_at,expires_at) VALUES(?,?,?,?)')

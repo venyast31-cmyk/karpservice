@@ -184,3 +184,16 @@ test('revoked Apple authorization invalidates all sessions during daily validati
     assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_sessions').get().count, 0);
   } finally { t.close(); }
 });
+
+test('invalid vehicle data does not create a CRM record and deletion waits for CRM creation', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    assert.equal((await t.call('cars', 'POST', { vin: 'invalid' }, auth.token)).status, 400);
+    assert.equal(t.calls.some(call => call.url.includes('roapp')), false);
+    t.db.prepare('UPDATE apple_accounts SET crm_creation_started_at = ?').run(timestamp());
+    assert.equal((await t.call('account/deletion', 'POST', { confirmed: true }, auth.token)).status, 409);
+    assert.equal(t.calls.some(call => call.url.endsWith('/auth/revoke')), false);
+    assert.equal(t.db.prepare('SELECT count(*) AS n FROM apple_accounts').get().n, 1);
+  } finally { t.close(); }
+});

@@ -14,7 +14,17 @@ export async function handleDeletionRoute(request, env, headers) {
     if (path !== '/account/deletion' || request.method !== 'POST') return reply({ success: false }, 405);
     const body = await request.json().catch(() => null);
     if (body?.confirmed !== true) return reply({ success: false, error: 'Підтвердьте видалення.' }, 400);
-    await revokeAppleAccount(env, auth.session.apple_subject_hash);
+    // -1 reserves deletion so an in-flight CRM creation cannot orphan a record.
+    const reserved = await env.AUTH_DB.prepare(`UPDATE apple_accounts SET crm_creation_started_at = -1
+      WHERE subject_hash = ? AND customer_id IS NULL
+      AND (crm_creation_started_at IS NULL OR crm_creation_started_at = -1) RETURNING subject_hash`)
+      .bind(auth.session.apple_subject_hash).first();
+    if (!reserved) return reply({ success: false, error: 'Профіль синхронізується із сервісом. Повторіть видалення пізніше.' }, 409);
+    try { await revokeAppleAccount(env, auth.session.apple_subject_hash); }
+    catch (error) {
+      await env.AUTH_DB.prepare('UPDATE apple_accounts SET crm_creation_started_at = NULL WHERE subject_hash = ? AND crm_creation_started_at = -1 AND disabled_at IS NULL').bind(auth.session.apple_subject_hash).run();
+      throw error;
+    }
     await env.AUTH_DB.prepare('DELETE FROM apple_accounts WHERE subject_hash = ? AND customer_id IS NULL').bind(auth.session.apple_subject_hash).run();
     return reply({ success: true, status: 'deleted', apple_account: true });
   }

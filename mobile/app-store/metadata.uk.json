@@ -15,11 +15,11 @@
   "copyright": "2026 Karpservice",
   "supportURL": "https://karpservice-app.jeweled-astrodon.workers.dev/support/",
   "privacyPolicyURL": "https://karpservice-app.jeweled-astrodon.workers.dev/privacy/",
-  "selectedBuild": "3.1.0",
+  "selectedBuild": "10.1.0",
   "ageRating": "4+",
   "availability": [
     "UA"
   ],
   "releaseMode": "Automatic after App Review approval",
-  "status": "Public offline demo restored on explicit owner instruction at 2026-09-27 23:11 Europe/Kyiv. Demo requires no Telegram or phone number and uses fictional local data only. A new signed build and screenshots are being prepared. App Store Connect still has build 5.1.0 selected. Apple approval for demo in lieu of reviewer credentials and account-deletion rollout remain unresolved. No App Review submission or public release."
+  "status": "2026-10-05: App Store version 1.0 (build 10.1.0) rejected under guideline 4.8. Owner authorized Sign in with Apple. Implementation on codex/apple-sign-in is under verification; Apple capability/key configuration, deployment, live sign-in test, new upload, metadata and re-submission remain pending. This branch has not been submitted or released."
 }

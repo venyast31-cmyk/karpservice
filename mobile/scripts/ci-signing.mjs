@@ -5,16 +5,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, cop
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { appleProfile } from './apple-profile.mjs';
 
 export const TEAM = 'L6W4586456';
 export const BUNDLE = 'ua.karpservice.client';
 
-export function verifyProfile(profile, now = new Date()) {
+export function verifyProfile(profile, now = new Date(), requireApple = true) {
   if (!/^[A-Fa-f0-9-]{36}$/.test(profile.UUID ?? '')) throw new Error('Invalid provisioning profile UUID');
   if (profile.TeamIdentifier?.length !== 1 || profile.TeamIdentifier[0] !== TEAM) throw new Error('Provisioning profile belongs to a different Apple team');
   if (profile.Entitlements?.['application-identifier'] !== `${TEAM}.${BUNDLE}`) throw new Error('Provisioning profile belongs to a different app');
   if (profile.Entitlements?.['com.apple.developer.team-identifier'] !== TEAM) throw new Error('Incorrect team entitlement');
-  if (!profile.Entitlements?.['com.apple.developer.applesignin']?.includes('Default')) throw new Error('Regenerate the App Store profile after enabling Sign in with Apple for Karpservice');
+  if (requireApple && !profile.Entitlements?.['com.apple.developer.applesignin']?.includes('Default')) throw new Error('Regenerate the App Store profile after enabling Sign in with Apple for Karpservice');
   if (profile.ProvisionedDevices || profile.ProvisionsAllDevices || profile.Entitlements?.['get-task-allow']) throw new Error('An App Store distribution profile is required');
   if (!(new Date(profile.ExpirationDate) > now)) throw new Error('Provisioning profile has expired');
   if (!profile.certificateSHA1?.length || profile.certificateSHA1.some(v => !/^[A-F0-9]{40}$/.test(v))) throw new Error('Profile has no usable signing certificate');
@@ -46,7 +47,7 @@ function privateFile(file, contents) {
   writeFileSync(file, contents, { mode: 0o600 });
 }
 
-function prepare(directory, stateFile) {
+async function prepare(directory, stateFile) {
   const names = ['IOS_DISTRIBUTION_P12_BASE64', 'IOS_DISTRIBUTION_P12_PASSWORD', 'IOS_PROVISION_PROFILE_BASE64', 'ASC_PRIVATE_KEY', 'ASC_KEY_ID', 'ASC_ISSUER_ID'];
   const missing = names.filter(name => !process.env[name]?.trim());
   if (missing.length) throw new Error(`Configure GitHub Actions secrets first: ${missing.join(', ')}`);
@@ -63,8 +64,10 @@ function prepare(directory, stateFile) {
   privateFile(profileFile, Buffer.from(process.env.IOS_PROVISION_PROFILE_BASE64, 'base64'));
   privateFile(path.join(directory, 'AuthKey.p8'), process.env.ASC_PRIVATE_KEY);
 
-  const profileXML = command('security', ['cms', '-D', '-i', profileFile]);
-  const profile = verifyProfile(JSON.parse(command('python3', ['-c', `
+  const decode = bytes => {
+    privateFile(profileFile, bytes);
+    const profileXML = command('security', ['cms', '-D', '-i', profileFile]);
+    return JSON.parse(command('python3', ['-c', `
 import datetime, hashlib, json, plistlib, sys
 p = plistlib.loads(sys.stdin.buffer.read())
 p['certificateSHA1'] = [hashlib.sha1(c).hexdigest().upper() for c in p.pop('DeveloperCertificates', [])]
@@ -75,7 +78,12 @@ def serialize(value):
         return None
     raise TypeError('Unexpected profile value')
 print(json.dumps(p, default=serialize))
-`], profileXML)));
+`], profileXML));
+  };
+  const original = verifyProfile(decode(Buffer.from(process.env.IOS_PROVISION_PROFILE_BASE64, 'base64')), new Date(), false);
+  const updated = await appleProfile({ env: process.env, original, decode, verify: verifyProfile });
+  privateFile(profileFile, updated);
+  const profile = verifyProfile(decode(updated));
 
   const keychain = path.join(directory, 'build.keychain-db');
   const password = randomBytes(32).toString('hex');
@@ -129,7 +137,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     if (!process.env.RUNNER_TEMP) throw new Error('RUNNER_TEMP is required');
     const directory = path.join(process.env.RUNNER_TEMP, 'karp-signing');
     const stateFile = path.join(directory, 'state.json');
-    if (process.argv[2] === 'prepare') prepare(directory, stateFile);
+    if (process.argv[2] === 'prepare') await prepare(directory, stateFile);
     else if (process.argv[2] === 'cleanup') cleanup(directory, stateFile);
     else throw new Error('Use prepare or cleanup');
   } catch (error) {

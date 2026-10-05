@@ -644,7 +644,7 @@ async function createRoappAssetCompatible(env, payload) {
   throw lastError || new Error("RO App не прийняв дані автомобіля");
 }
 __name(createRoappAssetCompatible, "createRoappAssetCompatible");
-async function createCustomerAsset(request, env, customerId, responseHeaders) {
+async function createCustomerAsset(request, env, authSession, responseHeaders) {
   let body;
   try {
     body = await request.json();
@@ -658,7 +658,7 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
       error: "VIN має містити рівно 17 символів без літер I, O та Q"
     }, 400, responseHeaders);
   }
-  const numericCustomerId = Number(customerId);
+  const numericCustomerId = Number(await ensureAppleCustomer(env, authSession));
   if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
     return json({ success: false, error: "Клієнта не знайдено" }, 404, responseHeaders);
   }
@@ -1375,7 +1375,7 @@ var index_default = {
         return await createCustomerAsset(
           request,
           env,
-          Number(await ensureAppleCustomer(env, authSession)),
+          authSession,
           corsHeaders
         );
       }
