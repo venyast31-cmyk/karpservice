@@ -64,7 +64,9 @@ const SESSION_TOKEN = "S".repeat(43);
 
 test("protected API derives ownership from the Telegram session", async () => {
   const authDb = new MemoryD1();
-  authDb.database.exec(await readFile(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8"));
+  for (const migration of ["0001_auth.sql","0003_apple_accounts.sql","0004_pending_apple_phone_links.sql","0005_link_requests_apple.sql"]) {
+    authDb.database.exec(await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
+  }
   const now = Math.floor(Date.now() / 1000);
   const tokenHash = createHash("sha256").update(`session:${SESSION_TOKEN}`).digest("hex");
   authDb.database.prepare(
@@ -73,6 +75,7 @@ test("protected API derives ownership from the Telegram session", async () => {
        created_at, expires_at, last_used_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(tokenHash, PHONE, 123, "Тест Клієнт", "777", now, now + 3600, now);
+  authDb.database.prepare("UPDATE sessions SET apple_sub = ? WHERE token_hash = ?").run("apple-test-sub", tokenHash);
 
   const env = {
     AUTH_DB: authDb,
