@@ -9,6 +9,17 @@ import { createDemoSession } from './demo.mjs';
 
 if (Capacitor.isNativePlatform()) {
   const api = registerPlugin('KarpserviceAPI');
+  const appleLogin = async () => {
+    const { identityToken } = await api.signInWithApple();
+    const res = await api.request({ path:'auth/apple', method:'POST', body:JSON.stringify({identity_token:identityToken}) });
+    if (!(res.status >= 200 && res.status < 300) || !res.data?.success) throw new Error(res.data?.error || 'Не вдалося увійти через Apple.');
+    if (res.data.phone_linked) await window.loadCustomer?.();
+    else {
+      window.setAuthSession?.(true);
+      window.show?.('profile');
+      window.showStatus?.('Підключіть номер телефону та підтвердьте його через Telegram, щоб відкрити авто, історію та запис.', 'ok', 'nativeProfileStatus');
+    }
+  };
   let booking = null;
   let generation = 0;
   const transport = createTransport(api);
@@ -27,6 +38,7 @@ if (Capacitor.isNativePlatform()) {
     get active() { return demo.active; }
   };
   window.KarpNative = {
+    signInWithApple: appleLogin,
     request: async (path, options) => {
       const capturedGeneration = generation;
       const response = await demo.request(path, options);
@@ -55,6 +67,7 @@ if (Capacitor.isNativePlatform()) {
 
   document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.classList.add('native-ios');
+    document.getElementById('nativeAppleLogin')?.addEventListener('click', () => appleLogin().catch(err => window.showStatus?.(err.message || 'Не вдалося увійти через Apple.')));
     updateDemoUi();
     document.getElementById('nativeDemoStart')?.addEventListener('click', async () => {
       window.KarpDemo.start();
