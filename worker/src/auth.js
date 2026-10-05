@@ -184,7 +184,7 @@ async function verifyAppleIdentityToken(identityToken, env) {
     throw Object.assign(new Error("Некоректний Apple ID token"), {status:401});
   }
   const now = unixTime();
-  const audience = String(env.APPLE_CLIENT_ID || "");
+  const audience = String(env.APPLE_CLIENT_ID || "ua.karpservice.client");
   const tokenAudience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (payload.iss !== APPLE_ISSUER || !payload.sub || Number(payload.exp || 0) <= now ||
       !audience || !tokenAudience.includes(audience) || header.alg !== "RS256" || !header.kid) {
