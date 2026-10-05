@@ -75,7 +75,9 @@ const PHONE = "380671234567";
 
 test("Telegram-only link, OTP, session, logout and CORS", async () => {
   const authDb = new MemoryD1();
-  authDb.database.exec(await readFile(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8"));
+  for (const migration of ["0001_auth.sql","0003_apple_accounts.sql","0004_pending_apple_phone_links.sql","0005_link_requests_apple.sql"]) {
+    authDb.database.exec(await readFile(new URL(`../migrations/${migration}`, import.meta.url), "utf8"));
+  }
 
   const env = {
     AUTH_DB: authDb,
