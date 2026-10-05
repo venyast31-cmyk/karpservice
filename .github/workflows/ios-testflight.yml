@@ -14,7 +14,7 @@ jobs:
   upload:
     if: github.repository == 'venyast31-cmyk/karpservice' && (github.ref == 'refs/heads/release/ios-testflight' || github.ref == 'refs/heads/main')
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -95,6 +95,13 @@ jobs:
             echo 'Apple must finish processing before the build can be used in TestFlight.'
             echo 'This workflow does not submit to App Review or release to the public.'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Wait for Apple processing and assign the existing internal test group
+        working-directory: mobile
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: node scripts/testflight-ready.mjs
       - name: Remove local signing credentials
         if: always()
         working-directory: mobile
