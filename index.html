@@ -387,11 +387,9 @@
 
   <section id="login" class="screen active">
     <h1>Мій Karpservice</h1>
-    <p>Введіть номер із нашої CRM та підтвердьте вхід через Telegram.</p>
+    <p>Увійдіть через Apple. Після входу підключіть номер телефону один раз, щоб отримати авто, історію та онлайн-запис із CRM.</p>
     <div id="phoneAuthStep" class="card auth-step">
-      <label for="phone">Номер телефону</label>
-      <input id="phone" inputmode="tel" autocomplete="tel" placeholder="+380 XX XXX XX XX" value="+380 " />
-      <button id="loadBtn" class="primary telegram-primary" onclick="requestTelegramAuth()">Підтвердити через Telegram</button>
+      <button id="nativeAppleLogin" class="primary" type="button" onclick="window.KarpNative?.signInWithApple?.()"> Увійти з Apple</button>
       <div id="loginStatus" class="status"></div>
     </div>
 
