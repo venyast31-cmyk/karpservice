@@ -6,11 +6,21 @@ guard CommandLine.arguments.count == 2 else { exit(2) }
 do {
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate
-    request.recognitionLanguages = ["en-US"]
+    let supported = try request.supportedRecognitionLanguages()
+    request.recognitionLanguages = ["uk-UA", "ru-RU", "en-US"].filter { supported.contains($0) }
+    request.automaticallyDetectsLanguage = true
     request.usesLanguageCorrection = false
     try VNImageRequestHandler(url: URL(fileURLWithPath: CommandLine.arguments[1])).perform([request])
-    let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
-    guard lines.contains(where: { $0.range(of: "(sign|continue|увійти|войти).*apple", options: [.caseInsensitive, .regularExpression]) != nil }) else {
+    // AuthenticationServices uses the app's Ukrainian localization ("Вхід з Apple").
+    // Check the short, prominent native label instead of assuming English text.
+    // The size constraint excludes the smaller explanatory paragraphs about Apple.
+    let hasAppleButton = (request.results ?? []).contains { observation in
+        guard let label = observation.topCandidates(1).first?.string else { return false }
+        let box = observation.boundingBox
+        return label.localizedCaseInsensitiveContains("Apple") && label.count <= 40
+            && box.height >= 0.014 && box.midY > 0.3 && box.midY < 0.85
+    }
+    guard hasAppleButton else {
         fputs("Apple login label is not visible yet.\n", stderr)
         exit(1)
     }
