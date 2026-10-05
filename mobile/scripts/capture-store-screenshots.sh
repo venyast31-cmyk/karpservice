@@ -20,6 +20,16 @@ for screen in login cars service time history order done; do
   xcrun simctl launch "$CAPTURE_SIM" ua.karpservice.client
   sleep 8
   xcrun simctl io "$CAPTURE_SIM" screenshot "artifacts/app-store-screenshots/0${index}-${screen}.png"
+  if [[ "$screen" == "login" ]]; then
+    # The first WebKit launch on a fresh simulator can outlast the fixed delay.
+    # Recognize the actual login label before accepting this App Store image.
+    for attempt in 1 2 3 4 5; do
+      if swift scripts/verify-login-screenshot.swift "artifacts/app-store-screenshots/0${index}-${screen}.png"; then break; fi
+      sleep 10
+      xcrun simctl io "$CAPTURE_SIM" screenshot "artifacts/app-store-screenshots/0${index}-${screen}.png"
+    done
+    swift scripts/verify-login-screenshot.swift "artifacts/app-store-screenshots/0${index}-${screen}.png"
+  fi
   xcrun simctl terminate "$CAPTURE_SIM" ua.karpservice.client
   xcrun simctl uninstall "$CAPTURE_SIM" ua.karpservice.client
   index=$((index + 1))
