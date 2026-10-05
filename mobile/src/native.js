@@ -16,6 +16,8 @@ if (Capacitor.isNativePlatform()) {
     if (res.data.phone_linked) await window.loadCustomer?.();
     else {
       window.setAuthSession?.(true);
+      window.setAuthenticatedUi?.(true);
+      window.renderProfile?.();
       window.show?.('profile');
       window.showStatus?.('Підключіть номер телефону та підтвердьте його через Telegram, щоб відкрити авто, історію та запис.', 'ok', 'nativeProfileStatus');
     }
