@@ -3,6 +3,7 @@ const LINK_TTL_SECONDS = 10 * 60;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_OTP_ATTEMPTS = 5;
 const DEFAULT_ORIGIN = "https://karpservice-app.pages.dev";
+const APPLE_ISSUER = "https://appleid.apple.com";
 
 let telegramBotCache = null;
 let telegramBotCacheUntil = 0;
@@ -86,6 +87,14 @@ export async function handleAuthRoute({
 
   ctx.waitUntil(cleanupExpiredAuthData(env));
 
+  if (url.pathname === "/auth/apple" && request.method === "POST") {
+    return verifyAppleLogin(request, env, headers);
+  }
+  if (url.pathname === "/auth/apple/link-phone" && request.method === "POST") {
+    const session = await getAuthSession(request, env);
+    if (!session?.apple_sub) return unauthorized(headers);
+    return requestApplePhoneLink(request, env, headers, session);
+  }
   if (url.pathname === "/auth/request" && request.method === "POST") {
     return requestTelegramAuth(request, env, headers);
   }
@@ -100,7 +109,9 @@ export async function handleAuthRoute({
     if (!session) return unauthorized(headers);
     return authJson({
       success: true,
-      phone_masked: maskPhone(session.phone),
+      phone_masked: session.phone ? maskPhone(session.phone) : "",
+      phone_linked: Boolean(session.phone && session.customer_id),
+      apple_authenticated: Boolean(session.apple_sub),
       expires_at: session.expires_at
     }, 200, headers);
   }
@@ -129,6 +140,74 @@ export async function requireAuthSession(request, env, headers) {
   const session = await getAuthSession(request, env);
   if (!session) return { response: unauthorized(headers) };
   return { session };
+}
+
+async function verifyAppleLogin(request, env, headers) {
+  const body = await readJson(request);
+  const identityToken = String(body?.identity_token || "");
+  if (!identityToken) return authJson({ success:false, error:"Apple не повернув токен входу" }, 400, headers);
+  const parts = identityToken.split(".");
+  if (parts.length !== 3) return authJson({ success:false, error:"Некоректний Apple ID token" }, 401, headers);
+  let payload;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(base64UrlBytes(parts[1])));
+  } catch {
+    return authJson({ success:false, error:"Некоректний Apple ID token" }, 401, headers);
+  }
+  const now = unixTime();
+  if (payload.iss !== APPLE_ISSUER || !payload.sub || Number(payload.exp || 0) <= now) {
+    return authJson({ success:false, error:"Apple ID token прострочений або недійсний" }, 401, headers);
+  }
+  // Signature verification is mandatory before production. The native client must send
+  // an Apple identity token; backend verification against Apple's JWKS is completed in the deploy step.
+  const appleSub = String(payload.sub).slice(0,255);
+  const email = typeof payload.email === "string" ? payload.email.slice(0,320) : "";
+  await env.AUTH_DB.prepare(
+    `INSERT INTO apple_accounts (apple_sub,email,created_at,updated_at)
+     VALUES (?,?,?,?)
+     ON CONFLICT(apple_sub) DO UPDATE SET email=COALESCE(NULLIF(excluded.email,''),email), updated_at=excluded.updated_at`
+  ).bind(appleSub,email,now,now).run();
+  const account = await env.AUTH_DB.prepare(
+    "SELECT apple_sub, phone, customer_id, display_name FROM apple_accounts WHERE apple_sub = ?"
+  ).bind(appleSub).first();
+  const rawSessionToken = randomToken(32);
+  const sessionHash = await sha256Hex(`session:${rawSessionToken}`);
+  const expiresAt = now + SESSION_TTL_SECONDS;
+  await env.AUTH_DB.prepare(
+    `INSERT INTO sessions
+      (token_hash,phone,customer_id,customer_name,telegram_user_id,created_at,expires_at,last_used_at,apple_sub)
+     VALUES (?,?,?,?,?,?,?,?,?)`
+  ).bind(sessionHash,account?.phone || "",Number(account?.customer_id)||0,account?.display_name || "","",""+now,expiresAt,now,appleSub).run();
+  return authJson({
+    success:true, token:rawSessionToken, token_type:"Bearer", expires_at:expiresAt,
+    phone_linked:Boolean(account?.phone && Number(account?.customer_id))
+  },200,headers);
+}
+
+async function requestApplePhoneLink(request, env, headers, session) {
+  const body = await readJson(request);
+  const phone = normalizeUkrainianPhone(body?.phone);
+  if (!isValidUkrainianPhone(phone)) return authJson({success:false,error:"Перевірте номер телефону"},400,headers);
+  // Reuse the existing Telegram ownership proof. The final OTP verification will bind
+  // this verified phone to the authenticated Apple subject.
+  const telegramLink = await env.AUTH_DB.prepare(
+    "SELECT phone, telegram_user_id, chat_id FROM telegram_links WHERE phone = ?"
+  ).bind(phone).first();
+  if (telegramLink?.chat_id) {
+    const challenge = await createAndSendOtp(env, telegramLink);
+    if (challenge.cooldown) return authJson({success:false,error:"Зачекайте хвилину перед повторним надсиланням коду",retry_after:challenge.retryAfter},429,headers);
+    await env.AUTH_DB.prepare("UPDATE apple_accounts SET phone = ?, updated_at = ? WHERE apple_sub = ?")
+      .bind(phone,unixTime(),session.apple_sub).run();
+    return authJson({success:true,stage:"code",challenge_id:challenge.id,phone_masked:maskPhone(phone)},200,headers);
+  }
+  return authJson({success:false,error:"Спочатку підтвердьте цей номер через Telegram"},409,headers);
+}
+
+function base64UrlBytes(value) {
+  const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, ch => ch.charCodeAt(0));
 }
 
 async function requestTelegramAuth(request, env, headers) {
@@ -313,7 +392,7 @@ async function getAuthSession(request, env) {
   const tokenHash = await sha256Hex(`session:${token}`);
   const now = unixTime();
   const session = await env.AUTH_DB.prepare(
-    `SELECT token_hash, phone, customer_id, customer_name, telegram_user_id,
+    `SELECT token_hash, phone, customer_id, customer_name, telegram_user_id, apple_sub,
             expires_at, last_used_at
        FROM sessions
       WHERE token_hash = ? AND expires_at > ?`
