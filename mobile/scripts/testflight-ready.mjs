@@ -10,7 +10,7 @@ export async function assignInternalBuild(api, number, { wait = ms => new Promis
   if (!/^[1-9]\d{0,3}\.[1-9]\d?\.0$/.test(number || '')) throw new Error('Invalid TestFlight build number');
   const app = (await api(`/v1/apps/${APP}`)).data;
   if (app?.attributes?.bundleId !== 'ua.karpservice.client') throw new Error('Unexpected App Store application');
-  const groups = (await api(`/v1/apps/${APP}/betaGroups?limit=200`)).data || [];
+  const groups = (await api(`/v1/apps/${APP}/betaGroups`)).data || [];
   const candidates = groups.filter(g => g.attributes?.name === GROUP && g.attributes?.isInternalGroup === true);
   if (candidates.length !== 1) throw new Error('The existing internal Karpservice test group could not be uniquely verified');
   const group = candidates[0];
@@ -25,11 +25,11 @@ export async function assignInternalBuild(api, number, { wait = ms => new Promis
     if (attempt + 1 < attempts) await wait(30000);
   }
   if (build?.attributes?.processingState !== 'VALID') throw new Error('Build upload succeeded, but Apple processing is still pending; retry TestFlight assignment later');
-  const memberships = (await api(`/v1/builds/${build.id}/relationships/betaGroups?limit=200`)).data || [];
+  const memberships = (await api(`/v1/builds/${build.id}/relationships/betaGroups`)).data || [];
   if (!memberships.some(g => g.id === group.id)) {
     await api(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: 'builds', id: build.id }] });
   }
-  const verified = (await api(`/v1/builds/${build.id}/relationships/betaGroups?limit=200`)).data || [];
+  const verified = (await api(`/v1/builds/${build.id}/relationships/betaGroups`)).data || [];
   if (!verified.some(g => g.id === group.id)) throw new Error('Apple did not confirm the internal TestFlight assignment');
   return { buildId: build.id, number, group: GROUP };
 }

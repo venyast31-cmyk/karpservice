@@ -28,7 +28,7 @@ test('profile refresh reuses a valid existing profile without writes', async () 
   const request = async (url, options) => {
     assert.equal(options.method, 'GET');
     if (url.includes('bundleIdCapabilities')) return Response.json({ data: [{ attributes: { capabilityType: 'APPLE_ID_AUTH' } }] });
-    if (url.includes('/profiles?')) return Response.json({ data: [{ attributes: { profileType: 'IOS_APP_STORE', profileState: 'ACTIVE', profileContent: profile.toString('base64') } }] });
+    if (url.endsWith('/profiles')) return Response.json({ data: [{ attributes: { profileType: 'IOS_APP_STORE', profileState: 'ACTIVE', profileContent: profile.toString('base64') } }] });
     return Response.json({ data: { attributes: { identifier: 'ua.karpservice.client' } } });
   };
   assert.deepEqual(await appleProfile({ env, original, decode, verify, request }), profile);
@@ -47,7 +47,7 @@ test('regeneration is scoped to Karpservice and the already installed certificat
       return Response.json({ data: { attributes: { profileContent: profile.toString('base64') } } });
     }
     if (url.includes('bundleIdCapabilities')) return Response.json({ data: [{ attributes: { capabilityType: 'APPLE_ID_AUTH' } }] });
-    if (url.includes('/profiles?')) return Response.json({ data: [] });
+    if (url.endsWith('/profiles')) return Response.json({ data: [] });
     if (url.includes('/certificates?')) return Response.json({ data: [{ id: 'existing-cert', attributes: { certificateType: 'DISTRIBUTION', expirationDate: '2030-01-01', certificateContent: certificate.toString('base64') } }] });
     return Response.json({ data: { attributes: { identifier: 'ua.karpservice.client' } } });
   };

@@ -28,10 +28,10 @@ export async function appleProfile({ env, original, decode, verify, request = fe
   };
   const bundle = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}`)).data;
   if (bundle?.attributes?.identifier !== BUNDLE) throw new Error('Apple bundle identifier does not match Karpservice');
-  const capabilities = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}/bundleIdCapabilities?limit=200`)).data;
+  const capabilities = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}/bundleIdCapabilities`)).data;
   if (!capabilities?.some(c => c.attributes?.capabilityType === 'APPLE_ID_AUTH')) throw new Error('Enable Sign in with Apple for Karpservice in Apple Developer first');
 
-  const profiles = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}/profiles?limit=200`)).data || [];
+  const profiles = (await api(`/v1/bundleIds/${BUNDLE_RESOURCE}/profiles`)).data || [];
   for (const candidate of profiles) {
     if (candidate.attributes?.profileType !== 'IOS_APP_STORE' || candidate.attributes?.profileState !== 'ACTIVE' || !candidate.attributes?.profileContent) continue;
     const bytes = Buffer.from(candidate.attributes.profileContent, 'base64');
