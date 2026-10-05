@@ -1,7 +1,7 @@
 name: iOS preparation
 on:
   push:
-    branches: ['codex/ios-app-store-preparation']
+    branches: ['codex/ios-app-store-preparation', 'apple-only-auth']
   pull_request:
     paths: ['mobile/**', 'index.html', '.github/workflows/ios-prepare.yml']
   workflow_dispatch:
