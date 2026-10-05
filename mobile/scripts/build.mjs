@@ -49,7 +49,6 @@ replaceOnce('    <button class="secondary" type="button" onclick="logout()">Ви
       <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>
-      <p id="nativeProfileStatus" class="native-note" role="status"></p>
     </div>
     <nav class="native-links" aria-label="Інформація"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
     <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>`);
