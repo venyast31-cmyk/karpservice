@@ -236,7 +236,20 @@ async function requestApplePhoneLink(request, env, headers, session) {
     ).bind(challenge.id, session.apple_sub, phone, now, now + OTP_TTL_SECONDS).run();
     return authJson({success:true,stage:"code",challenge_id:challenge.id,phone_masked:maskPhone(phone)},200,headers);
   }
-  return authJson({success:false,error:"Спочатку підтвердьте цей номер через Telegram"},409,headers);
+  const bot = await ensureTelegramWebhook(env);
+  const rawToken = randomToken(24);
+  const tokenHash = await sha256Hex(`link:${rawToken}`);
+  const now = unixTime();
+  await env.AUTH_DB.prepare(
+    `INSERT INTO link_requests
+      (token_hash, phone, state, created_at, expires_at, apple_sub)
+     VALUES (?, ?, 'pending', ?, ?, ?)`
+  ).bind(tokenHash, phone, now, now + LINK_TTL_SECONDS, session.apple_sub).run();
+  return authJson({
+    success:true, stage:"telegram_link", link_token:rawToken,
+    link_url:`https://t.me/${encodeURIComponent(bot.username)}?start=${encodeURIComponent(rawToken)}`,
+    phone_masked:maskPhone(phone), expires_in:LINK_TTL_SECONDS
+  },200,headers);
 }
 
 function base64UrlBytes(value) {
@@ -315,7 +328,7 @@ async function getTelegramLinkStatus(request, env, headers) {
   }
   const tokenHash = await sha256Hex(`link:${rawToken}`);
   const row = await env.AUTH_DB.prepare(
-    `SELECT state, challenge_id, expires_at
+    `SELECT state, challenge_id, expires_at, apple_sub, phone
        FROM link_requests
       WHERE token_hash = ?`
   ).bind(tokenHash).first();
@@ -323,6 +336,15 @@ async function getTelegramLinkStatus(request, env, headers) {
     return authJson({ success: true, stage: "expired" }, 200, headers);
   }
   if (row.state === "otp_sent" && row.challenge_id) {
+    if (row.apple_sub && row.phone) {
+      const now = unixTime();
+      await env.AUTH_DB.prepare(
+        `INSERT INTO pending_apple_phone_links (challenge_id, apple_sub, phone, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(challenge_id) DO UPDATE SET apple_sub=excluded.apple_sub, phone=excluded.phone,
+           created_at=excluded.created_at, expires_at=excluded.expires_at`
+      ).bind(row.challenge_id, row.apple_sub, row.phone, now, now + OTP_TTL_SECONDS).run();
+    }
     return authJson({
       success: true,
       stage: "code",
