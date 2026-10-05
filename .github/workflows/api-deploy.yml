@@ -40,15 +40,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/check-deploy-access.mjs
-      - name: Configure dedicated Sign in with Apple credentials
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          APPLE_SIGN_IN_KEY_ID: ${{ secrets.APPLE_SIGN_IN_KEY_ID || 'N2B97FQ95H' }}
-          APPLE_SIGN_IN_PRIVATE_KEY: ${{ secrets.APPLE_SIGN_IN_PRIVATE_KEY }}
-          CI: 'true'
-          WRANGLER_SEND_METRICS: 'false'
-        run: node scripts/sync-apple-secrets.mjs
       - name: Apply additive database migrations and deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -58,6 +49,17 @@ jobs:
         run: |
           npx --yes wrangler@4.127.1 d1 migrations apply karpservice-auth --remote
           npx --yes wrangler@4.127.1 deploy
+      # Cloudflare rejects secret updates while a newer draft version is undeployed.
+      # Deploy this reviewed source first, then configure its two Apple bindings.
+      - name: Configure dedicated Sign in with Apple credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APPLE_SIGN_IN_KEY_ID: ${{ secrets.APPLE_SIGN_IN_KEY_ID || 'N2B97FQ95H' }}
+          APPLE_SIGN_IN_PRIVATE_KEY: ${{ secrets.APPLE_SIGN_IN_PRIVATE_KEY }}
+          CI: 'true'
+          WRANGLER_SEND_METRICS: 'false'
+        run: node scripts/sync-apple-secrets.mjs
       - name: Check public health without customer actions
         run: |
           node --input-type=module <<'JS'
