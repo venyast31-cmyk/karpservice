@@ -13,7 +13,7 @@ xcrun simctl bootstatus "$CAPTURE_SIM" -b
 xcrun simctl status_bar "$CAPTURE_SIM" override --time '9:41' --batteryState charged --batteryLevel 100 --dataNetwork wifi --wifiMode active --wifiBars 3
 mkdir -p artifacts/app-store-screenshots
 index=1
-for screen in cars service time history order done; do
+for screen in login cars service time history order done; do
   node screenshots/prepare-bundle.mjs "$CAPTURE_APP" "$screen"
   codesign --force --sign - "$CAPTURE_APP"
   xcrun simctl install "$CAPTURE_SIM" "$CAPTURE_APP"
@@ -33,6 +33,6 @@ for path in sorted(folder.glob('*.png')):
     size=struct.unpack('>II',path.read_bytes()[16:24])
     assert size==(1284,2778),(str(path),size)
     images.append({'file':path.name,'width':size[0],'height':size[1]})
-assert len(images)==6
+assert len(images)==7
 (folder/'capture.json').write_text(json.dumps({'sourceCommit':os.environ['GITHUB_SHA'],'device':'iPhone 14 Plus','data':'Public local demo with fictional records; no production requests','productionBundleModified':False,'screenshots':images},indent=2)+'\n')
 PY

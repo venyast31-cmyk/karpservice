@@ -31,6 +31,13 @@ jobs:
           npm run check
           npm run sync
           npm --prefix ../worker test
+      - name: Verify Apple sign-in server configuration
+        run: |
+          node --input-type=module <<'JS'
+          const response = await fetch('https://karpservice-api.venyast31.workers.dev/health');
+          const health = await response.json();
+          if (!response.ok || !health.apple_signin_configured) throw new Error('Deploy and configure Sign in with Apple before uploading this app');
+          JS
       - name: Import signing credentials into a temporary keychain
         working-directory: mobile
         env:
@@ -64,6 +71,7 @@ jobs:
           assert e['application-identifier'] == 'L6W4586456.ua.karpservice.client'
           assert e['com.apple.developer.team-identifier'] == 'L6W4586456'
           assert not e.get('get-task-allow', False)
+          assert e.get('com.apple.developer.applesignin') == ['Default']
           PY
       - name: Upload to App Store Connect for TestFlight
         working-directory: mobile

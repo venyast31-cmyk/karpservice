@@ -14,7 +14,11 @@
     }
     if (!document.body.classList.contains('is-authenticated')) throw new Error('Fixture did not initialize');
     const screen = window.KarpScreenshotScreen;
-    if (screen === 'cars') document.getElementById('carsNav').click();
+    if (screen === 'login') {
+      await logout();
+      openGuestLogin();
+    }
+    else if (screen === 'cars') document.getElementById('carsNav').click();
     else if (screen === 'history') document.getElementById('historyNav').click();
     else if (screen === 'order') await openOrder(1024, 'allHistory');
     else if (screen === 'service' || screen === 'time' || screen === 'done') {

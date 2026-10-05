@@ -1,4 +1,5 @@
 import { authJson, requireAuthSession } from './auth.js';
+import { appleConfigured, revokeAppleAccount } from './apple-auth.js';
 
 // Requests start in the authenticated app. Staff complete the deletion across
 // CRM and authentication storage; accepting a request never claims completion.
@@ -8,13 +9,22 @@ export async function handleDeletionRoute(request, env, headers) {
   const auth = await requireAuthSession(request, env, headers);
   if (auth.response) return auth.response;
   const reply = (data, status = 200) => authJson(data, status, headers);
+  if (auth.session.auth_provider === 'apple' && !auth.session.customer_id) {
+    if (path === '/account/deletion-policy' && request.method === 'GET') return reply({ success: true, apple_account: true, immediate: true, days: 0 });
+    if (path !== '/account/deletion' || request.method !== 'POST') return reply({ success: false }, 405);
+    const body = await request.json().catch(() => null);
+    if (body?.confirmed !== true) return reply({ success: false, error: 'Підтвердьте видалення.' }, 400);
+    await revokeAppleAccount(env, auth.session.apple_subject_hash);
+    await env.AUTH_DB.prepare('DELETE FROM apple_accounts WHERE subject_hash = ? AND customer_id IS NULL').bind(auth.session.apple_subject_hash).run();
+    return reply({ success: true, status: 'deleted', apple_account: true });
+  }
   const days = Number(env.ACCOUNT_DELETION_DAYS);
   // The operator must confirm an actual service deadline before enabling this.
   if (!Number.isInteger(days) || days < 1 || days > 30 || !env.TELEGRAM_CHAT_ID) {
     return reply({ success: false, error: 'Подання запиту тимчасово недоступне. Спробуйте пізніше.' }, 503);
   }
   if (path === '/account/deletion-policy' && request.method === 'GET') {
-    return reply({ success: true, days });
+    return reply({ success: true, days, apple_account: auth.session.auth_provider === 'apple' });
   }
   if (path !== '/account/deletion' || request.method !== 'POST') {
     return reply({ success: false, error: 'Метод не підтримується.' }, 405);
@@ -43,8 +53,9 @@ export async function handleDeletionRoute(request, env, headers) {
           `Номер: ${pending.request_id}`,
           `Клієнт: ${pending.customer_name}; CRM ID: ${pending.customer_id}`,
           `Телефон: ${pending.phone}`,
+          ...(auth.session.email ? [`Email: ${auth.session.email}`] : []),
           `Виконати до: ${new Date(pending.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}`,
-          'Запит подано з підтвердженого профілю. Видаліть дані CRM, авто та історію, прив’язку Telegram і всі сесії. Повідомте клієнту результат; якщо щось необхідно зберегти за законом — обсяг і підставу.'
+          'Запит подано з підтвердженого профілю. Видаліть дані CRM, авто та історію, прив’язки Telegram/Apple (apple_accounts за customer_id) і всі сесії. Повідомте клієнту результат; якщо щось необхідно зберегти за законом — обсяг і підставу.'
         ].join('\n') })
       });
       const result = await response.json();
@@ -56,6 +67,10 @@ export async function handleDeletionRoute(request, env, headers) {
       return reply({ success: false, error: 'Не вдалося підтвердити передавання запиту сервісу. Повторіть спробу; повторний запит не створить дубль.' }, 502);
     }
   }
+  if (appleConfigured(env)) {
+    const apple = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE customer_id = ?').bind(customerId).first();
+    if (apple) await revokeAppleAccount(env, apple.subject_hash);
+  }
   return reply({ success: true, request_id: pending.request_id,
-    deadline_at: pending.deadline_at, status: 'pending' });
+    deadline_at: pending.deadline_at, status: 'pending', signed_out: auth.session.auth_provider === 'apple' });
 }

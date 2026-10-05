@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { verifyProfile, buildNumber, TEAM, BUNDLE } from '../scripts/ci-signing.mjs';
 
 function profile() {
-  return { UUID: '12345678-1234-1234-1234-123456789abc', TeamIdentifier: [TEAM], ExpirationDate: '2030-01-01T00:00:00Z', certificateSHA1: ['A'.repeat(40)], Entitlements: { 'application-identifier': `${TEAM}.${BUNDLE}`, 'com.apple.developer.team-identifier': TEAM, 'get-task-allow': false } };
+  return { UUID: '12345678-1234-1234-1234-123456789abc', TeamIdentifier: [TEAM], ExpirationDate: '2030-01-01T00:00:00Z', certificateSHA1: ['A'.repeat(40)], Entitlements: { 'application-identifier': `${TEAM}.${BUNDLE}`, 'com.apple.developer.team-identifier': TEAM, 'get-task-allow': false, 'com.apple.developer.applesignin': ['Default'] } };
 }
 
 test('release signing rejects development, ad-hoc, enterprise and wrong-app profiles', () => {
   assert.doesNotThrow(() => verifyProfile(profile()));
   for (const bad of [
+    { ...profile(), Entitlements: { ...profile().Entitlements, 'com.apple.developer.applesignin': undefined } },
     { ...profile(), ProvisionedDevices: ['device'] },
     { ...profile(), ProvisionsAllDevices: true },
     { ...profile(), TeamIdentifier: ['OTHERTEAM1'] },

@@ -1,4 +1,5 @@
 import { handleReviewAccount } from "./review-account.js";
+import { appleConfigured, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
 import {
   authConfigured,
   corsHeadersFor,
@@ -25,12 +26,13 @@ var CORS_HEADERS = {
   "Content-Type": "application/json; charset=UTF-8",
   "Cache-Control": "no-store"
 };
-async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
+async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSession = null) {
   const phone = normalizePhone(url.searchParams.get("phone"));
-  if (phone.length < 10) {
+  if (!appleSession && phone.length < 10) {
     return json({ success: false, error: "\u0412\u043A\u0430\u0436\u0456\u0442\u044C \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443" }, 400, responseHeaders);
   }
-  const customer = await findCustomerByPhone(env, phone);
+  const customer = appleSession ? { id: appleSession.customer_id, first_name: appleSession.customer_name, email: appleSession.email } : await findCustomerByPhone(env, phone);
+  if (appleSession && !customer.id) return json({ success: true, found: true, auth_provider: 'apple', customer: { id: 0, first_name: customer.first_name, email: customer.email, phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
   if (!customer?.id) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
@@ -56,11 +58,13 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
   return json({
     success: true,
     found: true,
+    ...(appleSession ? { auth_provider: 'apple' } : {}),
     customer: {
       id: Number(customer.id),
       first_name: customer.first_name || customer.name || "",
       last_name: customer.last_name || "",
-      phone: `+${phone}`
+      phone: phone ? `+${phone}` : '',
+      ...(appleSession ? { email: appleSession.email } : {})
     },
     cars,
     history_cars: historyCars,
@@ -72,16 +76,16 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
   }, 200, responseHeaders);
 }
 __name(getCustomerData, "getCustomerData");
-async function getOrderDetails(url, env, responseHeaders = CORS_HEADERS) {
+async function getOrderDetails(url, env, responseHeaders = CORS_HEADERS, appleSession = null) {
   const phone = normalizePhone(url.searchParams.get("phone"));
   const orderId = Number(url.searchParams.get("order_id"));
-  if (phone.length < 10 || !Number.isInteger(orderId) || orderId <= 0) {
+  if ((!appleSession && phone.length < 10) || !Number.isInteger(orderId) || orderId <= 0) {
     return json({
       success: false,
       error: "\u041D\u0435 \u0432\u0438\u0441\u0442\u0430\u0447\u0430\u0454 \u0434\u0430\u043D\u0438\u0445 \u0434\u043B\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u0437\u0430\u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F"
     }, 400, responseHeaders);
   }
-  const customer = await findCustomerByPhone(env, phone);
+  const customer = appleSession ? { id: appleSession.customer_id } : await findCustomerByPhone(env, phone);
   if (!customer?.id) {
     return json({ success: false, error: "\u041A\u043B\u0456\u0454\u043D\u0442\u0430 \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E" }, 404, responseHeaders);
   }
@@ -1323,6 +1327,8 @@ var index_default = {
       const url = new URL(request.url);
       const reviewResponse = await handleReviewAccount(request, env, corsHeaders);
       if (reviewResponse) return reviewResponse;
+      const appleResponse = await handleAppleAuthRoute(request, env, corsHeaders);
+      if (appleResponse) return appleResponse;
       const authResponse = await handleAuthRoute({
         request,
         env,
@@ -1341,6 +1347,7 @@ var index_default = {
           service: "Karpservice API",
           configured,
           telegram_configured: isTelegramConfigured(env),
+          apple_signin_configured: appleConfigured(env),
           telegram_auth_configured: authConfigured(env)
         }, configured && authConfigured(env) ? 200 : 503, corsHeaders);
       }
@@ -1362,13 +1369,13 @@ var index_default = {
       if (url.pathname === "/order" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
-        return await getOrderDetails(protectedUrl, env, corsHeaders);
+        return await getOrderDetails(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
       }
       if (url.pathname === "/cars" && request.method === "POST") {
         return await createCustomerAsset(
           request,
           env,
-          Number(authSession.customer_id),
+          Number(await ensureAppleCustomer(env, authSession)),
           corsHeaders
         );
       }
@@ -1581,6 +1588,7 @@ var index_default = {
               clientId: verifiedBooking?.client_id ?? verifiedBooking?.client?.id ?? effectiveClientId,
               customerName: authSession.customer_name || getClientName(verifiedBooking),
               phone: authSession.phone,
+              email: authSession.email,
               car: normalizedCar,
               service: normalizedService,
               comment: normalizedComment,
@@ -1623,7 +1631,7 @@ var index_default = {
       if (url.pathname === "/" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
-        return await getCustomerData(protectedUrl, env, corsHeaders);
+        return await getCustomerData(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
       }
       return json2({
         success: false,
@@ -1687,6 +1695,7 @@ async function sendTelegramBookingNotification(env, booking) {
     url: buildRoAppClientUrl(booking.clientId)
   }]);
   const message = [
+    ...(booking.email ? [`Email: ${telegramValue(booking.email)}`] : []),
     "\u{1F527} \u041D\u041E\u0412\u0418\u0419 \u041E\u041D\u041B\u0410\u0419\u041D-\u0417\u0410\u041F\u0418\u0421",
     "",
     `\u{1F464} \u041A\u043B\u0456\u0454\u043D\u0442: ${telegramValue(booking.customerName)}`,

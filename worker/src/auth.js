@@ -1,3 +1,5 @@
+import { getAppleSession } from './apple-auth.js';
+
 const OTP_TTL_SECONDS = 5 * 60;
 const LINK_TTL_SECONDS = 10 * 60;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -118,11 +120,11 @@ export async function handleAuthRoute({
 }
 
 export async function requireAuthSession(request, env, headers) {
-  if (!authConfigured(env)) {
+  if (!env.AUTH_DB || !env.SESSION_SECRET) {
     return {
       response: authJson({
         success: false,
-        error: "Підтвердження через Telegram ще не налаштоване"
+        error: "Вхід тимчасово недоступний"
       }, 503, headers)
     };
   }
@@ -307,14 +309,15 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   }, 200, headers);
 }
 
-async function getAuthSession(request, env) {
+export async function getAuthSession(request, env) {
   const token = bearerToken(request);
+  if (token.startsWith('apple_')) return getAppleSession(request, env);
   if (!token || token.length < 30 || token.length > 100) return null;
   const tokenHash = await sha256Hex(`session:${token}`);
   const now = unixTime();
   const session = await env.AUTH_DB.prepare(
     `SELECT token_hash, phone, customer_id, customer_name, telegram_user_id,
-            expires_at, last_used_at
+            created_at, expires_at, last_used_at
        FROM sessions
       WHERE token_hash = ? AND expires_at > ?`
   ).bind(tokenHash, now).first();
@@ -632,7 +635,7 @@ function bearerToken(request) {
 function unauthorized(headers) {
   return authJson({
     success: false,
-    error: "Потрібне підтвердження через Telegram"
+    error: "Увійдіть у профіль Karpservice"
   }, 401, headers);
 }
 

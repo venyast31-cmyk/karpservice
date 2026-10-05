@@ -14,6 +14,7 @@ export function verifyProfile(profile, now = new Date()) {
   if (profile.TeamIdentifier?.length !== 1 || profile.TeamIdentifier[0] !== TEAM) throw new Error('Provisioning profile belongs to a different Apple team');
   if (profile.Entitlements?.['application-identifier'] !== `${TEAM}.${BUNDLE}`) throw new Error('Provisioning profile belongs to a different app');
   if (profile.Entitlements?.['com.apple.developer.team-identifier'] !== TEAM) throw new Error('Incorrect team entitlement');
+  if (!profile.Entitlements?.['com.apple.developer.applesignin']?.includes('Default')) throw new Error('Regenerate the App Store profile after enabling Sign in with Apple for Karpservice');
   if (profile.ProvisionedDevices || profile.ProvisionsAllDevices || profile.Entitlements?.['get-task-allow']) throw new Error('An App Store distribution profile is required');
   if (!(new Date(profile.ExpirationDate) > now)) throw new Error('Provisioning profile has expired');
   if (!profile.certificateSHA1?.length || profile.certificateSHA1.some(v => !/^[A-F0-9]{40}$/.test(v))) throw new Error('Profile has no usable signing certificate');

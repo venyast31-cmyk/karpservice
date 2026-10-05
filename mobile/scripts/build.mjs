@@ -20,6 +20,8 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 .native-notice{padding:12px 16px;margin:12px 0;border:1px solid #f3b63f;border-radius:12px;color:#f3b63f}
 .native-notice[hidden],#nativeBookingActions[hidden]{display:none}
 .native-note{font-size:13px;color:#98a2af;line-height:1.5}
+.apple-login{display:block;width:100%;height:54px;padding:0;margin:18px 0 8px;border:0;border-radius:12px;background:#fff;color:#000;font:600 18px -apple-system,sans-serif;overflow:hidden}
+.apple-login img{width:100%;height:54px;display:block}.apple-login:disabled{opacity:.55}.apple-login:active{opacity:.8}
 .native-actions{margin:16px 0}
 .native-actions button{margin-top:10px}
 .native-ios input,.native-ios textarea,.native-ios select{font-size:16px}
@@ -29,7 +31,16 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 .car-logo svg{width:38px;height:38px;color:#267b62}.native-promo{padding:28px;background:linear-gradient(150deg,#084d38,#0a3028);border:1px solid #30745d;border-radius:22px;color:#fff}.native-promo img{width:56px;border-radius:12px}.native-promo strong{display:block;font-size:32px;line-height:1.12;margin:24px 0 18px}.native-promo p{font-size:17px;color:#d9eddf;margin:0}
 </style>`);
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>\n<div id="nativeDemoBanner" class="native-demo" role="status" hidden><div><strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.</div><button id="nativeDemoExit" class="secondary" type="button">Вийти</button></div>');
-replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Введіть номер, який ви залишали в сервісі, та підтвердьте вхід через Telegram.');
+replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Оберіть спосіб входу. Через Apple можна увійти без номера телефону та Telegram.');
+replaceOnce('    <div id="phoneAuthStep" class="card auth-step">', `    <button id="nativeAppleLogin" class="apple-login" type="button" aria-label="Увійти через Apple">Увійти через Apple</button>
+    <p id="nativeAppleStatus" class="native-note" role="status"></p>
+    <p class="native-note">Уже обслуговували авто в Karpservice? Увійдіть у наявний профіль через Telegram і підключіть Apple у вкладці «Профіль», щоб зберегти історію обслуговування.</p>
+    <div id="phoneAuthStep" class="card auth-step">`);
+replaceOnce('<span>Номер телефону</span><strong id="profilePhone">', '<span id="profileContactLabel">Контакт</span><strong id="profilePhone">');
+replaceOnce("  document.getElementById('profilePhone').textContent = phone || 'Підтверджено через Telegram';", `  document.getElementById('profilePhone').textContent = phone || customer.email || 'Підтверджено';
+  document.getElementById('profileContactLabel').textContent = phone ? 'Номер телефону' : 'Email Apple';
+  document.getElementById('nativeLinkApple').hidden = customerData?.auth_provider === 'apple' || customerData?.review_account === true || window.KarpDemo?.active === true;`);
+html = html.replaceAll('Сесія завершилася. Підтвердьте вхід через Telegram ще раз.', 'Сесія завершилася. Увійдіть у профіль ще раз.');
 replaceOnce('Запис успішно створено в RO App. Майстра сервіс призначить окремо.', 'Ваш запис на сервіс створено. До зустрічі в Karpservice!');
 replaceOnce('<div class="slot" onclick="pickSlot(this)">09:00</div>', '<div class="slot" onclick="pickSlot(this)">09:30</div>');
 replaceOnce("  window.requestAnimationFrame(() => document.getElementById('phone')?.focus());", '  // On iPhone, open the phone keyboard only after the user taps the field.');
@@ -66,6 +77,7 @@ replaceOnce('    <button class="secondary" onclick="openCars()">До моїх а
     </div>
     <button class="secondary" onclick="openCars()">До моїх авто</button>`);
 replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <div class="native-actions">
+      <button id="nativeLinkApple" class="secondary" type="button">Підключити Apple до профілю</button>
       <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>

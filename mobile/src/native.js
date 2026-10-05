@@ -66,6 +66,33 @@ if (Capacitor.isNativePlatform()) {
   document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.classList.add('native-ios');
     updateDemoUi();
+    const appleButton = document.getElementById('nativeAppleLogin');
+    if (appleButton) api.appleButtonArtwork({ width: appleButton.getBoundingClientRect().width || 320 }).then(({ image }) => {
+      if (!/^data:image\/png;base64,/.test(image || '')) return;
+      const img = document.createElement('img');
+      img.src = image;
+      img.alt = 'Увійти через Apple';
+      appleButton.replaceChildren(img);
+    }).catch(() => {});
+    const appleLogin = async (button, mode, status) => {
+      button.disabled = true;
+      status.textContent = '';
+      const capturedGeneration = generation;
+      try {
+        const result = await api.signInWithApple({ mode });
+        if (result.cancelled || capturedGeneration !== generation) return;
+        if (!result.success || !result.session_stored) throw new Error('Не вдалося зберегти вхід.');
+        demo.stop();
+        reviewAccount = false;
+        generation += 1;
+        window.stopTelegramLinkPolling?.();
+        updateDemoUi();
+        await window.loadCustomer?.({ targetScreen: mode === 'link' ? 'profile' : 'cars' });
+      } catch (error) { if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося увійти через Apple.'; }
+      finally { button.disabled = false; }
+    };
+    appleButton?.addEventListener('click', event => appleLogin(event.currentTarget, 'login', document.getElementById('nativeAppleStatus')));
+    document.getElementById('nativeLinkApple')?.addEventListener('click', event => appleLogin(event.currentTarget, 'link', document.getElementById('nativeProfileStatus')));
     document.getElementById('nativeReviewLogin')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;
       const input = document.getElementById('nativeReviewPassword');
@@ -150,17 +177,20 @@ if (Capacitor.isNativePlatform()) {
         const policy = await policyResponse.json();
         if (!policyResponse.ok || !policy.success) throw new Error(policy.error);
         if (capturedGeneration !== generation) return;
-        const message = policy.review_account
+        const message = policy.apple_account && policy.immediate
+          ? 'Видалити профіль Karpservice та відкликати доступ через Apple? Цю дію не можна скасувати. Ваш Apple Account залишиться без змін.'
+          : policy.review_account
           ? 'Видалити серверні дані тестового акаунта та закрити доступ до нього? Цю дію не можна скасувати в застосунку.'
           : demo.active
           ? 'Це пробний запит із вигаданими даними. Реальні дані та повідомлення сервісу не зміняться. Продовжити?'
-          : `Ви подаєте запит на видалення профілю, прив’язки Telegram, автомобілів та історії обслуговування. Сервіс виконає його протягом ${policy.days} календарних днів і повідомить результат за вашим підтвердженим номером. Якщо окремі документи необхідно зберегти за законом, сервіс пояснить обсяг і підставу. Підтвердити запит?`;
+          : `Ви подаєте запит на видалення профілю, прив’язок входу, автомобілів та історії обслуговування. Сервіс виконає його протягом ${policy.days} календарних днів. Доступ через підключений Apple Account буде відкликано. Якщо окремі документи необхідно зберегти за законом, сервіс пояснить обсяг і підставу. Підтвердити запит?`;
         if (!window.confirm(message)) return;
         const response = await window.KarpNative.request('account/deletion', { method: 'POST', body: JSON.stringify({ confirmed: true }) });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.error);
         if (capturedGeneration !== generation) return;
-        if (data.status === 'deleted') { window.logout?.(); window.alert('Тестовий акаунт і його дані видалено.'); return; }
+        if (data.status === 'deleted') { window.logout?.(); window.alert(data.apple_account ? 'Профіль Karpservice видалено. Доступ через Apple відкликано.' : 'Тестовий акаунт і його дані видалено.'); return; }
+        if (data.signed_out) { window.logout?.(); window.alert(`Запит ${data.request_id} прийнято. Доступ через Apple відкликано. Видалення даних сервісу буде завершене до ${new Date(data.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}. Збережіть номер запиту для звернення до підтримки.`); return; }
         status.textContent = demo.active ? 'Демонстрація завершена. Справжній запит на видалення не надіслано.'
           : `Запит ${data.request_id} прийнято. Видалення ще не завершене. Строк виконання — до ${new Date(data.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}. Сервіс повідомить результат за вашим підтвердженим номером.`;
       } catch (error) {
