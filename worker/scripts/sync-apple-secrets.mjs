@@ -1,10 +1,10 @@
 import { createPrivateKey } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Only this app's two Apple bindings are written. Existing Worker secrets stay intact.
-// The private key is sent through stdin, never argv, files, logs or artifacts.
-try {
-  const env = process.env;
+// Send secrets directly to Cloudflare over TLS, never argv, files, logs or artifacts.
+export async function syncAppleSecrets(env = process.env, request = fetch) {
   if (env.CLOUDFLARE_ACCOUNT_ID !== '0feb0b23b311ee71074cc7a19d30ae2c' || !env.CLOUDFLARE_API_TOKEN) {
     throw new Error('Cloudflare account or credentials are not configured for Karpservice.');
   }
@@ -20,16 +20,31 @@ try {
   if (key.asymmetricKeyType !== 'ec' || key.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
     throw new Error('Sign in with Apple requires its dedicated P-256 private key.');
   }
-  const result = spawnSync('npx', ['--yes', 'wrangler@4.127.1', 'secret', 'bulk', '--name', 'karpservice-api'], {
-    input: JSON.stringify({ APPLE_SIGN_IN_KEY_ID: keyId, APPLE_SIGN_IN_PRIVATE_KEY: pem }),
-    // Do not relay child output: an error must not expose any credential.
-    stdio: ['pipe', 'ignore', 'ignore'], env, timeout: 120000
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error('Apple secret synchronization failed. Check Cloudflare access; credential output was withheld.');
+  let response;
+  try {
+    response = await request(`https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/karpservice-api/secrets-bulk`, {
+      method: 'PATCH', redirect: 'error', signal: AbortSignal.timeout(30000),
+      headers: { Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secrets: Object.fromEntries(Object.entries({
+        APPLE_SIGN_IN_KEY_ID: keyId, APPLE_SIGN_IN_PRIVATE_KEY: pem
+      }).map(([name, text]) => [name, { name, text, type: 'secret_text' }])) })
+    });
+  } catch {
+    throw new Error('Apple secret synchronization could not reach Cloudflare; credentials withheld.');
   }
-  console.log('Dedicated Apple credentials configured for karpservice-api. Secret values are hidden.');
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.success !== true) {
+    const codes = Array.isArray(result.errors) ? result.errors.map(e => e.code).filter(Number.isInteger) : [];
+    throw new Error(`Apple secret synchronization failed: HTTP ${response.status}; Cloudflare codes ${codes.join(',') || 'none'}. Response text and credentials withheld.`);
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  try {
+    await syncAppleSecrets();
+    console.log('Dedicated Apple credentials configured for karpservice-api. Secret values are hidden.');
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }
