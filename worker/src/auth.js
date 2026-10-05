@@ -227,8 +227,13 @@ async function requestApplePhoneLink(request, env, headers, session) {
   if (telegramLink?.chat_id) {
     const challenge = await createAndSendOtp(env, telegramLink);
     if (challenge.cooldown) return authJson({success:false,error:"Зачекайте хвилину перед повторним надсиланням коду",retry_after:challenge.retryAfter},429,headers);
-    await env.AUTH_DB.prepare("UPDATE apple_accounts SET phone = ?, updated_at = ? WHERE apple_sub = ?")
-      .bind(phone,unixTime(),session.apple_sub).run();
+    const now = unixTime();
+    await env.AUTH_DB.prepare(
+      `INSERT INTO pending_apple_phone_links (challenge_id, apple_sub, phone, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(challenge_id) DO UPDATE SET apple_sub=excluded.apple_sub, phone=excluded.phone,
+         created_at=excluded.created_at, expires_at=excluded.expires_at`
+    ).bind(challenge.id, session.apple_sub, phone, now, now + OTP_TTL_SECONDS).run();
     return authJson({success:true,stage:"code",challenge_id:challenge.id,phone_masked:maskPhone(phone)},200,headers);
   }
   return authJson({success:false,error:"Спочатку підтвердьте цей номер через Telegram"},409,headers);
@@ -376,6 +381,12 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return authJson({ success: false, error: "Клієнта з таким номером не знайдено" }, 404, headers);
   }
 
+  const pendingApple = await env.AUTH_DB.prepare(
+    "SELECT apple_sub, phone, expires_at FROM pending_apple_phone_links WHERE challenge_id = ?"
+  ).bind(challenge.id).first();
+  const appleSub = pendingApple && Number(pendingApple.expires_at) > now &&
+    pendingApple.phone === challenge.phone ? String(pendingApple.apple_sub) : "";
+
   const rawSessionToken = randomToken(32);
   const sessionHash = await sha256Hex(`session:${rawSessionToken}`);
   const customerName = [customer.first_name || customer.name, customer.last_name]
@@ -392,20 +403,22 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   if (!claimed?.id) {
     return authJson({ success: false, error: "Код уже використано" }, 401, headers);
   }
+  if (appleSub) {
+    await env.AUTH_DB.batch([
+      env.AUTH_DB.prepare(
+        "UPDATE apple_accounts SET phone = ?, customer_id = ?, display_name = ?, phone_verified_at = ?, updated_at = ? WHERE apple_sub = ?"
+      ).bind(challenge.phone, Number(customer.id), customerName, now, now, appleSub),
+      env.AUTH_DB.prepare("DELETE FROM pending_apple_phone_links WHERE challenge_id = ?").bind(challenge.id)
+    ]);
+  }
   await env.AUTH_DB.prepare(
     `INSERT INTO sessions
       (token_hash, phone, customer_id, customer_name, telegram_user_id,
-       created_at, expires_at, last_used_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+       created_at, expires_at, last_used_at, apple_sub)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
-    sessionHash,
-    challenge.phone,
-    Number(customer.id),
-    customerName,
-    String(challenge.telegram_user_id),
-    now,
-    expiresAt,
-    now
+    sessionHash, challenge.phone, Number(customer.id), customerName,
+    String(challenge.telegram_user_id), now, expiresAt, now, appleSub
   ).run();
 
   return authJson({
@@ -413,7 +426,9 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     token: rawSessionToken,
     token_type: "Bearer",
     expires_at: expiresAt,
-    phone_masked: maskPhone(challenge.phone)
+    phone_masked: maskPhone(challenge.phone),
+    phone_linked: true,
+    apple_authenticated: Boolean(appleSub)
   }, 200, headers);
 }
 
@@ -724,7 +739,8 @@ async function cleanupExpiredAuthData(env) {
     env.AUTH_DB.prepare("DELETE FROM sessions WHERE expires_at <= ?").bind(now),
     env.AUTH_DB.prepare("DELETE FROM otp_challenges WHERE expires_at <= ?").bind(now),
     env.AUTH_DB.prepare("DELETE FROM link_requests WHERE expires_at <= ?").bind(now),
-    env.AUTH_DB.prepare("DELETE FROM rate_limits WHERE expires_at <= ?").bind(now)
+    env.AUTH_DB.prepare("DELETE FROM rate_limits WHERE expires_at <= ?").bind(now),
+    env.AUTH_DB.prepare("DELETE FROM pending_apple_phone_links WHERE expires_at <= ?").bind(now)
   ]);
 }
 
