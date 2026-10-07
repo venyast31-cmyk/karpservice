@@ -456,7 +456,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
         </button>
         <div id="newsDetails" class="news-details" hidden>
-          Усі дані про автомобілі та попередні замовлення залишаються у вашому кабінеті. Для входу використовується підтвердження через Telegram.
+          Усі дані про автомобілі та попередні замовлення залишаються у вашому кабінеті. Вхід — через Apple. Номер телефону підтверджується через Telegram для доступу до ваших даних.
         </div>
       </div>
     </article>
@@ -509,7 +509,11 @@
 
   <section id="service" class="screen">
     <div class="steps" aria-label="Прогрес запису"><span data-progress-step="1"></span><span data-progress-step="2"></span><span data-progress-step="3"></span></div>
-    <h1>Що потрібно зробити?</h1>
+    <h1>Запис на сервіс</h1>
+    <label for="bookingCarSelect">Яке авто хочете записати?</label>
+    <select id="bookingCarSelect" onchange="selectBookingCar(this.value)"></select>
+    <p id="bookingNoCars" class="small" hidden>Спочатку додайте автомобіль у вкладці «Авто».</p>
+    <h2>Що потрібно зробити?</h2>
     <p id="bookingCarLabel" class="small"></p>
 
     <div class="service" onclick="pick(this)">
@@ -585,7 +589,7 @@
 
   <section id="profile" class="screen">
     <h1>Профіль</h1>
-    <p>Ваші дані для входу в Karpservice.</p>
+
     <div class="card profile-card">
       <div class="profile-row">
         <span class="profile-icon" aria-hidden="true">
@@ -1314,7 +1318,7 @@ async function loadCustomer(options={}){
     renderAllHistory();
     renderProfile();
     setAuthenticatedUi(true);
-    show(options.targetScreen || 'home');
+    show(data.phone_linked === false ? 'profile' : (options.targetScreen || 'home'));
     return true;
   }catch(err){
     if (loadVersion !== customerLoadVersion) return false;
@@ -1437,18 +1441,18 @@ function formatProfilePhone(value){
 }
 
 function openQuickBooking(){
-  const cars = customerData?.cars || [];
-  if (!cars.length){
-    openCars();
-    return;
-  }
-  if (cars.length === 1){
-    startBooking(cars[0].id);
-    return;
-  }
-  renderCustomer();
-  document.getElementById('carsHeading').textContent = 'Оберіть автомобіль для запису';
-  show('cars');
+  if (!customerData) { show('login'); return; }
+  startBooking(null);
+}
+
+function selectBookingCar(value){
+  selectedCarId = value || null;
+  const car = getCar(selectedCarId);
+  const label = car ? carName(car) : 'Оберіть автомобіль';
+  document.getElementById('bookingCarLabel').textContent = label;
+  document.getElementById('summaryCar').textContent = label;
+  document.getElementById('doneCar').textContent = label;
+  updateBookingProgress();
 }
 
 function openHistory(carId){
@@ -1618,9 +1622,16 @@ function renderOrder(order){
 }
 
 function startBooking(carId){
-  selectedCarId = carId;
+  if (customerData?.phone_linked === false) { show('profile'); return; }
+  const cars = customerData?.cars || [];
+  const chooser = document.getElementById('bookingCarSelect');
+  chooser.innerHTML = '<option value="">Оберіть автомобіль</option>' + cars.map(car =>
+    `<option value="${escapeHtml(String(car.id))}">${escapeHtml(carName(car))} · ${escapeHtml(car.vin || '')}</option>`).join('');
+  selectedCarId = carId || (cars.length === 1 ? cars[0].id : null);
+  chooser.value = selectedCarId || '';
+  document.getElementById('bookingNoCars').hidden = cars.length > 0;
   const car = getCar(carId);
-  const label = car ? carName(car) : 'Автомобіль';
+  const label = car ? carName(car) : 'Оберіть автомобіль';
   selectedService = '';
   selectedProblem = '';
   selectedTime = '';
@@ -1768,7 +1779,7 @@ function updateBookingProgress(){
 
   const continueBtn = document.getElementById('serviceContinueBtn');
   const bookingBtn = document.getElementById('bookingBtn');
-  if (continueBtn) continueBtn.disabled = !selectedService;
+  if (continueBtn) continueBtn.disabled = !selectedService || !getCar(selectedCarId);
   if (bookingBtn) bookingBtn.disabled = !completed.every(Boolean);
 }
 
@@ -1805,6 +1816,11 @@ function showProblemError(message){
 }
 
 function continueToTime(){
+  if (!getCar(selectedCarId)) {
+    document.getElementById('bookingCarSelect').focus();
+    showProblemError('Оберіть автомобіль для запису.');
+    return;
+  }
   const problemInput = document.getElementById('otherProblem');
   const problemRow = document.getElementById('summaryProblemRow');
   const problemSummary = document.getElementById('summaryProblem');

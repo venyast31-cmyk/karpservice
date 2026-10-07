@@ -38,7 +38,7 @@ test('fresh signed-out launch and public tabs do not require an account', async 
   assert.equal(ui.screen(), 'home');
   assert.equal(ui.finished(), true);
   runInContext('openQuickBooking()', ui.context);
-  assert.equal(ui.screen(), 'guestServices');
+  assert.equal(ui.screen(), 'login');
   runInContext("show('guestContacts')", ui.context);
   assert.equal(ui.screen(), 'guestContacts');
   await runInContext('openClientHome()', ui.context);
@@ -66,5 +66,5 @@ test('signed-in customers retain private navigation and direct booking', () => {
   runInContext("show('profile')", ui.context);
   assert.equal(ui.screen(), 'profile');
   runInContext('openQuickBooking()', ui.context);
-  assert.equal(ui.booked(), 42);
+  assert.equal(ui.booked(), null);
 });

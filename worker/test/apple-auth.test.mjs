@@ -19,7 +19,7 @@ const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 
 async function setup() {
   const db = new DatabaseSync(':memory:');
-  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const signing = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const kid = randomUUID();
@@ -59,6 +59,7 @@ async function setup() {
       assert.deepEqual(body.phones, []);
       return Response.json({ data: { id: 123 } });
     }
+    if (url.pathname === '/v2/contacts/people' && init.method !== 'POST') return Response.json({data:[{id:123,first_name:'Власник',phones:['380670000000']}]});
     if (url.pathname === '/v2/orders') { assert.deepEqual(url.searchParams.getAll('client_ids'), ['123']); return Response.json({ data: [], count: 0 }); }
     if (url.pathname === '/v2/warehouse/assets') return Response.json({ data: [] });
     if (url.pathname === '/v2/orders/999') return Response.json({ data: { id: 999, client_id: 999 } });
@@ -196,4 +197,39 @@ test('invalid vehicle data does not create a CRM record and deletion waits for C
     assert.equal(t.calls.some(call => call.url.endsWith('/auth/revoke')), false);
     assert.equal(t.db.prepare('SELECT count(*) AS n FROM apple_accounts').get().n, 1);
   } finally { t.close(); }
+});
+
+
+test('Apple-first mode binds Telegram proof to its Apple owner and gates CRM until phone verification', async () => {
+ const t = await setup(); t.env.APPLE_ONLY_AUTH = 'true';
+ try {
+  const auth = await (await t.complete(await t.start())).response.json();
+  const other = await (await t.complete(await t.start(), {sub:'other-user'})).response.json();
+  assert.equal((await t.call('auth/request','POST',{phone:'380670000000'})).status,401);
+  assert.equal((await t.call('auth/apple/start','POST',{mode:'link'},auth.token)).status,400);
+  for (const [path,method] of [['cars','POST'],['order?order_id=1','GET'],['availability?date=2026-10-10','GET'],['booking','POST']]) {
+   assert.equal((await t.call(path,method,method==='POST'?{}:null,auth.token)).status,403);
+  }
+  let profile = await (await t.call('', 'GET', null, auth.token)).json();
+  assert.equal(profile.phone_linked,false);
+  assert.equal(t.calls.some(x=>x.url.includes('roapp')),false);
+  t.db.prepare('INSERT INTO telegram_links VALUES(?,?,?,?,?)').run('380670000000','777','777',timestamp(),timestamp());
+  const proof = await (await t.call('auth/request','POST',{phone:'380670000000'},auth.token)).json();
+  assert.equal(proof.stage,'code');
+  const message = t.calls.filter(x=>x.url.includes('sendMessage')).at(-1);
+  const code = JSON.parse(message.body).text.match(/\b\d{6}\b/)[0];
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},other.token)).status,401);
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code:'000000'===code?'000001':'000000'},auth.token)).status,401);
+  const verified = await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token);
+  assert.equal(verified.status,200);
+  const linked = await verified.json();
+  assert.equal(linked.token,auth.token);
+  assert.equal(linked.phone_linked,true);
+  profile = await (await t.call('', 'GET', null, auth.token)).json();
+  assert.equal(profile.customer.id,123);
+  assert.equal(profile.phone_linked,true);
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,401);
+  assert.equal(t.db.prepare('SELECT count(*) AS n FROM sessions').get().n,0);
+  assert.equal(t.calls.some(x=>x.url.includes('roapp') && x.body && String(x.body).includes('phones')),false);
+ } finally {t.close();}
 });

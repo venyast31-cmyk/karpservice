@@ -31,15 +31,14 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 .car-logo svg{width:38px;height:38px;color:#267b62}.native-promo{padding:28px;background:linear-gradient(150deg,#084d38,#0a3028);border:1px solid #30745d;border-radius:22px;color:#fff}.native-promo img{width:56px;border-radius:12px}.native-promo strong{display:block;font-size:32px;line-height:1.12;margin:24px 0 18px}.native-promo p{font-size:17px;color:#d9eddf;margin:0}
 </style>`);
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>\n<div id="nativeDemoBanner" class="native-demo" role="status" hidden><div><strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.</div><button id="nativeDemoExit" class="secondary" type="button">Вийти</button></div>');
-replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Оберіть спосіб входу. Через Apple можна увійти без номера телефону та Telegram.');
+replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Увійдіть через Apple. Потім підключіть номер телефону, щоб побачити свої авто та історію обслуговування.');
 replaceOnce('    <div id="phoneAuthStep" class="card auth-step">', `    <button id="nativeAppleLogin" class="apple-login" type="button" aria-label="Увійти через Apple">Увійти через Apple</button>
     <p id="nativeAppleStatus" class="native-note" role="status"></p>
-    <p class="native-note">Уже обслуговували авто в Karpservice? Увійдіть у наявний профіль через Telegram і підключіть Apple у вкладці «Профіль», щоб зберегти історію обслуговування.</p>
     <div id="phoneAuthStep" class="card auth-step">`);
 replaceOnce('<span>Номер телефону</span><strong id="profilePhone">', '<span id="profileContactLabel">Контакт</span><strong id="profilePhone">');
 replaceOnce("  document.getElementById('profilePhone').textContent = phone || 'Підтверджено через Telegram';", `  document.getElementById('profilePhone').textContent = phone || customer.email || 'Підтверджено';
   document.getElementById('profileContactLabel').textContent = phone ? 'Номер телефону' : 'Email Apple';
-  document.getElementById('nativeLinkApple').hidden = customerData?.auth_provider === 'apple' || customerData?.review_account === true || window.KarpDemo?.active === true;`);
+  document.getElementById('nativeLinkPhone').hidden = customerData?.phone_linked !== false;`);
 html = html.replaceAll('Сесія завершилася. Підтвердьте вхід через Telegram ще раз.', 'Сесія завершилася. Увійдіть у профіль ще раз.');
 replaceOnce('Запис успішно створено в RO App. Майстра сервіс призначить окремо.', 'Ваш запис на сервіс створено. До зустрічі в Karpservice!');
 replaceOnce('<div class="slot" onclick="pickSlot(this)">09:00</div>', '<div class="slot" onclick="pickSlot(this)">09:30</div>');
@@ -52,16 +51,6 @@ replaceOnce([
   "      throw new Error('Сервіс не повернув токен входу.');",
   "    }"
 ].join('\n'), "    if (data.session_stored !== true) throw new Error('Не вдалося зберегти вхід.');\n    clearLegacyAuthToken();");
-replaceOnce('    <div class="security-note">', `    <details id="nativePasswordLogin"><summary>Вхід до тестового акаунта</summary>
-      <p class="native-note">Для наданого сервісом тестового акаунта: введіть номер у полі вище та пароль нижче.</p>
-      <input id="nativeReviewPassword" type="password" autocomplete="current-password" placeholder="Пароль тестового акаунта" aria-label="Пароль тестового акаунта" maxlength="128" />
-      <button id="nativeReviewLogin" class="secondary" type="button">Увійти з паролем</button>
-      <p id="nativeReviewStatus" class="native-note" role="status"></p>
-    </details>
-    <button id="nativeDemoStart" class="secondary" type="button">Спробувати демо</button>
-    <p class="native-note">Перегляньте приклад авто, історію ремонту та спробуйте запис. Дані вигадані, справжній візит не створюється.</p>
-    <nav class="native-links" aria-label="Інформація"><a href="support.html">Підтримка</a><a href="privacy.html">Приватність</a></nav>
-    <div class="security-note">`);
 // Owner confirmed that no rights to automaker logos are held. Ship original neutral artwork.
 const brandFunction = html.match(/function carBrandLogo\(car\)\{[\s\S]*?\n\}/)?.[0];
 if (!brandFunction) throw new Error('Car icon renderer not found');
@@ -77,7 +66,7 @@ replaceOnce('    <button class="secondary" onclick="openCars()">До моїх а
     </div>
     <button class="secondary" onclick="openCars()">До моїх авто</button>`);
 replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <div class="native-actions">
-      <button id="nativeLinkApple" class="secondary" type="button">Підключити Apple до профілю</button>
+      <button id="nativeLinkPhone" class="primary" type="button" onclick="resetAuthFlow(); show('phoneLink')">Підключити номер телефону</button>
       <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>
@@ -109,16 +98,12 @@ replaceOnce('<section id="login" class="screen active">', `<section id="guestSer
   </section>
   <section id="login" class="screen active">
     <button class="secondary" type="button" onclick="show('guestServices')">Переглянути послуги без входу</button>`);
-replaceOnce('<section id="home" class="screen">', `<section id="home" class="screen">
-    <div class="native-actions">
-      <button class="primary" type="button" onclick="show('guestServices')">Послуги сервісу</button>
-      <button class="secondary" type="button" onclick="show('guestContacts')">Контакти та години роботи</button>
-    </div>`);
 replaceOnce('  body.is-authenticated .bottom-nav{display:grid}', '  .bottom-nav{display:grid}');
 replaceOnce('  body.is-authenticated .app{', '  .app{');
 replaceOnce('function show(id){', `function show(id){
-  if (!customerData && !['home', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';`);
-replaceOnce("    home:'homeNav', cars:'carsNav', addCar:'carsNav',", "    home:'homeNav', guestServices:'bookingNav', guestContacts:'profileNav', cars:'carsNav', addCar:'carsNav',");
+  if (!customerData && !['home', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';
+  if (customerData?.phone_linked === false && !['home', 'profile', 'phoneLink', 'login', 'guestServices', 'guestContacts'].includes(id)) id = 'profile';`);
+replaceOnce("    home:'homeNav', cars:'carsNav', addCar:'carsNav',", "    home:'homeNav', guestServices:'bookingNav', guestContacts:'profileNav', phoneLink:'profileNav', cars:'carsNav', addCar:'carsNav',");
 replaceOnce('async function openClientHome(){', `function openGuestLogin(){
   resetAuthFlow();
   show('login');
@@ -128,9 +113,18 @@ async function openClientHome(){
 for (const name of ['openCars', 'openAddCar', 'openAllHistory']) {
   replaceOnce(`function ${name}(){\n  if (!customerData){\n    openClientHome();`, `function ${name}(){\n  if (!customerData){\n    openGuestLogin();`);
 }
-replaceOnce('function openQuickBooking(){', "function openQuickBooking(){\n  if (!customerData) { show('guestServices'); return; }");
+
 replaceOnce("  resetAuthFlow();\n  show('login');\n}\n\nfunction updateBookingProgress", "  resetAuthFlow();\n  show('home');\n}\n\nfunction updateBookingProgress");
 replaceOnce('  await loadCustomer({initial:true});', "  await loadCustomer({initial:true});\n  if (!customerData) show('home');");
+const phoneFlow = html.match(/    <div id="phoneAuthStep"[\s\S]*?\n  <\/section>/)?.[0];
+if (!phoneFlow) throw new Error('Phone linking flow not found');
+replaceOnce(phoneFlow, `  </section>
+  <section id="phoneLink" class="screen">
+    <h1>Підключіть номер телефону</h1>
+    <p>Підтвердьте номер через Telegram. За ним знайдемо ваші авто та історію у Karpservice.</p>
+${phoneFlow}`);
+html = html.replace('>Увійти</button>', '>Підтвердити номер</button>');
+html = html.replace("btn.textContent = 'Увійти';", "btn.textContent = 'Підтвердити номер';");
 await writeFile(`${out}/index.html`, html);
 for (const asset of ['logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });

@@ -135,6 +135,7 @@ export async function handleAppleAuthRoute(request, env, headers) {
   const body = await readBody(request);
   if (path === '/auth/apple/start') {
     let link = null;
+    if (env.APPLE_ONLY_AUTH === 'true' && body.mode !== 'login') return reply({success:false,error:'Спочатку увійдіть через Apple, потім підключіть номер.'},400);
     if (body.mode === 'link') {
       link = await getAuthSession(request, env);
       if (!link || link.auth_provider === 'apple' || Number(link.created_at) < now() - 300) return reply({ success: false, error: 'Для підключення Apple спочатку увійдіть у наявний профіль через Telegram ще раз.' }, 401);

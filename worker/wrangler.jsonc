@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "keep_vars": true,
   "vars": {
+    "APPLE_ONLY_AUTH": "true",
     "ACCOUNT_DELETION_DAYS": "7",
     "ROAPP_BRANCH_ID": "136446",
     "ALLOWED_ORIGINS": "https://karpservice-app.pages.dev,https://venyast31-cmyk.github.io",

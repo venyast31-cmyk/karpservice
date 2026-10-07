@@ -32,7 +32,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
     return json({ success: false, error: "\u0412\u043A\u0430\u0436\u0456\u0442\u044C \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443" }, 400, responseHeaders);
   }
   const customer = appleSession ? { id: appleSession.customer_id, first_name: appleSession.customer_name, email: appleSession.email } : await findCustomerByPhone(env, phone);
-  if (appleSession && !customer.id) return json({ success: true, found: true, auth_provider: 'apple', customer: { id: 0, first_name: customer.first_name, email: customer.email, phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
+  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
   if (!customer?.id) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
@@ -58,7 +58,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
   return json({
     success: true,
     found: true,
-    ...(appleSession ? { auth_provider: 'apple' } : {}),
+    ...(appleSession ? { auth_provider: 'apple', phone_linked: Boolean(appleSession.phone && appleSession.customer_id) } : {}),
     customer: {
       id: Number(customer.id),
       first_name: customer.first_name || customer.name || "",
@@ -147,7 +147,7 @@ async function findCustomerByPhone(env, phone) {
   }
   const peopleResponse = await roappRequest(env, peopleUrl.toString());
   const people = extractList(peopleResponse.data, ["people", "contacts"]);
-  return people.find((person) => personHasPhone(person, phone)) || (people.length === 1 ? people[0] : null);
+  return people.find((person) => personHasPhone(person, phone)) || null;
 }
 __name(findCustomerByPhone, "findCustomerByPhone");
 async function getAllCustomerOrders(env, customerId) {
@@ -1364,6 +1364,10 @@ var index_default = {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
+        if (env.APPLE_ONLY_AUTH === 'true') {
+          if (authSession.auth_provider !== 'apple') return json2({success:false,error:'Увійдіть через Apple.'},401,corsHeaders);
+          if ((!authSession.phone || !authSession.customer_id) && url.pathname !== '/') return json2({success:false,stage:'phone_link',error:'Спочатку підтвердьте номер телефону через Telegram.'},403,corsHeaders);
+        }
       }
 
       if (url.pathname === "/order" && request.method === "GET") {

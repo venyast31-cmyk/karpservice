@@ -87,34 +87,11 @@ if (Capacitor.isNativePlatform()) {
         generation += 1;
         window.stopTelegramLinkPolling?.();
         updateDemoUi();
-        await window.loadCustomer?.({ targetScreen: mode === 'link' ? 'profile' : 'cars' });
+        await window.loadCustomer?.({ targetScreen: 'home' });
       } catch (error) { if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося увійти через Apple.'; }
       finally { button.disabled = false; }
     };
     appleButton?.addEventListener('click', event => appleLogin(event.currentTarget, 'login', document.getElementById('nativeAppleStatus')));
-    document.getElementById('nativeLinkApple')?.addEventListener('click', event => appleLogin(event.currentTarget, 'link', document.getElementById('nativeProfileStatus')));
-    document.getElementById('nativeReviewLogin')?.addEventListener('click', async (event) => {
-      const button = event.currentTarget;
-      const input = document.getElementById('nativeReviewPassword');
-      const status = document.getElementById('nativeReviewStatus');
-      button.disabled = true;
-      status.textContent = '';
-      const capturedGeneration = generation;
-      try {
-        const response = await transport('auth/password', { method: 'POST', body: JSON.stringify({ phone: document.getElementById('phone').value, password: input.value }) });
-        input.value = '';
-        const data = await response.json();
-        if (capturedGeneration !== generation) return;
-        if (!response.ok || !data.success || !data.session_stored) throw new Error(data.error || 'Не вдалося зберегти вхід.');
-        demo.stop();
-        reviewAccount = true;
-        generation += 1;
-        window.stopTelegramLinkPolling?.();
-        updateDemoUi();
-        await window.loadCustomer?.({ targetScreen: 'cars' });
-      } catch (error) { if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося увійти.'; }
-      finally { input.value = ''; button.disabled = false; }
-    });
     document.getElementById('nativeDemoStart')?.addEventListener('click', async () => {
       window.KarpDemo.start();
       await window.loadCustomer?.({ targetScreen: 'cars' });

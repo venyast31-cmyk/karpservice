@@ -24,18 +24,8 @@ function tapBooking(cars) {
   return { actions, elements };
 }
 
-test('central booking button opens the car chooser when several cars are present', () => {
-  const { actions, elements } = tapBooking([{ id: 11 }, { id: 22 }, { id: 33 }]);
-  assert.deepEqual(actions, ['renderCars', ['screen', 'cars']]);
-  assert.match(elements.get('carsHeading').textContent, /автомобіль.*запис/iu);
-});
-
-test('central booking button starts booking directly for the only car', () => {
-  const { actions } = tapBooking([{ id: '11' }]);
-  assert.deepEqual(actions, [['bookCar', '11']]);
-});
-
-test('central booking button opens the cars screen when a car must be added first', () => {
-  const { actions } = tapBooking([]);
-  assert.deepEqual(actions, ['openCars']);
-});
+for (const cars of [[], [{id:11}], [{id:11},{id:22}]]) {
+  test(`booking opens its own flow with ${cars.length} cars`, () => {
+    assert.deepEqual(tapBooking(cars).actions, [['bookCar', null]]);
+  });
+}

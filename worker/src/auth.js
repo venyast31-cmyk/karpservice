@@ -89,7 +89,16 @@ export async function handleAuthRoute({
   ctx.waitUntil(cleanupExpiredAuthData(env));
 
   if (url.pathname === "/auth/request" && request.method === "POST") {
-    return requestTelegramAuth(request, env, headers);
+    const session = await getAuthSession(request, env);
+    if (env.APPLE_ONLY_AUTH === 'true' && session?.auth_provider !== 'apple') return unauthorized(headers);
+    const response = await requestTelegramAuth(request, env, headers);
+    if (session?.auth_provider === 'apple' && response.ok) {
+      const data = await response.clone().json();
+      const proof = data.challenge_id || await sha256Hex(`link:${data.link_token}`);
+      await env.AUTH_DB.prepare('INSERT OR REPLACE INTO apple_phone_verifications(proof_id,subject_hash,expires_at) VALUES(?,?,?)')
+        .bind(proof, session.apple_subject_hash, unixTime() + LINK_TTL_SECONDS).run();
+    }
+    return response;
   }
   if (url.pathname === "/auth/link-status" && request.method === "POST") {
     return getTelegramLinkStatus(request, env, headers);
@@ -201,6 +210,10 @@ async function getTelegramLinkStatus(request, env, headers) {
     return tooManyRequests(headers);
   }
   const tokenHash = await sha256Hex(`link:${rawToken}`);
+  const apple = await getAuthSession(request, env);
+  const proof = apple?.auth_provider === 'apple' ? await env.AUTH_DB.prepare('SELECT * FROM apple_phone_verifications WHERE proof_id = ? AND expires_at > ?')
+    .bind(tokenHash, unixTime()).first() : null;
+  if ((env.APPLE_ONLY_AUTH === 'true' || apple?.auth_provider === 'apple') && (!proof || proof.subject_hash !== apple?.apple_subject_hash)) return unauthorized(headers);
   const row = await env.AUTH_DB.prepare(
     `SELECT state, challenge_id, expires_at
        FROM link_requests
@@ -210,6 +223,8 @@ async function getTelegramLinkStatus(request, env, headers) {
     return authJson({ success: true, stage: "expired" }, 200, headers);
   }
   if (row.state === "otp_sent" && row.challenge_id) {
+    if (proof) await env.AUTH_DB.prepare('INSERT OR REPLACE INTO apple_phone_verifications(proof_id,subject_hash,expires_at) VALUES(?,?,?)')
+      .bind(row.challenge_id, proof.subject_hash, proof.expires_at).run();
     return authJson({
       success: true,
       stage: "code",
@@ -239,6 +254,10 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return tooManyRequests(headers);
   }
 
+  const apple = await getAuthSession(request, env);
+  const proof = apple?.auth_provider === 'apple' ? await env.AUTH_DB.prepare('SELECT * FROM apple_phone_verifications WHERE proof_id = ? AND expires_at > ?')
+    .bind(challengeId, unixTime()).first() : null;
+  if ((env.APPLE_ONLY_AUTH === 'true' || apple?.auth_provider === 'apple') && (!proof || proof.subject_hash !== apple?.apple_subject_hash)) return unauthorized(headers);
   const challenge = await env.AUTH_DB.prepare(
     `SELECT id, phone, telegram_user_id, code_hash, attempts, expires_at, used_at
        FROM otp_challenges
@@ -268,6 +287,11 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return authJson({ success: false, error: "Клієнта з таким номером не знайдено" }, 404, headers);
   }
 
+  if (apple?.auth_provider === 'apple') {
+    const owner = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE customer_id = ?').bind(Number(customer.id)).first();
+    if (owner && owner.subject_hash !== apple.apple_subject_hash) return authJson({success:false,error:'Цей номер уже підключено до іншого Apple Account.'},409,headers);
+    if (apple.phone && apple.phone !== challenge.phone) return authJson({success:false,error:'До профілю вже підключено інший номер. Зверніться до підтримки.'},409,headers);
+  }
   const rawSessionToken = randomToken(32);
   const sessionHash = await sha256Hex(`session:${rawSessionToken}`);
   const customerName = [customer.first_name || customer.name, customer.last_name]
@@ -283,6 +307,14 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   ).bind(now, challenge.id).first();
   if (!claimed?.id) {
     return authJson({ success: false, error: "Код уже використано" }, 401, headers);
+  }
+  if (apple?.auth_provider === 'apple') {
+    await env.AUTH_DB.batch([
+      env.AUTH_DB.prepare('UPDATE apple_accounts SET customer_id=?,customer_name=?,phone=? WHERE subject_hash=? AND disabled_at IS NULL')
+        .bind(Number(customer.id), customerName, challenge.phone, apple.apple_subject_hash),
+      env.AUTH_DB.prepare('DELETE FROM apple_phone_verifications WHERE subject_hash=?').bind(apple.apple_subject_hash)
+    ]);
+    return authJson({success:true,token:bearerToken(request),token_type:'Bearer',expires_at:apple.expires_at,auth_provider:'apple',phone_linked:true,phone_masked:maskPhone(challenge.phone)},200,headers);
   }
   await env.AUTH_DB.prepare(
     `INSERT INTO sessions
