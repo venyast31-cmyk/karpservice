@@ -37,7 +37,8 @@ export async function verifyAppleIdentity(token, expectedNonce) {
   } catch { throw fail(); }
   if (header.alg !== 'RS256' || typeof header.kid !== 'string' || header.kid.length > 100) throw fail();
   if (publicKeys.until <= now() || !publicKeys.keys.some(key => key.kid === header.kid)) {
-    const response = await fetch(`${ISSUER}/auth/keys`, { redirect: 'error', signal: AbortSignal.timeout(10000) });
+    // Workers supports manual/follow only. Reject 3xx below without following it.
+    const response = await fetch(`${ISSUER}/auth/keys`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw fail('Apple тимчасово недоступна. Спробуйте ще раз.', 503);
     const data = await response.json();
     if (!Array.isArray(data.keys)) throw fail();
@@ -67,7 +68,7 @@ async function clientSecret(env) {
 
 async function appleTokenRequest(env, path, fields) {
   const response = await fetch(`${ISSUER}/auth/${path}`, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(15000),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: CLIENT_ID, client_secret: await clientSecret(env), ...fields })
   });
@@ -207,7 +208,7 @@ export async function ensureAppleCustomer(env, session) {
     throw fail('Профіль синхронізується із сервісом. Спробуйте пізніше або зверніться до підтримки.', 409);
   }
   const response = await fetch('https://api.roapp.io/v2/contacts/people', {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20000),
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(20000),
     headers: { Authorization: `Bearer ${env.ROAPP_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ first_name: account.customer_name, email: account.email, phones: [], notes: 'Профіль створено клієнтом через Sign in with Apple у Karpservice. Не об’єднуйте автоматично з іншими контактами.' })
   });

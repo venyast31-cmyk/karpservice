@@ -94,6 +94,8 @@ jobs:
           if (!ready) throw new Error('Worker health/configuration check failed; inspect deployment before the iOS release');
           console.log('Worker health passed. Customer deletion delivery still requires controlled verification.');
           JS
+      - name: Verify deployed Apple signature validation
+        run: node scripts/check-apple-auth.mjs
       - name: Verify isolated password account against deployed API
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

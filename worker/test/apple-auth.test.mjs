@@ -17,7 +17,7 @@ class Statement {
 const timestamp = () => Math.floor(Date.now() / 1000);
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
 
-async function setup() {
+async function setup({ redirectPath } = {}) {
   const db = new DatabaseSync(':memory:');
   for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -38,6 +38,12 @@ async function setup() {
   globalThis.fetch = async (input, init = {}) => {
     const url = new URL(String(input));
     calls.push({ url: url.toString(), body: init.body });
+    // Match the deployed Workers fetch contract, which differs from Node fetch.
+    if (init.redirect === 'error') throw new TypeError('Workers does not support redirect:error');
+    if (url.hostname === 'appleid.apple.com') {
+      assert.equal(init.redirect, 'manual', 'Apple credentials must never follow redirects');
+      if (url.pathname === redirectPath) return new Response(null, {status:302,headers:{Location:'https://unexpected.example/token'}});
+    }
     if (url.toString() === 'https://appleid.apple.com/auth/keys') return Response.json({ keys: [jwk] });
     if (url.toString() === 'https://appleid.apple.com/auth/token') {
       const body = new URLSearchParams(init.body);
@@ -90,6 +96,18 @@ test('Apple tokens reject wrong issuer, audience, nonce, expiry and signature', 
     await assert.rejects(verifyAppleIdentity(`${head}.${encode({ ...JSON.parse(Buffer.from(payload, 'base64url')), sub: 'victim' })}.${signature}`, nonce));
     await assert.rejects(verifyAppleIdentity(`${encode({ alg: 'none' })}.${payload}.${signature}`, nonce));
   } finally { t.close(); }
+});
+
+test('Apple redirects are rejected without following them or issuing a session', async () => {
+  for (const redirectPath of ['/auth/keys', '/auth/token']) {
+    const t = await setup({redirectPath});
+    try {
+      const result = await t.complete(await t.start());
+      assert.equal(result.response.status, 503);
+      assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_sessions').get().count, 0);
+      assert.equal(t.calls.some(call => call.url.includes('unexpected.example')), false);
+    } finally { t.close(); }
+  }
 });
 
 test('Apple sign-in is independent of Telegram, replay-safe and does not merge by email or supplied IDs', async () => {
