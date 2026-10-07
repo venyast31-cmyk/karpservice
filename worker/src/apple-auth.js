@@ -24,10 +24,17 @@ export async function appleRuntimeHealth(env) {
   const result = {};
   for (const [stage, check] of [
     ['signing', async () => { await clientSecret(env); }],
+    ['identity_keys', async () => {
+      const response = await fetch(`${ISSUER}/auth/keys`, {redirect:'error',signal:AbortSignal.timeout(10000)});
+      if (!response.ok) throw new Error(`HTTP_${response.status}`);
+      const data = await response.json();
+      const key = await crypto.subtle.importKey('jwk', data.keys[0], {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
+      await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,new Uint8Array(256),encoder.encode('test'));
+    }],
     ['encryption', async () => { const sealed = await seal(env, 'health-check', 'health-check'); if (await unseal(env, sealed, 'health-check') !== 'health-check') throw new Error('roundtrip'); }]
   ]) {
     try { await check(); result[stage] = 'ok'; }
-    catch (error) { result[stage] = error.name || 'Error'; }
+    catch (error) { result[stage] = stage === 'identity_keys' ? `${error.name}: ${error.message}` : error.name || 'Error'; }
   }
   runtimeHealthCache = {until:Date.now()+60000,result};
   return result;
