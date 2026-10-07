@@ -24,6 +24,7 @@ async function main() {
   if (app.attributes.bundleId !== 'ua.karpservice.client') throw new Error('Unexpected app');
   const builds = await api(`/v1/builds?filter[app]=6816711108&filter[version]=${env.IOS_BUILD_NUMBER}&include=betaGroups,buildBetaDetail&limit=10`);
   console.log(JSON.stringify({ builds: builds.data.map(b => ({id:b.id, version:b.attributes.version, processingState:b.attributes.processingState, expired:b.attributes.expired, relationships:b.relationships})), included: builds.included?.map(x=>({type:x.type,id:x.id,attributes:x.attributes})) }));
+  try { await api(`/v1/builds/${builds.data[0].id}/relationships/betaGroups`); } catch(error) { console.log(error.message); }
   const groups = await api('/v1/apps/6816711108/betaGroups');
   console.log(JSON.stringify({groups:groups.data.map(g=>({id:g.id,name:g.attributes.name,internal:g.attributes.isInternalGroup,allBuilds:g.attributes.hasAccessToAllBuilds}))}));
 }
