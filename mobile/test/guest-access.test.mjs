@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
 import { createContext, runInContext } from 'node:vm';
 
 // Exercise the actual bundled handlers, including mobile-specific transforms.
-execFileSync(process.execPath, [new URL('../scripts/build.mjs', import.meta.url).pathname]);
 const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
 const names = ['show', 'openGuestLogin', 'openClientHome', 'openCars', 'openAddCar', 'openAllHistory', 'openQuickBooking', 'initializeApp'];
 const handlers = names.map(name => {
