@@ -18,6 +18,21 @@ export function appleConfigured(env) {
   return Boolean(env.AUTH_DB && env.SESSION_SECRET && env.APPLE_SIGN_IN_KEY_ID && env.APPLE_SIGN_IN_PRIVATE_KEY);
 }
 
+let runtimeHealthCache;
+export async function appleRuntimeHealth(env) {
+  if (runtimeHealthCache?.until > Date.now()) return runtimeHealthCache.result;
+  const result = {};
+  for (const [stage, check] of [
+    ['signing', async () => { await clientSecret(env); }],
+    ['encryption', async () => { const sealed = await seal(env, 'health-check', 'health-check'); if (await unseal(env, sealed, 'health-check') !== 'health-check') throw new Error('roundtrip'); }]
+  ]) {
+    try { await check(); result[stage] = 'ok'; }
+    catch (error) { result[stage] = error.name || 'Error'; }
+  }
+  runtimeHealthCache = {until:Date.now()+60000,result};
+  return result;
+}
+
 async function readBody(request) {
   const raw = await request.text();
   if (raw.length > 16384) throw fail('Запит завеликий.', 400);
