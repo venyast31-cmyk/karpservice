@@ -25,11 +25,11 @@ export async function assignInternalBuild(api, number, { wait = ms => new Promis
     if (attempt + 1 < attempts) await wait(30000);
   }
   if (build?.attributes?.processingState !== 'VALID') throw new Error('Build upload succeeded, but Apple processing is still pending; retry TestFlight assignment later');
-  const memberships = (await api(`/v1/builds/${build.id}/relationships/betaGroups`)).data || [];
+  const memberships = (await api(`/v1/builds/${build.id}?include=betaGroups`)).data?.relationships?.betaGroups?.data || [];
   if (!memberships.some(g => g.id === group.id)) {
     await api(`/v1/betaGroups/${group.id}/relationships/builds`, { data: [{ type: 'builds', id: build.id }] });
   }
-  const verified = (await api(`/v1/builds/${build.id}/relationships/betaGroups`)).data || [];
+  const verified = (await api(`/v1/builds/${build.id}?include=betaGroups`)).data?.relationships?.betaGroups?.data || [];
   if (!verified.some(g => g.id === group.id)) throw new Error('Apple did not confirm the internal TestFlight assignment');
   return { buildId: build.id, number, group: GROUP };
 }
@@ -52,7 +52,7 @@ async function main() {
         ...(body ? { body: JSON.stringify(body) } : {})
       });
     } catch { throw new Error('App Store Connect request failed; credentials withheld'); }
-    if (!response.ok) throw new Error(`App Store Connect returned HTTP ${response.status}; no response body or credentials logged`);
+    if (!response.ok) { const problem = await response.json().catch(()=>({})); throw new Error(JSON.stringify({resource,status:response.status,errors:problem.errors?.map(e=>({code:e.code,title:e.title,detail:e.detail}))})); }
     return response.status === 204 ? {} : response.json().catch(() => { throw new Error('App Store Connect returned invalid JSON; response withheld'); });
   };
   const result = await assignInternalBuild(api, env.IOS_BUILD_NUMBER);
