@@ -1,4 +1,4 @@
-name: Inspect uploaded TestFlight build
+name: Finish uploaded TestFlight build
 on:
   push:
     branches: ['release/testflight-status']
@@ -23,3 +23,11 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           IOS_BUILD_NUMBER: '14.1.0'
         run: node scripts/testflight-status.mjs
+      - name: Assign the already uploaded build to the existing internal group
+        working-directory: mobile
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          IOS_BUILD_NUMBER: '14.1.0'
+        run: node scripts/testflight-ready.mjs

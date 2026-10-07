@@ -11,7 +11,7 @@ test('Only the exact processed build is assigned to the existing internal group'
       { id: 'internal', attributes: { name: 'Тест Karpservice', isInternalGroup: true } }
     ] };
     if (resource.startsWith('/v1/builds?')) return { data: ++polls === 1 ? [] : [{ id: 'build', attributes: { version: '11.1.0', processingState: 'VALID', expired: false } }] };
-    if (resource === '/v1/builds/build/relationships/betaGroups') return { data: member ? [{ id: 'internal' }] : [] };
+    if (resource === '/v1/builds/build?include=betaGroups') return { data: { relationships: { betaGroups: { data: member ? [{id:'internal'}] : [] } } } };
     assert.equal(resource, '/v1/betaGroups/internal/relationships/builds');
     assert.deepEqual(body, { data: [{ type: 'builds', id: 'build' }] });
     member = true; return {};
