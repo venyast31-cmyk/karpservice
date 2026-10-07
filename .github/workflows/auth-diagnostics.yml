@@ -1,4 +1,4 @@
-name: Inspect Apple authentication schema
+name: Inspect Apple authentication errors
 on:
   push:
     branches: ['fix/auth-diagnostics']
@@ -8,22 +8,24 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Read authentication table schema only
+      - name: Read Worker error diagnostics
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           node --input-type=module <<'JS'
           const env=process.env;
-          const url='https://api.cloudflare.com/client/v4/accounts/'+env.CLOUDFLARE_ACCOUNT_ID+'/d1/database/e7568dec-237a-4f1d-b8eb-fd1170af09e9/query';
-          for(const table of ['apple_accounts','apple_sessions','apple_challenges','apple_phone_verifications']){
-            const res=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({sql:'PRAGMA table_info('+table+')'})});
-            const data=await res.json();
-            console.log(JSON.stringify({table,status:res.status,success:data.success,columns:data.result?.[0]?.results?.map(x=>({name:x.name,type:x.type,required:x.notnull,pk:x.pk}))}));
-            if(!res.ok||!data.success)throw new Error('Schema inspection failed');
-          }
+          const base='https://api.cloudflare.com/client/v4/accounts/'+env.CLOUDFLARE_ACCOUNT_ID;
+          const headers={Authorization:'Bearer '+env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'};
+          const settings=await fetch(base+'/workers/scripts/karpservice-api/settings',{headers});
+          const config=await settings.json();
+          console.log(JSON.stringify({settingsStatus:settings.status,observability:config.result?.observability}));
+          const res=await fetch(base+'/workers/observability/telemetry/query',{method:'POST',headers,body:JSON.stringify({queryId:'karp-auth-errors',timeframe:{from:Date.now()-86400000,to:Date.now()},view:'events',limit:50,parameters:{filters:[{key:'$metadata.service',operation:'eq',type:'string',value:'karpservice-api'},{key:'$metadata.message',operation:'includes',type:'string',value:'worker_error'}]}})});
+          const data=await res.json();
+          console.log(JSON.stringify({status:res.status,success:data.success,errors:data.errors,resultKeys:Object.keys(data.result||{})}));
+          function scan(v){if(!v||typeof v!=='object')return; if(v.event==='worker_error')console.log(JSON.stringify({event:v.event,message:String(v.message).slice(0,500)})); for(const [key,value] of Object.entries(v)){if(key==='message'&&typeof value==='string'&&value.includes('worker_error'))console.log(value.slice(0,800));else if(typeof value==='object')scan(value);}}
+          scan(data.result);
           JS
