@@ -1,0 +1,25 @@
+name: Inspect uploaded TestFlight build
+on:
+  push:
+    branches: ['release/testflight-status']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'venyast31-cmyk/karpservice' && github.ref == 'refs/heads/release/testflight-status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Read the uploaded build and existing test group
+        working-directory: mobile
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          IOS_BUILD_NUMBER: '14.1.0'
+        run: node scripts/testflight-status.mjs
