@@ -18,28 +18,6 @@ export function appleConfigured(env) {
   return Boolean(env.AUTH_DB && env.SESSION_SECRET && env.APPLE_SIGN_IN_KEY_ID && env.APPLE_SIGN_IN_PRIVATE_KEY);
 }
 
-let runtimeHealthCache;
-export async function appleRuntimeHealth(env) {
-  if (runtimeHealthCache?.until > Date.now()) return runtimeHealthCache.result;
-  const result = {};
-  for (const [stage, check] of [
-    ['signing', async () => { await clientSecret(env); }],
-    ['identity_keys', async () => {
-      const response = await fetch(`${ISSUER}/auth/keys`, {redirect:'error',signal:AbortSignal.timeout(10000)});
-      if (!response.ok) throw new Error(`HTTP_${response.status}`);
-      const data = await response.json();
-      const key = await crypto.subtle.importKey('jwk', data.keys[0], {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
-      await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,new Uint8Array(256),encoder.encode('test'));
-    }],
-    ['encryption', async () => { const sealed = await seal(env, 'health-check', 'health-check'); if (await unseal(env, sealed, 'health-check') !== 'health-check') throw new Error('roundtrip'); }]
-  ]) {
-    try { await check(); result[stage] = 'ok'; }
-    catch (error) { result[stage] = stage === 'identity_keys' ? `${error.name}: ${error.message}` : error.name || 'Error'; }
-  }
-  runtimeHealthCache = {until:Date.now()+60000,result};
-  return result;
-}
-
 async function readBody(request) {
   const raw = await request.text();
   if (raw.length > 16384) throw fail('Запит завеликий.', 400);
@@ -59,7 +37,8 @@ export async function verifyAppleIdentity(token, expectedNonce) {
   } catch { throw fail(); }
   if (header.alg !== 'RS256' || typeof header.kid !== 'string' || header.kid.length > 100) throw fail();
   if (publicKeys.until <= now() || !publicKeys.keys.some(key => key.kid === header.kid)) {
-    const response = await fetch(`${ISSUER}/auth/keys`, { redirect: 'error', signal: AbortSignal.timeout(10000) });
+    // Workers supports manual/follow only. Reject 3xx below without following it.
+    const response = await fetch(`${ISSUER}/auth/keys`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw fail('Apple тимчасово недоступна. Спробуйте ще раз.', 503);
     const data = await response.json();
     if (!Array.isArray(data.keys)) throw fail();
@@ -89,7 +68,7 @@ async function clientSecret(env) {
 
 async function appleTokenRequest(env, path, fields) {
   const response = await fetch(`${ISSUER}/auth/${path}`, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(15000),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: CLIENT_ID, client_secret: await clientSecret(env), ...fields })
   });
@@ -229,7 +208,7 @@ export async function ensureAppleCustomer(env, session) {
     throw fail('Профіль синхронізується із сервісом. Спробуйте пізніше або зверніться до підтримки.', 409);
   }
   const response = await fetch('https://api.roapp.io/v2/contacts/people', {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(20000),
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(20000),
     headers: { Authorization: `Bearer ${env.ROAPP_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ first_name: account.customer_name, email: account.email, phones: [], notes: 'Профіль створено клієнтом через Sign in with Apple у Karpservice. Не об’єднуйте автоматично з іншими контактами.' })
   });

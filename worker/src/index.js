@@ -1,5 +1,5 @@
 import { handleReviewAccount } from "./review-account.js";
-import { appleConfigured, appleRuntimeHealth, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
+import { appleConfigured, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
 import {
   authConfigured,
   corsHeadersFor,
@@ -1348,7 +1348,6 @@ var index_default = {
           configured,
           telegram_configured: isTelegramConfigured(env),
           apple_signin_configured: appleConfigured(env),
-          apple_runtime: appleConfigured(env) ? await appleRuntimeHealth(env) : null,
           telegram_auth_configured: authConfigured(env)
         }, configured && authConfigured(env) ? 200 : 503, corsHeaders);
       }
