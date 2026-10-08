@@ -1,21 +1,21 @@
-name: Karpservice App Store release
+name: Read App Store review status
 on:
   push:
     branches: ['release/testflight-status']
 permissions:
   contents: read
 jobs:
-  release:
+  status:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Submit verified build 14.1.0 for App Review
+      - name: Read current status only
         env:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: node mobile/scripts/appstore-release.mjs
+        run: node mobile/scripts/appstore-status.mjs
