@@ -1,3 +1,4 @@
+import { recordAnalytics } from './analytics.js';
 import { getAppleSession } from './apple-auth.js';
 
 const OTP_TTL_SECONDS = 5 * 60;
@@ -314,6 +315,7 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
         .bind(Number(customer.id), customerName, challenge.phone, apple.apple_subject_hash),
       env.AUTH_DB.prepare('DELETE FROM apple_phone_verifications WHERE subject_hash=?').bind(apple.apple_subject_hash)
     ]);
+    if (!apple.phone) await recordAnalytics(env, 'phone_linked', apple.apple_subject_hash, {once:true});
     return authJson({success:true,token:bearerToken(request),token_type:'Bearer',expires_at:apple.expires_at,auth_provider:'apple',phone_linked:true,phone_masked:maskPhone(challenge.phone)},200,headers);
   }
   await env.AUTH_DB.prepare(

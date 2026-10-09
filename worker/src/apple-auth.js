@@ -1,3 +1,4 @@
+import { recordAnalytics } from './analytics.js';
 import { authJson, consumeRateLimit, getAuthSession, randomToken, sha256Hex, safeEqual } from './auth.js';
 
 const CLIENT_ID = 'ua.karpservice.client';
@@ -192,6 +193,8 @@ export async function handleAppleAuthRoute(request, env, headers) {
   const expires = now() + SESSION_SECONDS;
   await env.AUTH_DB.prepare('INSERT INTO apple_sessions(token_hash,subject_hash,created_at,expires_at) VALUES(?,?,?,?)')
     .bind(await sha256Hex(`session:${rawToken}`), subject, now(), expires).run();
+  await recordAnalytics(env, 'apple_login', subject);
+  if (!existing) await recordAnalytics(env, 'registration', subject, {once:true});
   return reply({ success: true, token: rawToken, token_type: 'Bearer', expires_at: expires, auth_provider: 'apple' });
 }
 

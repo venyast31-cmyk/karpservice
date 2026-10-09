@@ -3,14 +3,17 @@
   "name": "karpservice-api",
   "main": "src/index.js",
   "compatibility_date": "2026-08-29",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "keep_vars": true,
   "vars": {
     "APPLE_ONLY_AUTH": "true",
     "ACCOUNT_DELETION_DAYS": "7",
     "ROAPP_BRANCH_ID": "136446",
     "ALLOWED_ORIGINS": "https://karpservice-app.pages.dev,https://venyast31-cmyk.github.io",
-    "TELEGRAM_WEBHOOK_ORIGIN": "https://karpservice-api.venyast31.workers.dev"
+    "TELEGRAM_WEBHOOK_ORIGIN": "https://karpservice-api.venyast31.workers.dev",
+    "ANALYTICS_ADMIN_TOKEN_SHA256": "328928874863168280a1a1e539fb75f4950069a8261cf501b125d839e91c91f5"
   },
   "d1_databases": [
     {
