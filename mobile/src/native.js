@@ -148,7 +148,6 @@ if (Capacitor.isNativePlatform()) {
 
     window.KarpProfileEditor = initProfileEditor();
     window.KarpMileageEditor = initMileageEditor();
-    document.getElementById('nativeRefresh')?.addEventListener('click', () => window.loadCustomer?.({ targetScreen: 'profile' }));
     document.getElementById('nativeOpenSettings')?.addEventListener('click', () => api.openSettings().catch(() => {}));
     document.getElementById('nativeDeleteAccount')?.addEventListener('click', async (event) => {
       const button = event.currentTarget;

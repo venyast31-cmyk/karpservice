@@ -21,7 +21,7 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
-.profile-client-button{cursor:pointer}.profile-client-button:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
+.profile-client-button{cursor:pointer}.profile-client-button:focus{outline:none}.profile-client-button.keyboard-focus:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
 .native-mileage{display:block;width:auto;max-width:100%;padding:8px 0;margin:3px 0 0;border:0;background:transparent;color:var(--mint);font-size:14px;text-align:left;line-height:1.4}.native-mileage span{margin-left:4px}
 .native-profile-dialog{width:calc(100% - 32px);max-width:460px;max-height:85dvh;overflow:auto;margin:auto;padding:22px;border:1px solid #35433f;border-radius:22px;background:#181f24;color:#f3f6f5;box-sizing:border-box;touch-action:manipulation}
 .native-profile-dialog::backdrop{background:rgba(0,0,0,.72)}
@@ -168,7 +168,6 @@ replaceOnce('    <button class="secondary" onclick="openCars()">До моїх а
     <button class="secondary" onclick="openCars()">До моїх авто</button>`);
 replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <div class="native-actions">
       <button id="nativeLinkPhone" class="primary" type="button" onclick="resetAuthFlow(); show('phoneLink')">Підключити номер телефону</button>
-      <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>
       <button id="nativeDeleteAccount" class="secondary" type="button">Видалити профіль і дані</button>
