@@ -1,4 +1,4 @@
-import { requireAuthSession, consumeRateLimit, sha256Hex, safeEqual } from './auth.js';
+import { requireAuthSession, consumeRateLimit } from './auth.js';
 export const CATEGORIES = [
   {id:'oil',name:'Оливи та технічні рідини',group:'ОЛИВА, ЗМАЗКА  І ТЕХНІЧНІ РІДИНИ',image:'m/z/g/x/f/fb805475.png'},
   {id:'electric',name:'Електрика',group:'ЕЛЕКТРИКА',image:'b/i/g/m/d/b239842f.png'},
@@ -59,16 +59,6 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
-    if(u.pathname==='/shop/setup') {
-      if(request.method!=='POST'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(request.headers.get('X-Shop-Setup')||''),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
-      const b=await request.json();
-      if(typeof b.token!=='string'||!/^[-A-Za-z0-9_.]{40,200}$/.test(b.token))return error('Некоректний ключ.');
-      const check=await fetch('https://api.bm.parts/profile/me',{headers:{Authorization:b.token,'User-Agent':'Karpservice/1.0',Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
-      if(!check.ok)return error('Постачальник не прийняв ключ.',400);
-      const ciphertext=await sealToken(env,b.token);
-      await env.AUTH_DB.prepare('INSERT INTO integration_secrets(name,ciphertext,updated_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET ciphertext=excluded.ciphertext,updated_at=excluded.updated_at').bind('busmarket',ciphertext,Date.now()).run();
-      return reply({success:true});
-    }
     if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(await supplierToken(env))});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
@@ -116,11 +106,16 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
     if(!/^[A-F0-9]{32}$/i.test(i.id||'')||!WAREHOUSES.some(w=>w.id===i.warehouse)||seen.has(key)||!Number.isInteger(i.quantity)||i.quantity<1||i.quantity>99||!Number.isInteger(i.price))return error('Перевірте товари й кількість.');
     seen.add(key);
     if(!await env.AUTH_DB.prepare('SELECT product_id FROM shop_catalog WHERE product_id=?').bind(i.id).first())return error('Оновіть каталог і додайте товар повторно.');
-    const d=await supplier(env,`/product/${i.id}`,{save:false,with_extra:false});
-    const p=productView(d.product||{},i.id),stock=p?.stocks.find(s=>s.id===i.warehouse);
-    if(!stock||stock.quantity<i.quantity||i.quantity%p.step!==0)return error('Наявність або допустима кількість змінилась. Оновіть кошик.',409);
-    if(p.price!==i.price)return error('Ціна змінилась. Видаліть товар з кошика та додайте його повторно за оновленою ціною.',409);
-    lines.push({...p,quantity:i.quantity,warehouse:stock});
+  }
+  for(let offset=0;offset<b.items.length;offset+=4) {
+    const batch=b.items.slice(offset,offset+4);
+    const checked=await Promise.all(batch.map(async i=>productView((await supplier(env,`/product/${i.id}`,{save:false,with_extra:false})).product||{},i.id)));
+    for(let n=0;n<batch.length;n++) {
+      const i=batch[n],p=checked[n],stock=p?.stocks.find(s=>s.id===i.warehouse);
+      if(!stock||stock.quantity<i.quantity||i.quantity%p.step!==0)return error('Наявність або допустима кількість змінилась. Оновіть кошик.',409);
+      if(p.price!==i.price)return error('Ціна змінилась. Видаліть товар з кошика та додайте його повторно за оновленою ціною.',409);
+      lines.push({...p,quantity:i.quantity,warehouse:stock});
+    }
   }
   const total=lines.reduce((n,p)=>n+p.price*p.quantity,0),id=crypto.randomUUID();
   const snapshot={lines,comment:b.comment,car:car?{id:car.id,vin:car.vin,name:[car.brand,car.model].filter(Boolean).join(' ')}:null};
