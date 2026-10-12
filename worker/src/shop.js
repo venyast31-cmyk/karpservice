@@ -1,10 +1,12 @@
 import { requireAuthSession, consumeRateLimit } from './auth.js';
-export const CATEGORIES = [
-  {id:'oil',name:'Оливи та технічні рідини',group:'ОЛИВА, ЗМАЗКА  І ТЕХНІЧНІ РІДИНИ',image:'m/z/g/x/f/fb805475.png'},
-  {id:'electric',name:'Електрика',group:'ЕЛЕКТРИКА',image:'b/i/g/m/d/b239842f.png'},
-  {id:'wipers',name:'Очищення вікон і фар',group:'СИСТЕМА ОЧИЩЕННЯ ВІКОН І ФАР',image:'k/p/h/x/k/c1ae9420.png'},
-  {id:'care',name:'Аксесуари та догляд',group:'АКСЕСУАРИ і ЗАСОБИ ПО ДОГЛЯДУ',image:'e/n/p/q/o/dd19d405.jpeg'}
-];
+import { CATEGORIES } from './shop-catalog.js';
+export { CATEGORIES };
+export function findCategory(id,nodes=CATEGORIES) {
+  for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children);if(found)return found;}
+  return null;
+}
+export function publicCategory({group,children,...node}) {return {...node,image:photo(node.image),children:children.map(publicCategory)};}
+function publicProduct(p){return {...p,stocks:p.stocks.map(({name,...stock})=>stock)};}
 export const WAREHOUSES = [
   {id:'92F8005056BAA48611EFEDF62E756182',name:'Київ Лівий берег',cutoff:900,days:0},
   {id:'92F9005056BA7D7A11EFEDFB75EEFE3F',name:'Київ РЦ',cutoff:780,days:0},
@@ -59,18 +61,20 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
-    if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(await supplierToken(env))});
+    if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(publicCategory),configured:Boolean(await supplierToken(env))});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
-      const category=CATEGORIES.find(c=>c.id===u.searchParams.get('category'));
+      const category=findCategory(u.searchParams.get('category'));
       if(!category)return error('Оберіть категорію.');
       const page=Number(u.searchParams.get('page')||1),q=(u.searchParams.get('q')||'').trim();
       if(!Number.isInteger(page)||page<1||page>1000||q.length>100)return error('Некоректний пошук.');
-      const d=await supplier(env,'/search/products',{group:category.group,q,page,per_page:24,available:'1',save:false,with_extra:false});
+      // Legacy clients may still request the parent wipers category. Restrict it to blades too.
+      const group=category.id==='wipers'||category.name==='Система склоочисника' ? findCategory('wipers:Система склоочисника/Щітки склоочисника').group : category.group;
+      const d=await supplier(env,'/search/products',{group,q,page,per_page:24,available:'1',save:false,with_extra:false});
       const products=Object.entries(d.products||{}).map(([id,p])=>productView(p,p.uuid||id)).filter(Boolean);
       // Cache only membership, never purchase prices; checkout always reloads stock and price.
       if(products.length)await env.AUTH_DB.batch(products.map(p=>env.AUTH_DB.prepare('INSERT INTO shop_catalog(product_id,category_id,seen_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET category_id=excluded.category_id,seen_at=excluded.seen_at').bind(p.id,category.id,Date.now())));
-      return reply({success:true,products,page,has_more:page<Number(d.search?.total_pages||1),checked_at:new Date().toISOString()});
+      return reply({success:true,products:products.map(publicProduct),page,has_more:page<Number(d.search?.total_pages||1),checked_at:new Date().toISOString()});
     }
     const auth=await requireAuthSession(request,env,headers);
     if(auth.response)return auth.response;

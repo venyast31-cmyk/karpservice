@@ -5,7 +5,12 @@ The native app uses `/shop/categories`, `/shop/products`, `/shop/checkout`, and
 history require the existing authenticated, phone-linked customer session.
 
 Supplier calls only read BM Parts data. Only the four warehouse IDs and four
-category paths in `src/shop.js` are exposed. Customer prices are purchase prices
+catalog roots and their curated subgroups in `src/shop-catalog.js` are browsable.
+Every subgroup has a supplier or representative product photo. Under the wiper
+system only blades are offered; arms and mechanisms are excluded. Warehouse
+names are retained in CRM notes but omitted from public product responses. The
+app chooses the earliest delivery with enough stock and displays only availability
+and delivery timing. Customer prices are purchase prices
 multiplied by 1.30 and rounded to kopecks on the server. Checkout reloads the
 selected products and rejects changed prices, unavailable stock and invalid pack
 quantities. The app never places supplier orders or takes payment.

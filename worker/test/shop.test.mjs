@@ -3,7 +3,7 @@ import {createHash,webcrypto} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
-import {handleShop,retailPrice,delivery,WAREHOUSES,productView} from '../src/shop.js';
+import {handleShop,retailPrice,delivery,WAREHOUSES,productView,CATEGORIES,findCategory} from '../src/shop.js';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 class D1Statement {
   constructor(database, sql, values = []) {
@@ -91,5 +91,31 @@ test('checkout verifies ownership, price, stock and creates at most one CRM orde
   // An uncertain CRM response stays durable and must not repeat the write.
   db.database.exec('DELETE FROM rate_limits');fail=true;const uncertain={...body,key:crypto.randomUUID()};
   assert.equal((await send(uncertain)).status,202);assert.equal((await send(uncertain)).status,202);assert.equal(calls,2);
+ }finally{globalThis.fetch=original;}
+});
+
+test('photo subgroups restrict blades and never expose warehouse names to customers',async()=>{
+ const db=new MemoryD1();
+ for(const f of ['0001_auth.sql','0012_shop.sql','0013_shop_credentials.sql'])db.database.exec(await readFile(new URL('../migrations/'+f,import.meta.url),'utf8'));
+ const env={AUTH_DB:db,BUSMARKET_API_TOKEN:'supplier-key'};
+ const request=path=>handleShop(new Request('https://app.test/shop/'+path),env,{});
+ const catalog=await(await request('categories')).json();
+ assert.equal(catalog.categories.length,4);
+ assert.equal(catalog.categories[0].children.length,5);
+ const walk=nodes=>{for(const n of nodes){assert.match(n.image,/^https:\/\/cdn\.bm\.parts\//);assert.equal(n.group,undefined);walk(n.children);}};
+ walk(catalog.categories);
+ const system=findCategory('wipers:Система склоочисника');
+ assert.deepEqual(system.children.map(c=>c.name),['Щітки склоочисника']);
+ assert.equal(findCategory('wipers:Система склоочисника/Важелі склоочисника'),null);
+ let group;const original=globalThis.fetch;
+ globalThis.fetch=async input=>{group=new URL(input).searchParams.get('group');return Response.json({products:{A:{uuid:'A'.repeat(32),name:'Щітка',price:'100',currency_name:'UAH',in_stocks:[{uuid:WAREHOUSES[0].id,quantity:'5'}]}},search:{total_pages:1}});};
+ try{
+  const leaf=system.children[0];
+  const response=await(await request('products?category='+encodeURIComponent(leaf.id))).json();
+  assert.equal(group,leaf.group);assert.equal(response.products.length,1);
+  assert.equal(response.products[0].stocks[0].name,undefined);
+  assert.ok(response.products[0].stocks[0].delivery);
+  await request('products?category=wipers');assert.equal(group,leaf.group);
+  assert.equal((await request('products?category='+encodeURIComponent('wipers:Система склоочисника/Важелі склоочисника'))).status,400);
  }finally{globalThis.fetch=original;}
 });

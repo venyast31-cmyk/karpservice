@@ -471,14 +471,14 @@
 
   <section id="shop" class="screen">
     <div class="shop-toolbar"><h1>Магазин</h1><button class="secondary" type="button" onclick="Shop.openCart()" id="shopCartCount">Кошик</button></div>
-    <p class="shop-intro">Для вашого авто. З доставкою до Karpservice.</p>
     <div id="shopCategories" class="shop-categories"></div>
     <p id="shopStatus" class="shop-message" role="status"></p>
     <button class="secondary shop-order-link" type="button" onclick="Shop.orders()">Мої замовлення</button>
   </section>
   <section id="shopProducts" class="screen">
-    <div class="shop-toolbar"><button class="back" type="button" onclick="Shop.open()">← Каталог</button><button class="secondary" type="button" onclick="Shop.openCart()">Кошик</button></div>
-    <label for="shopFilter">Категорія</label><select id="shopFilter"></select>
+    <div class="shop-toolbar"><button class="back" type="button" onclick="Shop.back()">← Назад</button><button class="secondary" type="button" onclick="Shop.openCart()">Кошик</button></div>
+    <h1 id="shopCategoryTitle" class="shop-category-title"></h1>
+    <div id="shopSubcategories" class="shop-categories" hidden></div>
     <form id="shopSearchForm" class="shop-search"><input id="shopSearch" type="search" maxlength="100" placeholder="Назва або артикул" aria-label="Пошук товару"><button class="secondary" type="submit">Знайти</button></form>
     <p id="shopProductStatus" class="shop-message" role="status"></p><div id="shopProductList"></div><button id="shopMore" class="secondary" type="button" hidden>Показати ще</button>
   </section>
