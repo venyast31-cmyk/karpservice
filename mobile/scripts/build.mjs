@@ -41,6 +41,7 @@ html,body,body *{touch-action:manipulation}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
 .car-logo svg{width:38px;height:38px;color:#267b62}
 .car-logo.car-logo-approved{background:transparent;border:0;box-shadow:none;padding:2px;border-radius:0}
+.car-logo-light{filter:brightness(0) invert(1)}
 .car-logo.car-logo-approved svg{display:block;width:100%;height:100%;overflow:hidden}
 .news-promo-image.native-promo-art{aspect-ratio:772/800;overflow:hidden}
 </style>`);
@@ -142,6 +143,16 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
   };
   const viewport = brand && viewports[brand.slug];
   if (viewport) return '<div class="car-logo car-logo-approved"><svg viewBox="' + viewport + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></div>';
+  if (brand) {
+    const opaque = {"omoda": [256, 256], "lada": [611, 256], "genesis": [661, 256], "jetour": [1584, 256]};
+    const light = ['ram','cupra','jaguar','zeekr','nissan','polestar','cadillac','maserati','hummer'];
+    if (opaque[brand.slug]) {
+      const size = opaque[brand.slug];
+      const filterId = 'brand-alpha-' + brand.slug + '-' + Number(car.id || 0);
+      return '<div class="car-logo car-logo-approved"><svg viewBox="0 0 ' + size[0] + ' ' + size[1] + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><defs><filter id="' + filterId + '" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  -0.2126 -0.7152 -0.0722 0 1" /></filter></defs><image href="car-logos/' + brand.slug + '.png" width="' + size[0] + '" height="' + size[1] + '" filter="url(#' + filterId + ')" /></svg></div>';
+    }
+    return '<div class="car-logo car-logo-approved"><img class="' + (light.includes(brand.slug) ? 'car-logo-light' : '') + '" src="car-logos/' + brand.slug + '.png" alt="' + escapeHtml(brand.name) + '" loading="lazy" decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="car-logo-fallback" hidden aria-hidden="true">🚗</span></div>';
+  }
   return '<div class="car-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10 22 4-10h20l4 10M8 22h32v16H8zM15 38v4M33 38v4M8 28h7M33 28h7M4 22h4M40 22h4M19 33h10"/></svg></div>';
 }`);
 replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
@@ -218,5 +229,6 @@ for (const asset of ['logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-5
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });
 }
 await cp(`${mobile}public`, out, { recursive: true });
+await cp(`${root}car-logos`, `${out}/car-logos`, { recursive: true });
 await build({ entryPoints: [`${mobile}src/native.js`], bundle: true, format: 'iife', target: 'safari15', outfile: `${out}/native.js`, minify: true });
 console.log('Built bundled iOS web assets in mobile/dist.');
