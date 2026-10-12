@@ -19,6 +19,7 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
 .profile-client-button{cursor:pointer}.profile-client-button:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
+.native-mileage{display:block;width:auto;max-width:100%;padding:8px 0;margin:3px 0 0;border:0;background:transparent;color:var(--mint);font-size:14px;text-align:left;line-height:1.4}.native-mileage span{margin-left:4px}
 .native-profile-dialog{width:calc(100% - 32px);max-width:460px;max-height:85dvh;overflow:auto;margin:auto;padding:22px;border:1px solid #35433f;border-radius:22px;background:#181f24;color:#f3f6f5;box-sizing:border-box;touch-action:manipulation}
 .native-profile-dialog::backdrop{background:rgba(0,0,0,.72)}
 .native-profile-dialog h2{margin:0 0 18px;font-size:24px}.native-profile-dialog input{width:100%;min-width:0;font-size:16px;box-sizing:border-box;color-scheme:dark}
@@ -80,6 +81,30 @@ window.applyProfileField = function(field, value){
 };
 function renderProfile(){`);
 replaceOnce("    authChallengeId = '';\n    await loadCustomer();", "    authChallengeId = '';\n    await loadCustomer(window.KarpProfileEditor?.editingPhone ? {targetScreen:'profile'} : {});\n    window.KarpProfileEditor?.phoneSaved();");
+// Car cards keep booking in the central tab and expose editable mileage under VIN.
+const carBookingButton = html.match(/        <button class="primary action-primary" type="button" onclick="startBooking\([\s\S]*?<\/button>/)?.[0];
+if (!carBookingButton) throw new Error('Car booking button not found');
+replaceOnce(carBookingButton, '');
+replaceOnce("<div class=\"vin\">${escapeHtml(car.vin || '')}</div>", "<div class=\"vin\">${escapeHtml(car.vin || '')}</div><button class=\"native-mileage\" type=\"button\" data-mileage-car=\"${Number(car.id)}\" aria-haspopup=\"dialog\">Пробіг: ${car.mileage === null || car.mileage === undefined ? 'Вказати' : escapeHtml(Number(car.mileage).toLocaleString('uk-UA')) + ' км'} <span aria-hidden=\"true\">✎</span></button>");
+replaceOnce('<div id="deleteCarModal"', `<dialog id="nativeMileageDialog" class="native-profile-dialog" aria-labelledby="nativeMileageTitle">
+  <form id="nativeMileageForm">
+    <h2 id="nativeMileageTitle">Пробіг автомобіля</h2>
+    <p id="nativeMileageCar" class="native-note"></p>
+    <label for="nativeMileageInput">Пробіг, км</label>
+    <input id="nativeMileageInput" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Наприклад, 150000" required>
+    <p id="nativeMileageStatus" class="native-note" role="status" aria-live="polite"></p>
+    <div class="native-profile-buttons"><button id="nativeMileageSave" class="primary" type="submit">Зберегти</button><button id="nativeMileageCancel" class="secondary" type="button">Скасувати</button></div>
+  </form>
+</dialog>
+<div id="deleteCarModal"`);
+replaceOnce('function renderCustomer(){', `window.getMileageCar = id => customerData?.cars?.find(car => Number(car.id) === id);
+window.applyCarMileage = (id, mileage) => {
+  for (const list of [customerData?.cars, customerData?.history_cars]) {
+    for (const car of list || []) if (Number(car.id) === id) car.mileage = mileage;
+  }
+  renderCustomer();
+};
+function renderCustomer(){`);
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>\n<div id="nativeDemoBanner" class="native-demo" role="status" hidden><div><strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.</div><button id="nativeDemoExit" class="secondary" type="button">Вийти</button></div>');
 replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Увійдіть через Apple. Потім підключіть номер телефону, щоб побачити свої авто та історію обслуговування.');
 replaceOnce('    <div id="phoneAuthStep" class="card auth-step">', `    <button id="nativeAppleLogin" class="apple-login" type="button" aria-label="Увійти через Apple">Увійти через Apple</button>

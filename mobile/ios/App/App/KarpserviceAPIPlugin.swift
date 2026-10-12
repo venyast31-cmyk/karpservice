@@ -27,6 +27,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
         "account/deletion-policy": "GET", "account/deletion": "POST",
         "account/name": "POST",
         "account/birth-date": "POST",
+        "cars/mileage": "POST",
         "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
     ]
     private lazy var session: URLSession = {

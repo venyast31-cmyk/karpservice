@@ -4,6 +4,7 @@ const routes = new Map([
   ['account/deletion-policy', 'GET'], ['account/deletion', 'POST'],
   ['account/name', 'POST'],
   ['account/birth-date', 'POST'],
+  ['cars/mileage', 'POST'],
   ['auth/password', 'POST'], ['auth/request', 'POST'], ['auth/link-status', 'POST'],
   ['auth/verify', 'POST'], ['auth/logout', 'POST'], ['auth/me', 'GET']
 ]);

@@ -1,3 +1,4 @@
+import { initMileageEditor } from './mileage-editor.mjs';
 import { initProfileEditor } from './profile-editor.mjs';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
@@ -55,6 +56,7 @@ if (Capacitor.isNativePlatform()) {
     didLogout: () => {
       generation += 1;
       window.KarpProfileEditor?.reset();
+      window.KarpMileageEditor?.reset();
       booking = null;
       demo.stop();
       reviewAccount = false;
@@ -145,6 +147,7 @@ if (Capacitor.isNativePlatform()) {
     });
 
     window.KarpProfileEditor = initProfileEditor();
+    window.KarpMileageEditor = initMileageEditor();
     document.getElementById('nativeRefresh')?.addEventListener('click', () => window.loadCustomer?.({ targetScreen: 'profile' }));
     document.getElementById('nativeOpenSettings')?.addEventListener('click', () => api.openSettings().catch(() => {}));
     document.getElementById('nativeDeleteAccount')?.addEventListener('click', async (event) => {
