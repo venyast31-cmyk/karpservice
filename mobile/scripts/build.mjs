@@ -40,6 +40,8 @@ html,body,body *{touch-action:manipulation}
 .native-demo{border:1px solid #397d68;background:#103b30;border-radius:14px;padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:12px;font-size:13px;color:#d8f9eb}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
 .car-logo svg{width:38px;height:38px;color:#267b62}
+.car-logo.car-logo-approved{background:transparent;border:0;box-shadow:none;padding:2px;border-radius:0}
+.car-logo.car-logo-approved svg{display:block;width:100%;height:100%;overflow:hidden}
 .news-promo-image.native-promo-art{aspect-ratio:772/800;overflow:hidden}
 </style>`);
 replaceOnce('<div class="card profile-card">\n      <div class="profile-row">', '<div class="card profile-card">\n      <div class="profile-row profile-client-button" id="nativeEditProfile" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Редагувати дані клієнта">');
@@ -126,10 +128,20 @@ replaceOnce([
   "      throw new Error('Сервіс не повернув токен входу.');",
   "    }"
 ].join('\n'), "    if (data.session_stored !== true) throw new Error('Не вдалося зберегти вхід.');\n    clearLegacyAuthToken();");
-// Owner confirmed that no rights to automaker logos are held. Ship original neutral artwork.
+// User approved these eight transparent logo previews on 2026-10-12.
+// SVG viewports isolate each emblem without modifying the approved bitmap.
 const brandFunction = html.match(/function carBrandLogo\(car\)\{[\s\S]*?\n\}/)?.[0];
 if (!brandFunction) throw new Error('Car icon renderer not found');
-replaceOnce(brandFunction, `function carBrandLogo(){
+replaceOnce(brandFunction, `function carBrandLogo(car){
+  const brand = detectCarBrand(car);
+  const viewports = {
+    'mercedes-benz':'97 47 362 354', 'ford':'513 122 485 202',
+    'land-rover':'45 461 484 255', 'bmw':'575 404 361 355',
+    'audi':'39 856 501 186', 'volkswagen':'593 775 335 328',
+    'toyota':'59 1144 452 289', 'skoda':'585 1117 346 342'
+  };
+  const viewport = brand && viewports[brand.slug];
+  if (viewport) return '<div class="car-logo car-logo-approved"><svg viewBox="' + viewport + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></div>';
   return '<div class="car-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10 22 4-10h20l4 10M8 22h32v16H8zM15 38v4M33 38v4M8 28h7M33 28h7M4 22h4M40 22h4M19 33h10"/></svg></div>';
 }`);
 replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
