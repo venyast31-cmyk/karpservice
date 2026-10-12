@@ -1,3 +1,4 @@
+import { handleShop } from './shop.js';
 import { recordAnalytics, handleAnalytics } from './analytics.js';
 import { handleReviewAccount } from "./review-account.js";
 import { appleConfigured, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
@@ -1334,6 +1335,13 @@ var index_default = {
       if (analyticsResponse) return analyticsResponse;
       const reviewResponse = await handleReviewAccount(request, env, corsHeaders);
       if (reviewResponse) return reviewResponse;
+      const shopResponse = await handleShop(request, env, corsHeaders, { getCars: async customerId => {
+        const assets = await getCustomerAssets(env, customerId);
+        const orders = await getAllCustomerOrders(env, customerId);
+        const hidden = await getHiddenCustomerCars(env, customerId);
+        return mergeCustomerAssets(assets, orders.orders).filter(car => !isCustomerCarHidden(car, hidden));
+      }});
+      if (shopResponse) return shopResponse;
       const appleResponse = await handleAppleAuthRoute(request, env, corsHeaders);
       if (appleResponse) return appleResponse;
       const authResponse = await handleAuthRoute({
