@@ -59,7 +59,7 @@ jobs:
             CODE_SIGN_IDENTITY="$IOS_SIGNING_SHA1" \
             PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_UUID" \
             CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
-            MARKETING_VERSION=1.0 archive > "$RUNNER_TEMP/iphone-archive.log" 2>&1 \
+            MARKETING_VERSION=1.0.1 archive > "$RUNNER_TEMP/iphone-archive.log" 2>&1 \
             || { tail -80 "$RUNNER_TEMP/iphone-archive.log"; exit 1; }
           python3 scripts/verify-archive.py "$RUNNER_TEMP/Karpservice.xcarchive"
           codesign --verify --deep --strict "$RUNNER_TEMP/Karpservice.xcarchive/Products/Applications/App.app"
@@ -90,7 +90,7 @@ jobs:
             || { tail -80 "$RUNNER_TEMP/iphone-upload.log"; exit 1; }
           {
             echo '### Karpservice uploaded to App Store Connect'
-            echo "Version: 1.0 ($IOS_BUILD_NUMBER)"
+            echo "Version: 1.0.1 ($IOS_BUILD_NUMBER)"
             echo "Commit: $GITHUB_SHA"
             echo 'Apple must finish processing before the build can be used in TestFlight.'
             echo 'This workflow does not submit to App Review or release to the public.'

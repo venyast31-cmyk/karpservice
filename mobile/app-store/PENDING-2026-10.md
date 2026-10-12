@@ -1,6 +1,7 @@
 # Pending user-requested updates
 
-Preparation only. Collect the remaining changes before uploading to TestFlight.
+TestFlight upload authorized by the user on 2026-10-12. API changes and migrations 0008–0011 deployed successfully, preserving analytics (commit c0fb26f).
+Version 1.0 train was closed by Apple; upload version 1.0.1.
 App Store submission requires the user's later explicit instruction.
 
 - Prevent accidental double-tap zoom in the bundled iOS interface.
