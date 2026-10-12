@@ -1,0 +1,39 @@
+name: Verify shop connection
+on:
+  push:
+    branches: ['ops/shop-check']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read shop configuration through an ephemeral credential
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'JS'
+          import {randomBytes,createHash} from 'node:crypto';
+          const token=randomBytes(32).toString('base64url');
+          const origin='https://karpservice-api.venyast31.workers.dev';
+          const cf=`https://api.cloudflare.com/client/v4/accounts/${process.env.CF_ACCOUNT}/workers/scripts/karpservice-api/secrets`;
+          const headers={Authorization:`Bearer ${process.env.CF_TOKEN}`,'Content-Type':'application/json'};
+          const binding='SHOP_SETUP_TOKEN_SHA256';
+          try {
+            const r=await fetch(cf,{method:'PUT',headers,body:JSON.stringify({name:binding,type:'secret_text',text:createHash('sha256').update(token).digest('hex')})});
+            if(!r.ok)throw new Error(`Setup credential install: ${r.status}`);
+            await new Promise(r=>setTimeout(r,5000));
+            const setup=await fetch(origin+'/shop/setup',{headers:{'X-Shop-Setup':token}});
+            const result=await setup.json();
+            if(!setup.ok)throw new Error(`Setup read: ${setup.status}`);
+            console.log(JSON.stringify(result));
+            const catalog=await fetch(origin+'/shop/products?category=oil&page=1');
+            const data=await catalog.json();
+            console.log(JSON.stringify({catalog_status:catalog.status,products:data.products?.length,error:data.error,sample:data.products?.slice(0,1)}));
+          } finally {
+            const r=await fetch(cf+'/'+binding,{method:'DELETE',headers});
+            if(!r.ok)throw new Error(`Temporary credential cleanup: ${r.status}`);
+          }
+          JS
