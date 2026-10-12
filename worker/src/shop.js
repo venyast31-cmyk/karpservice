@@ -44,11 +44,12 @@ export function productView(p,id,now) {
   return {id,name:String(p.name||''),article:String(p.article||''),brand:String(p.brand||''),image:photo(p.default_image),price,step:Math.max(1,Math.ceil(step)),stocks};
 }
 async function supplier(env,path,params={}) {
-  if(!env.BUSMARKET_API_TOKEN) throw new Error('supplier_unconfigured');
+  const token=await supplierToken(env);
+  if(!token) throw new Error('supplier_unconfigured');
   const u=new URL('https://api.bm.parts'+path);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k,String(v));
   if(path!='/search/products/groups') for(const w of WAREHOUSES) u.searchParams.append('warehouses',w.id);
-  const r=await fetch(u,{headers:{Authorization:String(env.BUSMARKET_API_TOKEN).trim(),'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
+  const r=await fetch(u,{headers:{Authorization:token,'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
   if(!r.ok) throw new Error('supplier_'+r.status);
   return r.json();
 }
@@ -59,15 +60,16 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
     if(u.pathname==='/shop/setup') {
-      if(request.method!=='GET'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(request.headers.get('X-Shop-Setup')||''),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
-      const result={matches:await sha256Hex(String(env.BUSMARKET_API_TOKEN||'').trim())==='b3613e1d97e38016998caaf464a4949be334e7af7cf9a195f05d00d4525f083c'};
-      for(const path of ['/profile/me','/search/products?group='+encodeURIComponent(CATEGORIES[0].group)+'&per_page=1&save=false&with_extra=false']) {
-        const r=await fetch('https://api.bm.parts'+path,{headers:{Authorization:String(env.BUSMARKET_API_TOKEN||'').trim(),'User-Agent':'Karpservice/1.0',Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
-        result[path]={status:r.status,content_type:r.headers.get('Content-Type')};
-      }
-      return reply(result);
+      if(request.method!=='POST'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(request.headers.get('X-Shop-Setup')||''),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
+      const b=await request.json();
+      if(typeof b.token!=='string'||!/^[-A-Za-z0-9_.]{40,200}$/.test(b.token))return error('Некоректний ключ.');
+      const check=await fetch('https://api.bm.parts/profile/me',{headers:{Authorization:b.token,'User-Agent':'Karpservice/1.0',Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+      if(!check.ok)return error('Постачальник не прийняв ключ.',400);
+      const ciphertext=await sealToken(env,b.token);
+      await env.AUTH_DB.prepare('INSERT INTO integration_secrets(name,ciphertext,updated_at) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET ciphertext=excluded.ciphertext,updated_at=excluded.updated_at').bind('busmarket',ciphertext,Date.now()).run();
+      return reply({success:true});
     }
-    if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(env.BUSMARKET_API_TOKEN)});
+    if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(await supplierToken(env))});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
       const category=CATEGORIES.find(c=>c.id===u.searchParams.get('category'));
@@ -147,4 +149,20 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
 async function saveOrderState(env,id,status,crmId=null) {
   try {await env.AUTH_DB.prepare('UPDATE shop_orders SET status=?,crm_id=? WHERE public_id=?').bind(status,crmId,id).run();return true;}
   catch {console.error(JSON.stringify({event:'shop_state_pending',request:id}));return false;}
+}
+
+async function credentialKey(env) {
+  const raw=await crypto.subtle.importKey('raw',new TextEncoder().encode(env.SESSION_SECRET),'HKDF',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'HKDF',hash:'SHA-256',salt:new TextEncoder().encode('karpservice'),info:new TextEncoder().encode('shop-supplier-token-v1')},raw,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+export async function sealToken(env,value) {
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const bytes=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await credentialKey(env),new TextEncoder().encode(value)));
+  return btoa(String.fromCharCode(...iv))+'.'+btoa(String.fromCharCode(...bytes));
+}
+async function supplierToken(env) {
+  const row=await env.AUTH_DB.prepare('SELECT ciphertext FROM integration_secrets WHERE name=?').bind('busmarket').first();
+  if(!row)return String(env.BUSMARKET_API_TOKEN||'').trim();
+  const [iv,value]=row.ciphertext.split('.').map(s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0)));
+  return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},await credentialKey(env),value));
 }

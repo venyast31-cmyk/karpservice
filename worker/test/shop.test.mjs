@@ -67,7 +67,7 @@ test('prices, warehouse restriction and Kyiv delivery cutoffs',()=>{
 });
 test('checkout verifies ownership, price, stock and creates at most one CRM order per key',async()=>{
  const db=new MemoryD1();
- for(const f of ['0001_auth.sql','0012_shop.sql'])db.database.exec(await readFile(new URL('../migrations/'+f,import.meta.url),'utf8'));
+ for(const f of ['0001_auth.sql','0012_shop.sql','0013_shop_credentials.sql'])db.database.exec(await readFile(new URL('../migrations/'+f,import.meta.url),'utf8'));
  const token='S'.repeat(43),now=Math.floor(Date.now()/1000);
  db.database.prepare('INSERT INTO sessions(token_hash,phone,customer_id,customer_name,telegram_user_id,created_at,expires_at,last_used_at) VALUES(?,?,?,?,?,?,?,?)').run(createHash('sha256').update('session:'+token).digest('hex'),'380671234567',123,'Test','777',now,now+3600,now);
  const env={AUTH_DB:db,SESSION_SECRET:'test-session-secret',BUSMARKET_API_TOKEN:'supplier-key',ROAPP_API_KEY:'crm-key',ROAPP_BRANCH_ID:'136446',SHOP_ORDER_TYPE_ID:'225857',SHOP_MANAGER_IDS:'257253,213733'};
