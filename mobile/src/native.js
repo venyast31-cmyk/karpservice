@@ -1,3 +1,4 @@
+import { initProfileEditor } from './profile-editor.mjs';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -53,13 +54,7 @@ if (Capacitor.isNativePlatform()) {
     },
     didLogout: () => {
       generation += 1;
-      const nameForm = document.getElementById('nativeNameForm');
-      if (nameForm) { nameForm.reset(); nameForm.hidden = true; }
-      document.getElementById('nativeEditName')?.setAttribute('aria-expanded', 'false');
-      for (const id of ['nativeNameSaved', 'nativeNameStatus']) {
-        const message = document.getElementById(id);
-        if (message) message.textContent = '';
-      }
+      window.KarpProfileEditor?.reset();
       booking = null;
       demo.stop();
       reviewAccount = false;
@@ -149,50 +144,7 @@ if (Capacitor.isNativePlatform()) {
       } catch { /* Closing the share sheet is a normal action. */ }
     });
 
-    const nameForm = document.getElementById('nativeNameForm');
-    const nameInput = document.getElementById('nativeNameInput');
-    const editName = document.getElementById('nativeEditName');
-    editName?.addEventListener('click', () => {
-      nameInput.value = document.getElementById('profileName').textContent;
-      document.getElementById('nativeNameStatus').textContent = '';
-      document.getElementById('nativeNameSaved').textContent = '';
-      nameForm.hidden = false;
-      editName.setAttribute('aria-expanded', 'true');
-      nameInput.focus();
-      nameForm.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
-    document.getElementById('nativeCancelName')?.addEventListener('click', () => {
-      nameForm.hidden = true;
-      nameForm.reset();
-      editName.setAttribute('aria-expanded', 'false');
-      editName.focus();
-    });
-    nameForm?.addEventListener('submit', async event => {
-      event.preventDefault();
-      const save = document.getElementById('nativeSaveName');
-      if (save.disabled) return;
-      const status = document.getElementById('nativeNameStatus');
-      const name = nameInput.value.trim().replace(/\s+/gu, ' ');
-      if (!name || name.length > 160) { status.textContent = 'Введіть ім’я від 1 до 160 символів.'; return; }
-      const capturedGeneration = generation;
-      const cancel = document.getElementById('nativeCancelName');
-      save.disabled = cancel.disabled = editName.disabled = nameInput.disabled = true;
-      status.textContent = 'Зберігаємо…';
-      try {
-        const response = await window.KarpNative.request('account/name', { method: 'POST', body: JSON.stringify({ name }) });
-        const data = await response.json();
-        if (capturedGeneration !== generation) return;
-        if (!response.ok || !data.success) throw new Error(data.error || 'Не вдалося зберегти ім’я. Спробуйте ще раз.');
-        window.applyProfileName(data.name);
-        nameForm.hidden = true;
-        editName.setAttribute('aria-expanded', 'false');
-        document.getElementById('nativeNameSaved').textContent = 'Ім’я збережено.';
-      } catch (error) {
-        if (capturedGeneration === generation) status.textContent = error?.message || 'Не вдалося зберегти ім’я. Перевірте інтернет.';
-      } finally {
-        save.disabled = cancel.disabled = editName.disabled = nameInput.disabled = false;
-      }
-    });
+    window.KarpProfileEditor = initProfileEditor();
     document.getElementById('nativeRefresh')?.addEventListener('click', () => window.loadCustomer?.({ targetScreen: 'profile' }));
     document.getElementById('nativeOpenSettings')?.addEventListener('click', () => api.openSettings().catch(() => {}));
     document.getElementById('nativeDeleteAccount')?.addEventListener('click', async (event) => {

@@ -33,7 +33,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
     return json({ success: false, error: "\u0412\u043A\u0430\u0436\u0456\u0442\u044C \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443" }, 400, responseHeaders);
   }
   const customer = appleSession ? { id: appleSession.customer_id, first_name: appleSession.customer_name, email: appleSession.email } : await findCustomerByPhone(env, phone);
-  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
+  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, birth_date: appleSession.birth_date || '', phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
   if (!customer?.id) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
@@ -65,7 +65,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
       first_name: customer.first_name || customer.name || "",
       last_name: customer.last_name || "",
       phone: phone ? `+${phone}` : '',
-      ...(appleSession ? { email: appleSession.email } : {})
+      ...(appleSession ? { email: appleSession.email, birth_date: appleSession.birth_date || '' } : {})
     },
     cars,
     history_cars: historyCars,

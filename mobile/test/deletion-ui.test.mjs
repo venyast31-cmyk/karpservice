@@ -21,6 +21,7 @@ function harness({ confirm = true, fail = false, pause = false } = {}) {
   registerPlugin: () => ({}), App: { addListener: async () => {} },
   LocalNotifications: { getPending: async () => ({ notifications: [] }), cancel: async () => {} },
   Haptics: {}, Share: {}, ImpactStyle: {}, reminderDate() {}, notificationId() {}, createDemoSession,
+  initProfileEditor: () => ({ reset() {} }),
   createTransport: () => async (path, options) => {
     calls.push({ path, options });
     if (pause) await pending;

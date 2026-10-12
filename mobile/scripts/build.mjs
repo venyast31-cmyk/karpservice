@@ -18,10 +18,13 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
-.native-name-edit{display:inline-flex;width:auto;margin:8px 0 0;padding:8px 12px;font-size:14px;color:var(--mint);background:transparent;border:1px solid #397d68;border-radius:10px}
-.native-name-form{padding:18px;margin-top:16px;border:1px solid #303b40;border-radius:16px}
-.native-name-form[hidden]{display:none}.native-name-form input{width:100%;font-size:16px}
-.native-name-buttons{display:flex;gap:10px;margin-top:12px}.native-name-buttons button{flex:1}
+.profile-client-button{cursor:pointer}.profile-client-button:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
+.native-profile-dialog{width:calc(100% - 32px);max-width:460px;max-height:85dvh;overflow:auto;margin:auto;padding:22px;border:1px solid #35433f;border-radius:22px;background:#181f24;color:#f3f6f5;box-sizing:border-box;touch-action:manipulation}
+.native-profile-dialog::backdrop{background:rgba(0,0,0,.72)}
+.native-profile-dialog h2{margin:0 0 18px;font-size:24px}.native-profile-dialog input{width:100%;min-width:0;font-size:16px;box-sizing:border-box;color-scheme:dark}
+.native-profile-row{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;background:#222c2e;color:#fff;margin:10px 0;padding:16px;border:1px solid #35433f;border-radius:14px}
+.native-profile-row span{min-width:0}.native-profile-row small{display:block;color:#a1ada9;font-weight:400;margin-bottom:5px}.native-profile-row strong{display:block;overflow-wrap:anywhere;font-size:17px}.native-profile-row b{color:var(--mint)}
+.native-profile-buttons{display:flex;gap:10px;margin-top:16px}.native-profile-buttons button{flex:1}
 .native-links{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:22px 0;font-size:14px}
 .native-links a{color:#98cdb6;text-underline-offset:4px}
 .native-notice{padding:12px 16px;margin:12px 0;border:1px solid #f3b63f;border-radius:12px;color:#f3b63f}
@@ -37,22 +40,45 @@ html,body,body *{touch-action:manipulation}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
 .car-logo svg{width:38px;height:38px;color:#267b62}.native-promo{padding:28px;background:linear-gradient(150deg,#084d38,#0a3028);border:1px solid #30745d;border-radius:22px;color:#fff}.native-promo img{width:56px;border-radius:12px}.native-promo strong{display:block;font-size:32px;line-height:1.12;margin:24px 0 18px}.native-promo p{font-size:17px;color:#d9eddf;margin:0}
 </style>`);
-replaceOnce('<strong id="profileName">—</strong>', '<strong id="profileName">—</strong><button id="nativeEditName" class="native-name-edit" type="button" aria-controls="nativeNameForm" aria-expanded="false">Змінити ім’я</button>');
-replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <form id="nativeNameForm" class="native-name-form" hidden>
-      <label for="nativeNameInput">Ім’я в застосунку</label>
-      <input id="nativeNameInput" name="name" type="text" autocomplete="name" maxlength="160" required>
-      <div class="native-name-buttons"><button id="nativeSaveName" class="primary" type="submit">Зберегти</button><button id="nativeCancelName" class="secondary" type="button">Скасувати</button></div>
-      <p id="nativeNameStatus" class="native-note" role="status" aria-live="polite"></p>
-    </form>
-    <p id="nativeNameSaved" class="native-note" role="status" aria-live="polite"></p>
+replaceOnce('<div class="card profile-card">\n      <div class="profile-row">', '<div class="card profile-card">\n      <div class="profile-row profile-client-button" id="nativeEditProfile" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Редагувати дані клієнта">');
+replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `
+    <dialog id="nativeProfileDialog" class="native-profile-dialog" aria-labelledby="nativeProfileTitle">
+      <h2 id="nativeProfileTitle">Дані клієнта</h2>
+      <button id="nativeChooseName" class="native-profile-row" type="button"><span><small>Ім’я</small><strong id="nativeProfileNameValue">—</strong></span><b aria-hidden="true">›</b></button>
+      <button id="nativeChoosePhone" class="native-profile-row" type="button"><span><small>Номер телефону</small><strong id="nativeProfilePhoneValue">—</strong></span><b aria-hidden="true">›</b></button>
+      <button id="nativeChooseBirth" class="native-profile-row" type="button"><span><small>Дата народження</small><strong id="nativeProfileBirthValue">Не вказано</strong></span><b aria-hidden="true">›</b></button>
+      <p id="nativeProfileSaved" class="native-note" role="status"></p>
+      <button id="nativeCloseProfile" class="secondary" type="button">Закрити</button>
+    </dialog>
+    <dialog id="nativeFieldDialog" class="native-profile-dialog" aria-labelledby="nativeFieldTitle">
+      <form id="nativeFieldForm">
+        <h2 id="nativeFieldTitle">Редагування</h2>
+        <label id="nativeFieldLabel" for="nativeFieldInput">Ім’я</label>
+        <input id="nativeFieldInput" type="text" maxlength="160">
+        <p id="nativeFieldStatus" class="native-note" role="status" aria-live="polite"></p>
+        <div class="native-profile-buttons"><button id="nativeFieldSave" class="primary" type="submit">Зберегти</button><button id="nativeFieldCancel" class="secondary" type="button">Скасувати</button></div>
+      </form>
+    </dialog>
+    <dialog id="nativePhoneDialog" class="native-profile-dialog" aria-labelledby="nativePhoneTitle">
+      <h2 id="nativePhoneTitle">Номер телефону</h2>
+      <p class="native-note">Введіть новий номер та підтвердьте його кодом із Telegram. До підтвердження діятиме попередній номер.</p>
+      <div id="nativePhoneContainer"></div>
+      <button id="nativePhoneCancel" class="secondary" type="button">Скасувати</button>
+    </dialog>
     <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>`);
-replaceOnce('function renderProfile(){', `window.applyProfileName = function(name){
+replaceOnce('function renderProfile(){', `window.getEditableProfile = () => ({
+  name: [customerData?.customer?.first_name, customerData?.customer?.last_name].filter(Boolean).join(' '),
+  phone: customerData?.customer?.phone || '',
+  birth_date: customerData?.customer?.birth_date || ''
+});
+window.applyProfileField = function(field, value){
   if (!customerData?.customer) return;
-  customerData.customer.first_name = name;
-  customerData.customer.last_name = '';
+  if (field === 'name') { customerData.customer.first_name = value; customerData.customer.last_name = ''; }
+  if (field === 'birth_date') customerData.customer.birth_date = value;
   renderProfile();
 };
 function renderProfile(){`);
+replaceOnce("    authChallengeId = '';\n    await loadCustomer();", "    authChallengeId = '';\n    await loadCustomer(window.KarpProfileEditor?.editingPhone ? {targetScreen:'profile'} : {});\n    window.KarpProfileEditor?.phoneSaved();");
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>\n<div id="nativeDemoBanner" class="native-demo" role="status" hidden><div><strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.</div><button id="nativeDemoExit" class="secondary" type="button">Вийти</button></div>');
 replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Увійдіть через Apple. Потім підключіть номер телефону, щоб побачити свої авто та історію обслуговування.');
 replaceOnce('    <div id="phoneAuthStep" class="card auth-step">', `    <button id="nativeAppleLogin" class="apple-login" type="button" aria-label="Увійти через Apple">Увійти через Apple</button>
@@ -145,7 +171,8 @@ replaceOnce(phoneFlow, `  </section>
   <section id="phoneLink" class="screen">
     <h1>Підключіть номер телефону</h1>
     <p>Підтвердьте номер через Telegram. За ним знайдемо ваші авто та історію у Karpservice.</p>
-${phoneFlow}`);
+<div id="nativePhoneFlow">
+${phoneFlow.replace(/\n  <\/section>$/, '\n</div>\n  </section>')}`);
 html = html.replace('>Увійти</button>', '>Підтвердити номер</button>');
 html = html.replace("btn.textContent = 'Увійти';", "btn.textContent = 'Підтвердити номер';");
 await writeFile(`${out}/index.html`, html);

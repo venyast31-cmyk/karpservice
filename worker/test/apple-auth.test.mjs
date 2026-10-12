@@ -19,7 +19,7 @@ const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 
 async function setup({ redirectPath } = {}) {
   const db = new DatabaseSync(':memory:');
-  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql', '0008_profile_name.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql', '0008_profile_name.sql', '0009_profile_birth_date.sql', '0010_unique_verified_phone.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const signing = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const kid = randomUUID();
@@ -274,4 +274,54 @@ test('profile names persist across login and CRM name refresh, scoped to the aut
     assert.equal((await (await t.call('', 'GET', null, next.token)).json()).customer.first_name, 'Євгеній Карпенко');
     assert.equal((await t.call('account/name', 'POST', {name:'Stale'}, auth.token)).status, 401);
   } finally { t.close(); }
+});
+
+
+test('birth date validates real calendar dates and persists only on the authenticated profile', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), {sub:'birthday-other'})).response.json();
+    for (const birth_date of ['2023-02-29','2000-02-30','2100-01-01','1899-01-01',null,123,'12.10.2000']) {
+      assert.equal((await t.call('account/birth-date','POST',{birth_date},auth.token)).status,400);
+    }
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:'2000-02-29'})).status,401);
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:'2000-02-29',customer_id:999},auth.token)).status,200);
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.birth_date,'2000-02-29');
+    assert.equal((await (await t.call('','GET',null,other.token)).json()).customer.birth_date,'');
+    await t.call('auth/logout','POST',{},auth.token);
+    const next = await (await t.complete(await t.start())).response.json();
+    assert.equal((await (await t.call('','GET',null,next.token)).json()).customer.birth_date,'2000-02-29');
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:''},next.token)).status,200);
+    assert.equal((await (await t.call('','GET',null,next.token)).json()).customer.birth_date,'');
+  } finally {t.close();}
+});
+
+test('phone changes require account-bound Telegram proof and retain existing CRM ownership', async () => {
+  const t = await setup(); t.env.APPLE_ONLY_AUTH='true';
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), {sub:'phone-other'})).response.json();
+    const verify = async phone => {
+      const proof = await (await t.call('auth/request','POST',{phone},auth.token)).json();
+      const code = JSON.parse(t.calls.filter(x=>x.url.includes('sendMessage')).at(-1).body).text.match(/\b\d{6}\b/)[0];
+      return {proof,code};
+    };
+    for (const phone of ['380670000000','380671111111','380672222222']) t.db.prepare('INSERT INTO telegram_links VALUES(?,?,?,?,?)').run(phone,phone,phone,timestamp(),timestamp());
+    let {proof,code} = await verify('380670000000');
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,200);
+    ({proof,code} = await verify('380671111111'));
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.phone,'+380670000000');
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},other.token)).status,401);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code:code==='000000'?'000001':'000000'},auth.token)).status,401);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,200);
+    const profile = await (await t.call('','GET',null,auth.token)).json();
+    assert.equal(profile.customer.phone,'+380671111111');
+    assert.equal(profile.customer.id,123);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,401);
+    t.db.prepare("UPDATE apple_accounts SET phone='380672222222' WHERE customer_id IS NULL").run();
+    ({proof,code} = await verify('380672222222'));
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,409);
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.phone,'+380671111111');
+  } finally {t.close();}
 });
