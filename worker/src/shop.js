@@ -1,4 +1,3 @@
-import { reconcileShop } from './shop-reconcile.js';
 import { requireAuthSession, consumeRateLimit } from './auth.js';
 import { CATEGORIES } from './shop-catalog.js';
 export { CATEGORIES };
@@ -72,7 +71,6 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
-    const repair=await reconcileShop(request,env,headers);if(repair)return repair;
     if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(publicCategory),configured:Boolean(await supplierToken(env))});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
