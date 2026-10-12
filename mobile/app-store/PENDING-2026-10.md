@@ -4,6 +4,7 @@ Preparation only. Collect the remaining changes before uploading to TestFlight.
 App Store submission requires the user's later explicit instruction.
 
 - Prevent accidental double-tap zoom in the bundled iOS interface.
+- On News, show «Новини» beside the top logo and remove the duplicate heading below. Other screens keep Karpservice.
 - Add the eight user-approved transparent emblem previews: Mercedes-Benz, Ford, Land Rover, BMW, Audi, Volkswagen, Toyota, Škoda. Each card displays its matching sprite region on the existing dark card, without a white tile; all other catalogued makes now use the existing matching brand assets (69 makes total). Four opaque originals use a luminance-to-alpha SVG filter for a white emblem on transparent surroundings; dark monochrome logos are lightened for dark cards. Only unknown makes retain the neutral fallback. User explicitly approved these assets on 2026-10-12. This records visual approval, not a trademark license.
 - Remove per-car booking buttons from the Cars tab; central booking remains.
 - Show editable mileage under VIN, using the latest available recorded reading until the customer saves an app-specific value. Saves validate current ownership and persist by customer ID and VIN (asset ID fallback). CRM order readings remain unchanged.

@@ -11,6 +11,9 @@ const replaceOnce = (search, value) => {
   if (html.split(search).length !== 2) throw new Error(`Frontend changed; review mobile insertion: ${search.slice(0, 100)}`);
   html = html.replace(search, value);
 };
+replaceOnce('<span>Karpservice</span></div>', '<span id="nativeBrandTitle">Karpservice</span></div>');
+replaceOnce('<h1 class="news-feed-title">Новини</h1>', '');
+replaceOnce("  if (el) el.classList.add('active');", "  if (el) el.classList.add('active');\n  const brandTitle = document.getElementById('nativeBrandTitle');\n  if (brandTitle) brandTitle.textContent = id === 'home' ? 'Новини' : 'Karpservice';");
 replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Karpservice — Онлайн-запис</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <script src="native.js"></script>
