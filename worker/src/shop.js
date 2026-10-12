@@ -63,11 +63,11 @@ export async function handleShop(request,env,headers,dependencies={}) {
       const token=request.headers.get('X-Shop-Setup')||'';
       if(request.method!=='GET'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(token),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
       const result={supplier_configured:Boolean(env.BUSMARKET_API_TOKEN)};
-      for(const path of ['/v2/orders/types','/v2/employees','/employees','/v2/users']) {
+      for(const path of ['/v2/orders/types','/v2/company/employees','/v2/orders/custom-fields']) {
         const r=await fetch('https://api.roapp.io'+path,{headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,Accept:'application/json'},signal:AbortSignal.timeout(10000)});
         const d=await r.json().catch(()=>({}));
         const rows=Array.isArray(d)?d:(Array.isArray(d.data)?d.data:[]);
-        result[path]={status:r.status,keys:Object.keys(d),items:rows.map(x=>({id:x.id,name:x.name,first_name:x.first_name,last_name:x.last_name,active:x.active,branch_ids:x.branch_ids}))};
+        result[path]={status:r.status,keys:Object.keys(d),items:path.includes('employees')?rows.map(x=>({keys:Object.keys(x),id:x.id,name:x.name,title:x.title,full_name:x.full_name,first_name:x.first_name,last_name:x.last_name,is_active:x.is_active,active:x.active,branch_ids:x.branch_ids})):rows};
         await new Promise(resolve=>setTimeout(resolve,400));
       }
       return reply(result);
