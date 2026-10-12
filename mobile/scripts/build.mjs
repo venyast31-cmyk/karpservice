@@ -167,11 +167,14 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
 replaceOnce('<section id="home" class="screen">', `<section id="home" class="screen">
     <article class="news-card">
       <img class="news-promo-image" style="aspect-ratio:auto" src="mechanic-vacancy-green.png" alt="Karpservice: шукаємо автомеханіка в команду, Бориспіль" loading="lazy" />
-      <div class="news-description" style="padding-right:2px">
+      <div class="news-description">
         <div class="news-kicker">Вакансія · Бориспіль</div>
         <h2>Шукаємо автомеханіка в команду Karpservice!</h2>
         <p>Любиш автомобілі та вмієш якісно їх ремонтувати? Приєднуйся до нашої команди в Борисполі. Розкажи про свій досвід — обговоримо роботу, графік та оплату особисто.</p>
-        <div class="news-details">
+        <button class="news-more" type="button" aria-label="Показати контакти" aria-expanded="false" aria-controls="mechanicVacancyDetails" onclick="toggleNewsDetails('mechanicVacancyDetails', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+        </button>
+        <div id="mechanicVacancyDetails" class="news-details" hidden>
           <p><strong>Адреса:</strong> м. Бориспіль, вул. Київський Шлях, 10.</p>
           <p><strong>Телефонуй:</strong> <a href="tel:+380734447344">073 44 47 344</a></p>
         </div>
