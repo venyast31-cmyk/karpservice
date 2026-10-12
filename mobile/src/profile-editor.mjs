@@ -1,6 +1,13 @@
 export function initProfileEditor() {
   const el = id => document.getElementById(id);
   const summary = el('nativeProfileDialog');
+  const trigger = el('nativeEditProfile');
+  // WebKit can restore :focus-visible after closing a dialog with a text field.
+  // Show the ring only for keyboard navigation, never after a touchscreen tap.
+  document.addEventListener('pointerdown', () => trigger.classList.remove('keyboard-focus'), true);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Tab') trigger.classList.add('keyboard-focus');
+  }, true);
   const fieldDialog = el('nativeFieldDialog');
   const phoneDialog = el('nativePhoneDialog');
   const input = el('nativeFieldInput');

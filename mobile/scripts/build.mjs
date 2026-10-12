@@ -21,7 +21,7 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
-.profile-client-button{cursor:pointer}.profile-client-button:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
+.profile-client-button{cursor:pointer}.profile-client-button:focus{outline:none}.profile-client-button.keyboard-focus:focus-visible{outline:2px solid var(--mint);outline-offset:-3px}
 .native-mileage{display:block;width:auto;max-width:100%;padding:8px 0;margin:3px 0 0;border:0;background:transparent;color:var(--mint);font-size:14px;text-align:left;line-height:1.4}.native-mileage span{margin-left:4px}
 .native-profile-dialog{width:calc(100% - 32px);max-width:460px;max-height:85dvh;overflow:auto;margin:auto;padding:22px;border:1px solid #35433f;border-radius:22px;background:#181f24;color:#f3f6f5;box-sizing:border-box;touch-action:manipulation}
 .native-profile-dialog::backdrop{background:rgba(0,0,0,.72)}
@@ -42,10 +42,11 @@ html,body,body *{touch-action:manipulation}
 .native-ios::after{content:"";position:fixed;z-index:10000;top:0;right:0;left:0;height:env(safe-area-inset-top,0px);background:#0d1014;pointer-events:none}
 .native-demo{border:1px solid #397d68;background:#103b30;border-radius:14px;padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:12px;font-size:13px;color:#d8f9eb}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
-.car-logo svg{width:38px;height:38px;color:#267b62}
+.car-logo > svg{width:38px;height:38px;color:#267b62}
 .car-logo.car-logo-approved{background:transparent;border:0;box-shadow:none;padding:2px;border-radius:0}
 .car-logo-light{filter:brightness(0) invert(1)}
-.car-logo.car-logo-approved svg{display:block;width:100%;height:100%;overflow:hidden}
+.car-logo.car-logo-approved > svg{display:block;width:100%;height:100%;overflow:hidden}
+.car-logo-crop{overflow:hidden}
 .news-promo-image.native-promo-art{aspect-ratio:772/800;overflow:hidden}
 </style>`);
 replaceOnce('<div class="card profile-card">\n      <div class="profile-row">', '<div class="card profile-card">\n      <div class="profile-row profile-client-button" id="nativeEditProfile" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Редагувати дані клієнта">');
@@ -145,7 +146,12 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
     'toyota':'59 1144 452 289', 'skoda':'585 1117 346 342'
   };
   const viewport = brand && viewports[brand.slug];
-  if (viewport) return '<div class="car-logo car-logo-approved"><svg viewBox="' + viewport + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></div>';
+  if (viewport) {
+    const [, , width, height] = viewport.split(' ').map(Number);
+    // The outer SVG fits the emblem into the square card slot. The inner SVG
+    // clips to the exact sprite rectangle, excluding neighbours in letterboxing.
+    return '<div class="car-logo car-logo-approved"><svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><svg class="car-logo-crop" viewBox="' + viewport + '" width="' + width + '" height="' + height + '" overflow="hidden"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></svg></div>';
+  }
   if (brand) {
     const opaque = {"omoda": [256, 256], "lada": [611, 256], "genesis": [661, 256], "jetour": [1584, 256]};
     const light = ['ram','cupra','jaguar','zeekr','nissan','polestar','cadillac','maserati','hummer'];
@@ -158,6 +164,19 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
   }
   return '<div class="car-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10 22 4-10h20l4 10M8 22h32v16H8zM15 38v4M33 38v4M8 28h7M33 28h7M4 22h4M40 22h4M19 33h10"/></svg></div>';
 }`);
+replaceOnce('<section id="home" class="screen">', `<section id="home" class="screen">
+    <article class="news-card">
+      <img class="news-promo-image" style="aspect-ratio:auto" src="mechanic-vacancy-green.png" alt="Karpservice: шукаємо автомеханіка в команду, Бориспіль" loading="lazy" />
+      <div class="news-description" style="padding-right:2px">
+        <div class="news-kicker">Вакансія · Бориспіль</div>
+        <h2>Шукаємо автомеханіка в команду Karpservice!</h2>
+        <p>Любиш автомобілі та вмієш якісно їх ремонтувати? Приєднуйся до нашої команди в Борисполі. Розкажи про свій досвід — обговоримо роботу, графік та оплату особисто.</p>
+        <div class="news-details">
+          <p><strong>Адреса:</strong> м. Бориспіль, вул. Київський Шлях, 10.</p>
+          <p><strong>Телефонуй:</strong> <a href="tel:+380734447344">073 44 47 344</a></p>
+        </div>
+      </div>
+    </article>`);
 replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
 replaceOnce('    <button class="secondary" onclick="openCars()">До моїх авто</button>', `    <div id="nativeBookingActions" class="native-actions" hidden>
       <button id="nativeReminder" class="primary" type="button">Нагадати про запис</button>
@@ -168,7 +187,6 @@ replaceOnce('    <button class="secondary" onclick="openCars()">До моїх а
     <button class="secondary" onclick="openCars()">До моїх авто</button>`);
 replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <div class="native-actions">
       <button id="nativeLinkPhone" class="primary" type="button" onclick="resetAuthFlow(); show('phoneLink')">Підключити номер телефону</button>
-      <button id="nativeRefresh" class="secondary" type="button">Оновити дані</button>
       <button id="nativeClearReminders" class="secondary" type="button">Видалити мої нагадування</button>
       <button id="nativeOpenSettings" class="secondary" type="button">Налаштування сповіщень</button>
       <button id="nativeDeleteAccount" class="secondary" type="button">Видалити профіль і дані</button>
