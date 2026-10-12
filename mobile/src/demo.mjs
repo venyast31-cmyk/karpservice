@@ -39,7 +39,7 @@ export function createDemoSession(liveRequest) {
         const id = Number(body.car_id);
         if (!state.cars.some(car => car.id === id)) return reject('Авто не знайдено.', 404);
         state.hidden.add(id);
-        return reply({ success: true, message: 'Демоавто приховано. Історія доступна у вкладці «Історія».' });
+        return reply({ success: true, message: 'Демоавто приховано. Його історія доступна у вкладці «Авто», у розділі «Попередні автомобілі».' });
       }
       if (route === 'booking' && method === 'POST') {
         const car = state.cars.find(item => `${item.brand} ${item.model}` === body.car && !state.hidden.has(item.id));

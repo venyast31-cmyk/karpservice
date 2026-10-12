@@ -134,6 +134,11 @@
   .car{display:block;margin:0 0 10px;cursor:default;padding:18px}
   .car-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
   .car .car-top{cursor:pointer}
+  .car{position:relative}
+  .car-history-link{width:auto;margin:14px 0 0;padding:0;border:0;background:transparent;color:var(--mint);text-align:left;font-size:14px}
+  .car-history-link::after{content:'';position:absolute;inset:0;border-radius:inherit}
+  .car-history-link:focus-visible::after{outline:2px solid var(--mint);outline-offset:3px}
+  .car .delete-car-button,.car .native-mileage{position:relative;z-index:1}
   .car-main{display:flex;align-items:flex-start;gap:14px;min-width:0}
   .car-info{min-width:0}
   .car-logo{
@@ -233,7 +238,7 @@
   .profile-copy strong{display:block;font-size:16px;word-break:break-word}
   .bottom-nav{
     position:fixed;z-index:900;left:50%;bottom:max(6px,calc(env(safe-area-inset-bottom,0px) - 12px));
-    width:min(436px,calc(100vw - 20px));display:none;grid-template-columns:repeat(5,1fr);align-items:end;gap:2px;
+    width:min(436px,calc(100vw - 20px));display:none;grid-template-columns:repeat(4,1fr);align-items:end;gap:2px;
     padding:8px 7px 7px;transform:translateX(-50%);border-radius:24px;
     background:rgba(23,28,34,.94);border:1px solid rgba(78,89,102,.72);
     box-shadow:0 18px 44px rgba(0,0,0,.48);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)
@@ -468,6 +473,7 @@
     <button class="secondary add-car-button" type="button" onclick="openAddCar()">+ Додати автомобіль за VIN</button>
     <div id="carsStatus" class="status"></div>
     <div id="carsList"></div>
+    <div id="archivedCarsList"></div>
   </section>
 
   <section id="addCar" class="screen">
@@ -490,7 +496,7 @@
     <h1 id="historyTitle">Історія авто</h1>
     <div id="historyCarMeta" class="small"></div>
     <div id="historyList"></div>
-    <button class="primary" onclick="startBooking(selectedCarId)">Записати це авто на сервіс</button>
+    <button id="historyBookingButton" class="primary" onclick="startBooking(selectedCarId)">Записати це авто на сервіс</button>
   </section>
 
   <section id="allHistory" class="screen">
@@ -641,10 +647,6 @@
     </span>
     <span class="bottom-nav-label">Запис</span>
   </button>
-  <button id="historyNav" type="button" onclick="openAllHistory()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
-    <span class="bottom-nav-label">Історія</span>
-  </button>
   <button id="profileNav" type="button" onclick="show('profile')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20v-1.6A5.4 5.4 0 0 1 10.9 13h2.2a5.4 5.4 0 0 1 5.4 5.4V20"/></svg>
     <span class="bottom-nav-label">Профіль</span>
@@ -785,7 +787,7 @@ function show(id){
   const navByScreen = {
     home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
-    allHistory:'historyNav', history:'historyNav', order:'historyNav',
+    allHistory:'carsNav', history:'carsNav', order:'carsNav',
     profile:'profileNav'
   };
   const activeNav = navByScreen[id] || '';
@@ -1334,6 +1336,15 @@ async function loadCustomer(options={}){
 
 function renderCustomer(){
   const cars = customerData?.cars || [];
+  const activeIds = new Set(cars.map(car => String(car.id)));
+  const archivedCars = (customerData?.history_cars || []).filter(car => !activeIds.has(String(car.id)) && car.history?.length);
+  document.getElementById('archivedCarsList').innerHTML = archivedCars.length
+    ? `<h2 class="section-title">Попередні автомобілі</h2>${archivedCars.map(car => `
+        <button class="secondary" type="button" onclick="openHistory(${Number(car.id)})">
+          ${escapeHtml(carName(car))}<br><span class="small">${escapeHtml(car.vin || '')}</span><br>
+          <span class="small">Історія обслуговування →</span>
+        </button>`).join('')}`
+    : '';
 
   const list = document.getElementById('carsList');
   const heading = document.getElementById('carsHeading');
@@ -1373,6 +1384,8 @@ function renderCustomer(){
             </div>
           </div>
           ${active ? `<div style="margin-top:12px"><span class="pill warn">Активний запис: ${escapeHtml(latest.status || 'Новий')}</span></div>` : ''}
+          <button class="car-history-link" type="button" onclick="openHistory(${Number(car.id)})"
+            aria-label="Історія обслуговування ${escapeHtml(title)}">Історія обслуговування <span aria-hidden="true">→</span></button>
         </div>
         <button class="primary action-primary" type="button" onclick="startBooking(${Number(car.id)})">
           <span class="action-icon">${UI_ICONS.calendar}</span>
@@ -1456,9 +1469,11 @@ function selectBookingCar(value){
 }
 
 function openHistory(carId){
-  selectedCarId = carId;
-  const car = getCar(carId);
+  const activeCar = getCar(carId);
+  const car = activeCar || (customerData?.history_cars || []).find(car => String(car.id) === String(carId));
   if (!car) return;
+  selectedCarId = carId;
+  document.getElementById('historyBookingButton').hidden = !activeCar;
 
   document.getElementById('historyTitle').textContent = carName(car);
   document.getElementById('historyCarMeta').innerHTML =
