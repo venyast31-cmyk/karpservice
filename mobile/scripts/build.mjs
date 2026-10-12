@@ -15,6 +15,9 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <script src="native.js"></script>
 <style>
+/* Prevent accidental double-tap zoom, including inside nested scroll areas.
+   Keep normal scrolling and deliberate pinch-to-zoom available. */
+html,body,body *{touch-action:manipulation}
 .native-links{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:22px 0;font-size:14px}
 .native-links a{color:#98cdb6;text-underline-offset:4px}
 .native-notice{padding:12px 16px;margin:12px 0;border:1px solid #f3b63f;border-radius:12px;color:#f3b63f}
