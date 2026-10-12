@@ -3,7 +3,7 @@ import {createHash,webcrypto} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import test from 'node:test';
-import {handleShop,retailPrice,delivery,WAREHOUSES,productView,CATEGORIES,findCategory} from '../src/shop.js';
+import {handleShop,retailPrice,delivery,WAREHOUSES,productView,CATEGORIES,findCategory,shopDueDate} from '../src/shop.js';
 if(!globalThis.crypto)globalThis.crypto=webcrypto;
 class D1Statement {
   constructor(database, sql, values = []) {
@@ -86,7 +86,7 @@ test('checkout verifies ownership, price, stock and creates at most one CRM orde
   assert.equal((await send({...body,car_id:999})).status,403);
   assert.equal((await send({...body,items:[{...body.items[0],price:1}]})).status,409);
   assert.equal((await send({...body,items:[{...body.items[0],quantity:6}]})).status,409);
-  const first=await(await send(body)).json();assert.equal(first.success,true);assert.equal(crmBody.client_id,123);assert.match(crmBody.manager_notes,/TESTVIN/);
+  const first=await(await send(body)).json();assert.equal(first.success,true);assert.equal(crmBody.client_id,123);assert.match(crmBody.due_date,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);assert.ok(Date.parse(crmBody.due_date)>Date.now());assert.match(crmBody.manager_notes,/TESTVIN/);
   const second=await(await send(body)).json();assert.equal(second.order.public_id,first.order.public_id);assert.equal(calls,1);
   // An uncertain CRM response stays durable and must not repeat the write.
   db.database.exec('DELETE FROM rate_limits');fail=true;const uncertain={...body,key:crypto.randomUUID()};
@@ -118,4 +118,10 @@ test('photo subgroups restrict blades and never expose warehouse names to custom
   await request('products?category=wipers');assert.equal(group,leaf.group);
   assert.equal((await request('products?category='+encodeURIComponent('wipers:Система склоочисника/Важелі склоочисника'))).status,400);
  }finally{globalThis.fetch=original;}
+});
+
+test('CRM deadline uses whole-second ISO, Kyiv time and skips weekends across DST',()=>{
+ assert.equal(shopDueDate(new Date('2026-10-12T21:45:00Z')),'2026-10-14T15:00:00Z');
+ assert.equal(shopDueDate(new Date('2026-10-23T10:00:00Z')),'2026-10-26T16:00:00Z');
+ assert.equal(shopDueDate(new Date('2026-03-27T10:00:00Z')),'2026-03-30T15:00:00Z');
 });

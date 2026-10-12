@@ -40,6 +40,9 @@ retail prices, warehouses, expected delivery text, selected vehicle/VIN and
 customer comment. `estimated_price` contains the total. Managers manually
 confirm and add inventory line items as needed; supplier stock is not CRM stock.
 No appointment times or workshop resources are reserved for shop orders.
+The CRM requires `due_date` for this company. Shop orders set an internal
+processing deadline of 18:00 Europe/Kyiv on the next weekday (whole-second ISO
+UTC, including DST). This is independent of the customer delivery estimate.
 
 ## Duplicate and uncertain submissions
 
@@ -63,5 +66,7 @@ handling, as specified in the deletion notification.
 Worker tests cover price calculation, warehouse filtering, Kyiv cutoff times,
 weekend fallback, identity ownership, stale price/stock rejection, and repeated
 or uncertain checkout submissions. Review accounts have an isolated fictional
-shop and never reach BM Parts or CRM. No real customer order was created during
-these tests.
+shop and never reach BM Parts or CRM. Automated tests use no real customer orders. The reported request
+77fbbca2-9ba4-41e1-945d-5a02498bb1f0 was reconciled on 2026-10-13:
+CRM rejected the missing due_date with HTTP 400; after the fix the same stored
+request created CRM order 63277367 with HTTP 201. No duplicate was created.
