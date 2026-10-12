@@ -38,7 +38,8 @@ html,body,body *{touch-action:manipulation}
 .native-ios::after{content:"";position:fixed;z-index:10000;top:0;right:0;left:0;height:env(safe-area-inset-top,0px);background:#0d1014;pointer-events:none}
 .native-demo{border:1px solid #397d68;background:#103b30;border-radius:14px;padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:12px;font-size:13px;color:#d8f9eb}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
-.car-logo svg{width:38px;height:38px;color:#267b62}.native-promo{padding:28px;background:linear-gradient(150deg,#084d38,#0a3028);border:1px solid #30745d;border-radius:22px;color:#fff}.native-promo img{width:56px;border-radius:12px}.native-promo strong{display:block;font-size:32px;line-height:1.12;margin:24px 0 18px}.native-promo p{font-size:17px;color:#d9eddf;margin:0}
+.car-logo svg{width:38px;height:38px;color:#267b62}
+.news-promo-image.native-promo-art{aspect-ratio:772/800;overflow:hidden}
 </style>`);
 replaceOnce('<div class="card profile-card">\n      <div class="profile-row">', '<div class="card profile-card">\n      <div class="profile-row profile-client-button" id="nativeEditProfile" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Редагувати дані клієнта">');
 replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `
@@ -106,7 +107,7 @@ if (!brandFunction) throw new Error('Car icon renderer not found');
 replaceOnce(brandFunction, `function carBrandLogo(){
   return '<div class="car-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10 22 4-10h20l4 10M8 22h32v16H8zM15 38v4M33 38v4M8 28h7M33 28h7M4 22h4M40 22h4M19 33h10"/></svg></div>';
 }`);
-replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<div class="native-promo"><img src="logo.jpg" alt="Karpservice"><strong>Безкоштовна заміна мастила та фільтрів</strong><p>При купівлі мастила та фільтрів у Karpservice</p></div>');
+replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
 replaceOnce('    <button class="secondary" onclick="openCars()">До моїх авто</button>', `    <div id="nativeBookingActions" class="native-actions" hidden>
       <button id="nativeReminder" class="primary" type="button">Нагадати про запис</button>
       <button id="nativeShareBooking" class="secondary" type="button">Поділитися записом</button>

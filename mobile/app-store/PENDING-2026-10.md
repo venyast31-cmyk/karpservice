@@ -4,6 +4,7 @@ Preparation only. Collect the remaining changes before uploading to TestFlight.
 App Store submission requires the user's later explicit instruction.
 
 - Prevent accidental double-tap zoom in the bundled iOS interface.
+- Replace the generic oil-promotion panel with the exact customer-supplied banner. The original JPEG is bundled unmodified; an SVG viewport displays only its banner region, avoiding duplicate screenshot navigation.
 - Tap the client row to open profile details; open separate name, phone and birth-date dialogs.
 - Persist name and optional birth date on the Apple-backed app profile.
 - Verify phone changes through account-bound Telegram OTP before saving. Preserve the existing CRM customer ID, cars and history; reject a number associated with another CRM contact or Apple account.
