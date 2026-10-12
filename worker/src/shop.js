@@ -1,4 +1,4 @@
-import { requireAuthSession, consumeRateLimit } from './auth.js';
+import { requireAuthSession, consumeRateLimit, sha256Hex, safeEqual } from './auth.js';
 export const CATEGORIES = [
   {id:'oil',name:'Оливи та технічні рідини',group:'ОЛИВА, ЗМАЗКА  І ТЕХНІЧНІ РІДИНИ',image:'m/z/g/x/f/fb805475.png'},
   {id:'electric',name:'Електрика',group:'ЕЛЕКТРИКА',image:'b/i/g/m/d/b239842f.png'},
@@ -48,7 +48,7 @@ async function supplier(env,path,params={}) {
   const u=new URL('https://api.bm.parts'+path);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k,String(v));
   if(path!='/search/products/groups') for(const w of WAREHOUSES) u.searchParams.append('warehouses',w.id);
-  const r=await fetch(u,{headers:{Authorization:env.BUSMARKET_API_TOKEN,'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
+  const r=await fetch(u,{headers:{Authorization:String(env.BUSMARKET_API_TOKEN).trim(),'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
   if(!r.ok) throw new Error('supplier_'+r.status);
   return r.json();
 }
@@ -58,6 +58,15 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
+    if(u.pathname==='/shop/setup') {
+      if(request.method!=='GET'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(request.headers.get('X-Shop-Setup')||''),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
+      const result={matches:await sha256Hex(String(env.BUSMARKET_API_TOKEN||'').trim())==='b3613e1d97e38016998caaf464a4949be334e7af7cf9a195f05d00d4525f083c'};
+      for(const path of ['/profile/me','/search/products?group='+encodeURIComponent(CATEGORIES[0].group)+'&per_page=1&save=false&with_extra=false']) {
+        const r=await fetch('https://api.bm.parts'+path,{headers:{Authorization:String(env.BUSMARKET_API_TOKEN||'').trim(),'User-Agent':'Karpservice/1.0',Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+        result[path]={status:r.status,content_type:r.headers.get('Content-Type')};
+      }
+      return reply(result);
+    }
     if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(env.BUSMARKET_API_TOKEN)});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
