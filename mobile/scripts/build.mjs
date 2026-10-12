@@ -164,6 +164,19 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
   }
   return '<div class="car-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10 22 4-10h20l4 10M8 22h32v16H8zM15 38v4M33 38v4M8 28h7M33 28h7M4 22h4M40 22h4M19 33h10"/></svg></div>';
 }`);
+replaceOnce('<section id="home" class="screen">', `<section id="home" class="screen">
+    <article class="news-card">
+      <img class="news-promo-image" style="aspect-ratio:auto" src="mechanic-vacancy-green.png" alt="Karpservice: шукаємо автомеханіка в команду, Бориспіль" loading="lazy" />
+      <div class="news-description" style="padding-right:2px">
+        <div class="news-kicker">Вакансія · Бориспіль</div>
+        <h2>Шукаємо автомеханіка в команду Karpservice!</h2>
+        <p>Любиш автомобілі та вмієш якісно їх ремонтувати? Приєднуйся до нашої команди в Борисполі. Розкажи про свій досвід — обговоримо роботу, графік та оплату особисто.</p>
+        <div class="news-details">
+          <p><strong>Адреса:</strong> м. Бориспіль, вул. Київський Шлях, 10.</p>
+          <p><strong>Телефонуй:</strong> <a href="tel:+380734447344">073 44 47 344</a></p>
+        </div>
+      </div>
+    </article>`);
 replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
 replaceOnce('    <button class="secondary" onclick="openCars()">До моїх авто</button>', `    <div id="nativeBookingActions" class="native-actions" hidden>
       <button id="nativeReminder" class="primary" type="button">Нагадати про запис</button>
