@@ -238,7 +238,7 @@
   .profile-copy strong{display:block;font-size:16px;word-break:break-word}
   .bottom-nav{
     position:fixed;z-index:900;left:50%;bottom:max(6px,calc(env(safe-area-inset-bottom,0px) - 12px));
-    width:min(436px,calc(100vw - 20px));display:none;grid-template-columns:repeat(4,1fr);align-items:end;gap:2px;
+    width:min(436px,calc(100vw - 20px));display:none;grid-template-columns:repeat(5,1fr);align-items:end;gap:2px;
     padding:8px 7px 7px;transform:translateX(-50%);border-radius:24px;
     background:rgba(23,28,34,.94);border:1px solid rgba(78,89,102,.72);
     box-shadow:0 18px 44px rgba(0,0,0,.48);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)
@@ -373,6 +373,8 @@
     .news-banner-logo{width:64px;height:64px;flex-basis:64px}
   }
 </style>
+<link rel="stylesheet" href="shop.css">
+<script src="shop.js" defer></script>
 </head>
 <body>
 <div id="appLoader" class="app-loader" role="status" aria-live="polite" aria-label="Завантаження програми">
@@ -466,6 +468,34 @@
       </div>
     </article>
   </section>
+
+  <section id="shop" class="screen">
+    <div class="shop-toolbar"><h1>Магазин</h1><button class="secondary" type="button" onclick="Shop.openCart()" id="shopCartCount">Кошик</button></div>
+    <p class="shop-intro">Для вашого авто. З доставкою до Karpservice.</p>
+    <div id="shopCategories" class="shop-categories"></div>
+    <p id="shopStatus" class="shop-message" role="status"></p>
+    <button class="secondary shop-order-link" type="button" onclick="Shop.orders()">Мої замовлення</button>
+  </section>
+  <section id="shopProducts" class="screen">
+    <div class="shop-toolbar"><button class="back" type="button" onclick="Shop.open()">← Каталог</button><button class="secondary" type="button" onclick="Shop.openCart()">Кошик</button></div>
+    <label for="shopFilter">Категорія</label><select id="shopFilter"></select>
+    <form id="shopSearchForm" class="shop-search"><input id="shopSearch" type="search" maxlength="100" placeholder="Назва або артикул" aria-label="Пошук товару"><button class="secondary" type="submit">Знайти</button></form>
+    <p id="shopProductStatus" class="shop-message" role="status"></p><div id="shopProductList"></div><button id="shopMore" class="secondary" type="button" hidden>Показати ще</button>
+  </section>
+  <section id="shopCart" class="screen">
+    <button class="back" type="button" onclick="Shop.open()">← До магазину</button><h1>Кошик</h1>
+    <div id="shopCartList"></div>
+    <form id="shopCheckoutForm" class="shop-form" hidden>
+      <label for="shopCar">Для якого авто? <span class="small">Необов’язково</span></label><select id="shopCar"></select>
+      <label for="shopComment">Коментар</label><textarea id="shopComment" maxlength="500" placeholder="Що потрібно уточнити менеджеру?"></textarea>
+      <div class="sumrow"><span>Разом</span><strong id="shopTotal"></strong></div>
+      <p class="shop-message">Отримання у Karpservice: Бориспіль, Київський Шлях, 10. Менеджер підтвердить наявність, строк отримання та оплату.</p>
+      <button id="shopSubmit" class="primary" type="submit">Замовити</button>
+    </form>
+    <p id="shopCheckoutStatus" class="shop-message" role="status"></p>
+    <div id="shopReceipt" class="card" hidden><h2>Дякуємо за замовлення</h2><p id="shopReceiptText" class="shop-message"></p><button class="secondary" type="button" onclick="Shop.orders()">Мої замовлення</button></div>
+  </section>
+  <section id="shopOrders" class="screen"><button class="back" type="button" onclick="Shop.open()">← До магазину</button><h1>Мої замовлення</h1><div id="shopOrdersList" role="status"></div></section>
 
   <section id="cars" class="screen">
     <div id="carsLoader" class="loader">Завантаження…</div>
@@ -647,6 +677,10 @@
     </span>
     <span class="bottom-nav-label">Запис</span>
   </button>
+  <button id="shopNav" type="button" onclick="Shop.open()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h2l2.5 12h11l2-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+    <span class="bottom-nav-label">Магазин</span>
+  </button>
   <button id="profileNav" type="button" onclick="show('profile')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20v-1.6A5.4 5.4 0 0 1 10.9 13h2.2a5.4 5.4 0 0 1 5.4 5.4V20"/></svg>
     <span class="bottom-nav-label">Профіль</span>
@@ -788,6 +822,7 @@ function show(id){
     home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'carsNav', history:'carsNav', order:'carsNav',
+    shop:'shopNav', shopProducts:'shopNav', shopCart:'shopNav', shopOrders:'shopNav',
     profile:'profileNav'
   };
   const activeNav = navByScreen[id] || '';
@@ -1769,6 +1804,7 @@ function visitWord(n){
 
 function logout(){
   customerLoadVersion += 1;
+  window.Shop?.reset();
   apiFetch('auth/logout', {method:'POST'}).catch(() => {});
   window.KarpNative?.didLogout();
   setAuthSession(false);

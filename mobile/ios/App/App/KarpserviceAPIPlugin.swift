@@ -22,6 +22,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     private let vault = SessionVault()
     private var appleFlow: AppleSignInFlow?
     private let routes: [String: String] = [
+        "shop/categories": "GET", "shop/products": "GET", "shop/orders": "GET", "shop/checkout": "POST",
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
         "cars/remove": "POST", "booking": "POST", "auth/request": "POST", "auth/password": "POST",
         "account/deletion-policy": "GET", "account/deletion": "POST",
@@ -36,7 +37,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 45
+        config.timeoutIntervalForResource = 150
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
@@ -75,6 +76,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let route = relative.path
+        if route == "shop/checkout" { request.timeoutInterval = 120 }
         stateQueue.async {
             do {
                 let saved = try self.vault.read()
@@ -85,7 +87,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                     call.resolve(["status": 401, "data": ["success": false, "error": "Увійдіть через Apple."]])
                     return
                 }
-                let publicRoute = ["auth/password", "auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
+                let publicRoute = ["shop/categories", "shop/products", "auth/password", "auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
                 if !publicRoute && token == nil {
                     call.resolve(["status": 401, "data": ["success": false, "error": "Увійдіть у профіль Karpservice."]])
                     return

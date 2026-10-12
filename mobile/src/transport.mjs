@@ -1,4 +1,5 @@
 const routes = new Map([
+  ['shop/categories', 'GET'], ['shop/products', 'GET'], ['shop/orders', 'GET'], ['shop/checkout', 'POST'],
   ['', 'GET'], ['order', 'GET'], ['availability', 'GET'],
   ['cars', 'POST'], ['cars/remove', 'POST'], ['booking', 'POST'],
   ['account/deletion-policy', 'GET'], ['account/deletion', 'POST'],

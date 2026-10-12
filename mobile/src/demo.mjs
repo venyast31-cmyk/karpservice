@@ -1,3 +1,4 @@
+import {demoShopCategories,demoShopProducts} from './shop-demo.mjs';
 // A visible, local product tour. No credentials, network, or real CRM identifiers.
 export function createDemoSession(liveRequest) {
   let state = null;
@@ -19,6 +20,16 @@ export function createDemoSession(liveRequest) {
       catch { return reject('Некоректні демодані.'); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reject('Некоректні демодані.');
 
+      if(route==='shop/categories'&&method==='GET')return reply({success:true,configured:true,categories:demoShopCategories});
+      if(route==='shop/products'&&method==='GET')return reply({success:true,products:demoShopProducts(new URLSearchParams(query).get('category')),has_more:false});
+      if(route==='shop/orders'&&method==='GET')return reply({success:true,orders:state.shopOrders||[]});
+      if(route==='shop/checkout'&&method==='POST'){
+        if(!Array.isArray(body.items)||!body.items.length)return reject('Кошик порожній.');
+        state.shopOrders ||= [];
+        let order=state.shopOrders.find(o=>o.key===body.key);
+        if(!order){order={public_id:'DEMO-'+(++state.nextId),key:body.key,status:'sent',total_cents:body.items.reduce((n,p)=>n+p.price*p.quantity,0),created_at:new Date().toISOString()};state.shopOrders.unshift(order);}
+        return reply({success:true,demo:true,order});
+      }
       if (route === '' && method === 'GET') return reply({ success: true, found: true,
         customer: { id: 1, first_name: 'Демонстраційний', last_name: 'клієнт', phone: 'Демо — номер не потрібен' },
         cars: state.cars.filter(car => !state.hidden.has(car.id)), history_cars: state.cars });

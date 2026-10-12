@@ -1,3 +1,5 @@
+import { handleShop } from './shop.js';
+import { recordAnalytics, handleAnalytics } from './analytics.js';
 import { handleReviewAccount } from "./review-account.js";
 import { appleConfigured, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
 import {
@@ -1329,8 +1331,17 @@ var index_default = {
     }
     try {
       const url = new URL(request.url);
+      const analyticsResponse = await handleAnalytics(request, env);
+      if (analyticsResponse) return analyticsResponse;
       const reviewResponse = await handleReviewAccount(request, env, corsHeaders);
       if (reviewResponse) return reviewResponse;
+      const shopResponse = await handleShop(request, env, corsHeaders, { getCars: async customerId => {
+        const assets = await getCustomerAssets(env, customerId);
+        const orders = await getAllCustomerOrders(env, customerId);
+        const hidden = await getHiddenCustomerCars(env, customerId);
+        return mergeCustomerAssets(assets, orders.orders).filter(car => !isCustomerCarHidden(car, hidden));
+      }});
+      if (shopResponse) return shopResponse;
       const appleResponse = await handleAppleAuthRoute(request, env, corsHeaders);
       if (appleResponse) return appleResponse;
       const authResponse = await handleAuthRoute({
@@ -1631,6 +1642,7 @@ var index_default = {
             reason: "not_configured"
           }));
         }
+        await recordAnalytics(env, 'booking', String(bookingId), {once:true});
         return json2({
           success: true,
           verified: true,
@@ -1651,7 +1663,9 @@ var index_default = {
       if (url.pathname === "/" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
-        return await getCustomerData(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
+        const response = await getCustomerData(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
+        if (response.ok && authSession.auth_provider === 'apple') await recordAnalytics(env, 'active', authSession.apple_subject_hash, {once:true});
+        return response;
       }
       return json2({
         success: false,
