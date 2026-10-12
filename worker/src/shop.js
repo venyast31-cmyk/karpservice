@@ -84,7 +84,7 @@ export async function handleShop(request,env,headers,dependencies={}) {
     return error('Маршрут недоступний.',404);
   } catch(e) {
     console.error(JSON.stringify({event:'shop_failure',code:/^supplier_/.test(e.message)?e.message:'internal'}));
-    return error('Магазин тимчасово недоступний. Спробуйте ще раз.',503);
+    return reply({success:false,error:'Магазин тимчасово недоступний. Спробуйте ще раз.',code:/^supplier_\d+$/.test(e.message)?e.message:'shop_unavailable'},503);
   }
 }
 async function checkout(request,env,session,reply,error,{getCars}={}) {
@@ -122,15 +122,20 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
     r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'manual'});
     d=await r.json();
   } catch {
-    await env.AUTH_DB.prepare("UPDATE shop_orders SET status='verification' WHERE public_id=?").bind(id).run();
+    await saveOrderState(env,id,'verification');
     return reply({success:false,order:{public_id:id,status:'verification'},error:'Перевіряємо передачу замовлення. Не повторюйте оформлення; зателефонуйте менеджеру та назвіть номер заявки.'},202);
   }
   const crmId=Number(d.data?.id||d.id);
   if(!r.ok||!Number.isSafeInteger(crmId)||crmId<=0){
-    await env.AUTH_DB.prepare("UPDATE shop_orders SET status='verification' WHERE public_id=?").bind(id).run();
+    await saveOrderState(env,id,'verification');
     console.error(JSON.stringify({event:'shop_crm_failure',http:r.status,request:id}));
     return reply({success:false,order:{public_id:id,status:'verification'},error:'Не вдалося підтвердити передачу в CRM. Зверніться до менеджера з номером заявки.'},202);
   }
-  await env.AUTH_DB.prepare("UPDATE shop_orders SET status='sent',crm_id=? WHERE public_id=?").bind(crmId,id).run();
+  if(!await saveOrderState(env,id,'sent',crmId))return reply({success:false,order:{public_id:id,status:'verification'},error:'Замовлення передано, але його статус ще перевіряється. Не оформлюйте повторно; назвіть менеджеру номер заявки.'},202);
   return reply({success:true,order:{public_id:id,status:'sent',total_cents:total,crm_id:crmId}});
+}
+
+async function saveOrderState(env,id,status,crmId=null) {
+  try {await env.AUTH_DB.prepare('UPDATE shop_orders SET status=?,crm_id=? WHERE public_id=?').bind(status,crmId,id).run();return true;}
+  catch {console.error(JSON.stringify({event:'shop_state_pending',request:id}));return false;}
 }

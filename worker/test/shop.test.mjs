@@ -75,7 +75,7 @@ test('checkout verifies ownership, price, stock and creates at most one CRM orde
  db.database.prepare('INSERT INTO shop_catalog VALUES(?,?,?)').run(id,'oil',Date.now());
  const original=globalThis.fetch;let calls=0,crmBody,fail=false;
  globalThis.fetch=async(input,init)=>{
-  const u=new URL(String(input));
+  const u=new URL(String(input));assert.equal(init.redirect,'manual');
   if(u.hostname==='api.bm.parts')return Response.json({product:{name:'Oil',brand:'Test',article:'001',price:'100.00',currency_name:'ГРН',multiplicity:1,in_stocks:[{uuid:warehouse,quantity:'5'}]}});
   assert.equal(u.hostname,'api.roapp.io');assert.equal(init.method,'POST');calls++;crmBody=JSON.parse(init.body);if(fail)throw new Error('timeout');return Response.json({data:{id:987}});
  };
