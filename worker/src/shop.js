@@ -1,4 +1,4 @@
-import { requireAuthSession, consumeRateLimit, sha256Hex, safeEqual } from './auth.js';
+import { requireAuthSession, consumeRateLimit } from './auth.js';
 export const CATEGORIES = [
   {id:'oil',name:'Оливи та технічні рідини',group:'ОЛИВА, ЗМАЗКА  І ТЕХНІЧНІ РІДИНИ',image:'m/z/g/x/f/fb805475.png'},
   {id:'electric',name:'Електрика',group:'ЕЛЕКТРИКА',image:'b/i/g/m/d/b239842f.png'},
@@ -48,7 +48,7 @@ async function supplier(env,path,params={}) {
   const u=new URL('https://api.bm.parts'+path);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k,String(v));
   if(path!='/search/products/groups') for(const w of WAREHOUSES) u.searchParams.append('warehouses',w.id);
-  const r=await fetch(u,{headers:{Authorization:env.BUSMARKET_API_TOKEN,'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'error'});
+  const r=await fetch(u,{headers:{Authorization:env.BUSMARKET_API_TOKEN,'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
   if(!r.ok) throw new Error('supplier_'+r.status);
   return r.json();
 }
@@ -58,21 +58,6 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
-    // Temporary, expiring read-only setup access. Never returns API credentials or customer data.
-    if(u.pathname==='/shop/setup') {
-      const token=request.headers.get('X-Shop-Setup')||'';
-      if(request.method!=='GET'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(token),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
-      const result={supplier_configured:Boolean(env.BUSMARKET_API_TOKEN)};
-      try { const test=await supplier(env,'/search/products',{group:CATEGORIES[0].group,per_page:1,save:false,with_extra:false,available:'1'}); result.supplier_test={keys:Object.keys(test),count:Object.keys(test.products||{}).length}; } catch(e) {result.supplier_test={error:e.message};}
-      for(const path of ['/v2/orders/types','/v2/company/employees','/v2/orders/custom-fields']) {
-        const r=await fetch('https://api.roapp.io'+path,{headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,Accept:'application/json'},signal:AbortSignal.timeout(10000)});
-        const d=await r.json().catch(()=>({}));
-        const rows=Array.isArray(d)?d:(Array.isArray(d.data)?d.data:[]);
-        result[path]={status:r.status,keys:Object.keys(d),items:path.includes('employees')?rows.map(x=>({keys:Object.keys(x),id:x.id,name:x.name,title:x.title,full_name:x.full_name,first_name:x.first_name,last_name:x.last_name,is_active:x.is_active,active:x.active,branch_ids:x.branch_ids})):rows};
-        await new Promise(resolve=>setTimeout(resolve,400));
-      }
-      return reply(result);
-    }
     if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(({group,...c})=>({...c,image:photo(c.image)})),configured:Boolean(env.BUSMARKET_API_TOKEN)});
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
@@ -134,7 +119,7 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
   const notes=[`Магазин Karpservice • ${id}`,'Менеджери: Артем та Євгеній. Ручне підтвердження. Оплата після узгодження.',...(car?[`Авто: ${snapshot.car.name}; VIN: ${car.vin||'—'}`]:[]),...lines.map(p=>`${p.brand} ${p.article} — ${p.name}; ${p.quantity} × ${(p.price/100).toFixed(2)} грн; ${p.warehouse.name}; ${p.warehouse.delivery}`),`Разом: ${(total/100).toFixed(2)} грн`, `Коментар: ${b.comment}`].join('\n');
   let r,d;
   try {
-    r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'error'});
+    r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'manual'});
     d=await r.json();
   } catch {
     await env.AUTH_DB.prepare("UPDATE shop_orders SET status='verification' WHERE public_id=?").bind(id).run();
