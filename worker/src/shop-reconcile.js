@@ -15,7 +15,7 @@ export async function reconcileShop(request,env,headers){
  if(!row)return reply({error:'Request not found'},404);
  const call=async path=>{const r=await fetch('https://api.roapp.io/v2'+path,{headers:{Authorization:'Bearer '+env.ROAPP_API_KEY,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});const text=await r.text();let d;try{d=JSON.parse(text);}catch{throw new Error('CRM non-JSON '+r.status);};if(!r.ok)throw new Error('CRM read '+r.status+' '+JSON.stringify(d).slice(0,1200));return d;};
  try {
- const params=new URLSearchParams({client_ids:String(row.customer_id),branch_ids:String(env.ROAPP_BRANCH_ID),created_at:new Date(Date.parse(row.created_at)-60000).toISOString(),sort:'-id',page:'1'});
+ const params=new URLSearchParams({client_ids:String(row.customer_id),branch_ids:String(env.ROAPP_BRANCH_ID),created_at:new Date(Date.parse(row.created_at)-60000).toISOString().replace(/\.\d{3}Z$/,'Z'),sort:'-id',page:'1'});
  const raw=await call('/orders?'+params),orders=list(raw),matches=[],schemas=[];
  for(const o of orders.slice(0,20)){
   await new Promise(r=>setTimeout(r,400));
