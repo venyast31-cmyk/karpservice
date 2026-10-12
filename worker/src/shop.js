@@ -63,6 +63,7 @@ export async function handleShop(request,env,headers,dependencies={}) {
       const token=request.headers.get('X-Shop-Setup')||'';
       if(request.method!=='GET'||Date.now()>Number(env.SHOP_SETUP_UNTIL)||!env.SHOP_SETUP_TOKEN_SHA256||!safeEqual(await sha256Hex(token),env.SHOP_SETUP_TOKEN_SHA256))return error('Недоступно.',404);
       const result={supplier_configured:Boolean(env.BUSMARKET_API_TOKEN)};
+      try { const test=await supplier(env,'/search/products',{group:CATEGORIES[0].group,per_page:1,save:false,with_extra:false,available:'1'}); result.supplier_test={keys:Object.keys(test),count:Object.keys(test.products||{}).length}; } catch(e) {result.supplier_test={error:e.message};}
       for(const path of ['/v2/orders/types','/v2/company/employees','/v2/orders/custom-fields']) {
         const r=await fetch('https://api.roapp.io'+path,{headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,Accept:'application/json'},signal:AbortSignal.timeout(10000)});
         const d=await r.json().catch(()=>({}));
