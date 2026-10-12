@@ -19,6 +19,16 @@ export function delivery(warehouse, now = new Date()) {
   if(['Sat','Sun'].includes(p.weekday) || Number(p.hour)*60+Number(p.minute)>=warehouse.cutoff || (warehouse.days && p.weekday==='Fri')) return 'Термін доставки уточнить менеджер';
   return warehouse.days ? 'Доставка завтра' : 'Доставка сьогодні';
 }
+// Internal CRM processing deadline: 18:00 Kyiv on the next weekday.
+// This is not the supplier delivery promise displayed to the customer.
+export function shopDueDate(now=new Date()) {
+  const parts=date=>Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).map(p=>[p.type,p.value]));
+  const local=parts(now),day=new Date(Date.UTC(Number(local.year),Number(local.month)-1,Number(local.day)+1,18));
+  while([0,6].includes(day.getUTCDay()))day.setUTCDate(day.getUTCDate()+1);
+  const desired=day.getTime();let instant=desired;
+  for(let i=0;i<2;i++){const p=parts(new Date(instant));const localTime=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day),Number(p.hour),Number(p.minute),Number(p.second));instant+=desired-localTime;}
+  return new Date(instant).toISOString().replace(/\.\d{3}Z$/,'Z');
+}
 export function retailPrice(value) {
   if(!/^\d+(?:\.\d{1,2})?$/.test(String(value))) return null;
   const cents=Math.round(Number(value)*100);
@@ -131,7 +141,7 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
   const notes=[`Магазин Karpservice • ${id}`,'Менеджери: Артем та Євгеній. Ручне підтвердження. Оплата після узгодження.',...(car?[`Авто: ${snapshot.car.name}; VIN: ${car.vin||'—'}`]:[]),...lines.map(p=>`${p.brand} ${p.article} — ${p.name}; ${p.quantity} × ${(p.price/100).toFixed(2)} грн; ${p.warehouse.name}; ${p.warehouse.delivery}`),`Разом: ${(total/100).toFixed(2)} грн`, `Коментар: ${b.comment}`].join('\n');
   let r,d;
   try {
-    r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'manual'});
+    r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,due_date:shopDueDate(),manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'manual'});
     d=await r.json();
   } catch {
     await saveOrderState(env,id,'verification');

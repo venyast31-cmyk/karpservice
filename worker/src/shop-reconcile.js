@@ -1,3 +1,4 @@
+import { shopDueDate } from './shop.js';
 // Temporary, expiring repair access restricted to the single reported shop request.
 const TARGET='77fbbca2-9ba4-41e1-945d-5a02498bb1f0';
 const HASH='28a26406f7b7b320100599fe95c322d46a9295fe126a231c629f10d689fb086c';
@@ -24,13 +25,13 @@ export async function reconcileShop(request,env,headers){
   if(JSON.stringify(d).includes(TARGET))matches.push({id:Number(o.id),number:d.number||d.name||null});
  }
  if(request.method==='POST' && new URL(request.url).searchParams.get('action')==='recover'){
-  if(matches.length||orders.length||row.status!=='verification')return reply({error:'Recovery precondition failed',status:row.status,matches},409);
-  const claimed=await env.AUTH_DB.prepare("UPDATE shop_orders SET status='recovering' WHERE public_id=? AND status='verification' RETURNING public_id").bind(TARGET).first();
+  if(matches.length||orders.length||row.status!=='rejected')return reply({error:'Recovery precondition failed',status:row.status,matches},409);
+  const claimed=await env.AUTH_DB.prepare("UPDATE shop_orders SET status='recovering' WHERE public_id=? AND status='rejected' RETURNING public_id").bind(TARGET).first();
   if(!claimed)return reply({error:'Already recovering'},409);
   const snap=JSON.parse(row.snapshot),managerIds=String(env.SHOP_MANAGER_IDS).split(',').map(Number);
   const notes=[`Магазин Karpservice • ${TARGET}`,'Менеджери: Артем та Євгеній. Ручне підтвердження. Оплата після узгодження.',...(snap.car?[`Авто: ${snap.car.name}; VIN: ${snap.car.vin||'—'}`]:[]),...snap.lines.map(p=>`${p.brand} ${p.article} — ${p.name}; ${p.quantity} × ${(p.price/100).toFixed(2)} грн; ${p.warehouse.name}; ${p.warehouse.delivery}`),`Разом: ${(row.total_cents/100).toFixed(2)} грн`,`Коментар: ${snap.comment}`].join('\n');
   await new Promise(r=>setTimeout(r,400));
-  const r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:'Bearer '+env.ROAPP_API_KEY,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:Number(row.customer_id),manager_id:managerIds[parseInt(TARGET.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(row.total_cents/100).toFixed(2)}),redirect:'manual',signal:AbortSignal.timeout(20000)});
+  const r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:'Bearer '+env.ROAPP_API_KEY,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:Number(row.customer_id),due_date:shopDueDate(),manager_id:managerIds[parseInt(TARGET.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(row.total_cents/100).toFixed(2)}),redirect:'manual',signal:AbortSignal.timeout(20000)});
   const raw=await r.text();let d;try{d=JSON.parse(raw);}catch{d={non_json:true};}
   const id=Number(record(d)?.id||d.order_id);
   const state=r.ok&&Number.isSafeInteger(id)&&id>0?'sent':r.status===400||r.status===422?'rejected':'recovering';
