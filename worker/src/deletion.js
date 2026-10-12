@@ -65,7 +65,7 @@ export async function handleDeletionRoute(request, env, headers) {
           `Телефон: ${pending.phone}`,
           ...(auth.session.email ? [`Email: ${auth.session.email}`] : []),
           `Виконати до: ${new Date(pending.deadline_at * 1000).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' })}`,
-          'Запит подано з підтвердженого профілю. Видаліть дані CRM, авто та історію, прив’язки Telegram/Apple (apple_accounts за customer_id) і всі сесії. Повідомте клієнту результат; якщо щось необхідно зберегти за законом — обсяг і підставу.'
+          'Запит подано з підтвердженого профілю. Видаліть дані CRM, авто та історію, прив’язки Telegram/Apple (apple_accounts за customer_id) і всі сесії, а також customer_car_mileage за customer_id. Повідомте клієнту результат; якщо щось необхідно зберегти за законом — обсяг і підставу.'
         ].join('\n') })
       });
       const result = await response.json();

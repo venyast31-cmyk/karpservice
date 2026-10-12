@@ -8,6 +8,8 @@ import {
   requireAuthSession
 } from "./auth.js";
 import { handleDeletionRoute } from "./deletion.js";
+import { handleProfileRoute } from './profile.js';
+import { addCustomerMileage, saveCustomerMileage, firstMileage } from './mileage.js';
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -33,7 +35,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
     return json({ success: false, error: "\u0412\u043A\u0430\u0436\u0456\u0442\u044C \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443" }, 400, responseHeaders);
   }
   const customer = appleSession ? { id: appleSession.customer_id, first_name: appleSession.customer_name, email: appleSession.email } : await findCustomerByPhone(env, phone);
-  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
+  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, birth_date: appleSession.birth_date || '', phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
   if (!customer?.id) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
@@ -45,6 +47,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
     console.error(JSON.stringify({ event: "customer_assets_load", success: false, message: error instanceof Error ? error.message : String(error) }));
   }
   const historyCars = mergeCustomerAssets(assets, orderResult.orders);
+  await addCustomerMileage(env, Number(customer.id), historyCars);
   let cars = historyCars;
   try {
     const hiddenCars = await getHiddenCustomerCars(env, customer.id);
@@ -65,7 +68,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSe
       first_name: customer.first_name || customer.name || "",
       last_name: customer.last_name || "",
       phone: phone ? `+${phone}` : '',
-      ...(appleSession ? { email: appleSession.email } : {})
+      ...(appleSession ? { email: appleSession.email, birth_date: appleSession.birth_date || '' } : {})
     },
     cars,
     history_cars: historyCars,
@@ -232,6 +235,7 @@ function publicAssetCar(asset, history = []) {
     modification: valueTitle(asset?.modification),
     year: asset?.year || asset?.production_year || "",
     vin,
+    mileage: firstMileage(asset?.mileage, asset?.odometer),
     history: Array.isArray(history) ? history : []
   };
 }
@@ -900,7 +904,7 @@ function buildCarsFromOrders(orders) {
       created_at: order.created_at || null,
       closed_at: order.closed_at || null,
       due_date: order.due_date || null,
-      mileage: firstNumber(
+      mileage: firstMileage(
         order.mileage,
         order.odometer,
         order.asset_mileage,
@@ -928,7 +932,7 @@ function publicOrderDetails(order, items) {
     created_at: order.created_at || null,
     closed_at: order.closed_at || null,
     due_date: order.due_date || null,
-    mileage: firstNumber(
+    mileage: firstMileage(
       order.mileage,
       order.odometer,
       order.asset_mileage,
@@ -1340,6 +1344,8 @@ var index_default = {
         findCustomerByPhone
       });
       if (authResponse) return authResponse;
+      const profileResponse = await handleProfileRoute(request, env, corsHeaders);
+      if (profileResponse) return profileResponse;
       const deletionResponse = await handleDeletionRoute(request, env, corsHeaders);
       if (deletionResponse) return deletionResponse;
 
@@ -1363,7 +1369,7 @@ var index_default = {
       }
 
       let authSession = null;
-      if (["/", "/order", "/availability", "/booking", "/cars", "/cars/remove"].includes(url.pathname)) {
+      if (["/", "/order", "/availability", "/booking", "/cars", "/cars/remove", "/cars/mileage"].includes(url.pathname)) {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
@@ -1373,6 +1379,16 @@ var index_default = {
         }
       }
 
+      if (url.pathname === '/cars/mileage') {
+        if (request.method !== 'POST') return json2({success:false},405,corsHeaders);
+        const customerId = Number(authSession.customer_id);
+        return await saveCustomerMileage(request, env, customerId, corsHeaders, async () => {
+          const assets = await getCustomerAssets(env, customerId);
+          const orders = await getAllCustomerOrders(env, customerId);
+          const hidden = await getHiddenCustomerCars(env, customerId);
+          return mergeCustomerAssets(assets, orders.orders).filter(car => !isCustomerCarHidden(car, hidden));
+        });
+      }
       if (url.pathname === "/order" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);

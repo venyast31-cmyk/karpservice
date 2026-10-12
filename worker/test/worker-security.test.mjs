@@ -65,6 +65,7 @@ const SESSION_TOKEN = "S".repeat(43);
 test("protected API derives ownership from the Telegram session", async () => {
   const authDb = new MemoryD1();
   authDb.database.exec(await readFile(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8"));
+  authDb.database.exec(await readFile(new URL("../migrations/0011_car_mileage.sql", import.meta.url), "utf8"));
   const now = Math.floor(Date.now() / 1000);
   const tokenHash = createHash("sha256").update(`session:${SESSION_TOKEN}`).digest("hex");
   authDb.database.prepare(

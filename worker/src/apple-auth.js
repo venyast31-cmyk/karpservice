@@ -114,7 +114,7 @@ export async function getAppleSession(request, env) {
       return null;
     }
   }
-  return { ...row, auth_provider: 'apple', apple_subject_hash: row.subject_hash, customer_id: Number(row.customer_id || 0), created_at: row.session_created_at };
+  return { ...row, customer_name: row.profile_name || row.customer_name, auth_provider: 'apple', apple_subject_hash: row.subject_hash, customer_id: Number(row.customer_id || 0), created_at: row.session_created_at };
 }
 
 export async function handleAppleAuthRoute(request, env, headers) {

@@ -283,7 +283,15 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return authJson({ success: false, error: "Невірний код" }, 401, headers);
   }
 
-  const customer = await findCustomerByPhone(env, challenge.phone);
+  let customer = await findCustomerByPhone(env, challenge.phone);
+  // A verified phone change keeps the existing customer's cars and history.
+  // A number attached to another CRM contact needs staff reconciliation.
+  if (apple?.auth_provider === 'apple' && apple.phone && apple.customer_id) {
+    if (customer?.id && Number(customer.id) !== Number(apple.customer_id)) {
+      return authJson({success:false,error:'Цей номер належить іншій картці клієнта. Зверніться до сервісу для зміни номера.'},409,headers);
+    }
+    customer = { id: apple.customer_id, first_name: apple.customer_name };
+  }
   if (!customer?.id) {
     return authJson({ success: false, error: "Клієнта з таким номером не знайдено" }, 404, headers);
   }
@@ -291,7 +299,8 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   if (apple?.auth_provider === 'apple') {
     const owner = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE customer_id = ?').bind(Number(customer.id)).first();
     if (owner && owner.subject_hash !== apple.apple_subject_hash) return authJson({success:false,error:'Цей номер уже підключено до іншого Apple Account.'},409,headers);
-    if (apple.phone && apple.phone !== challenge.phone) return authJson({success:false,error:'До профілю вже підключено інший номер. Зверніться до підтримки.'},409,headers);
+    const phoneOwner = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE phone = ? AND disabled_at IS NULL').bind(challenge.phone).first();
+    if (phoneOwner && phoneOwner.subject_hash !== apple.apple_subject_hash) return authJson({success:false,error:'Цей номер уже підключено до іншого Apple Account.'},409,headers);
   }
   const rawSessionToken = randomToken(32);
   const sessionHash = await sha256Hex(`session:${rawSessionToken}`);
