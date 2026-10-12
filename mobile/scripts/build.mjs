@@ -42,10 +42,11 @@ html,body,body *{touch-action:manipulation}
 .native-ios::after{content:"";position:fixed;z-index:10000;top:0;right:0;left:0;height:env(safe-area-inset-top,0px);background:#0d1014;pointer-events:none}
 .native-demo{border:1px solid #397d68;background:#103b30;border-radius:14px;padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;gap:12px;font-size:13px;color:#d8f9eb}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
-.car-logo svg{width:38px;height:38px;color:#267b62}
+.car-logo > svg{width:38px;height:38px;color:#267b62}
 .car-logo.car-logo-approved{background:transparent;border:0;box-shadow:none;padding:2px;border-radius:0}
 .car-logo-light{filter:brightness(0) invert(1)}
-.car-logo.car-logo-approved svg{display:block;width:100%;height:100%;overflow:hidden}
+.car-logo.car-logo-approved > svg{display:block;width:100%;height:100%;overflow:hidden}
+.car-logo-crop{overflow:hidden}
 .news-promo-image.native-promo-art{aspect-ratio:772/800;overflow:hidden}
 </style>`);
 replaceOnce('<div class="card profile-card">\n      <div class="profile-row">', '<div class="card profile-card">\n      <div class="profile-row profile-client-button" id="nativeEditProfile" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Редагувати дані клієнта">');
@@ -145,7 +146,12 @@ replaceOnce(brandFunction, `function carBrandLogo(car){
     'toyota':'59 1144 452 289', 'skoda':'585 1117 346 342'
   };
   const viewport = brand && viewports[brand.slug];
-  if (viewport) return '<div class="car-logo car-logo-approved"><svg viewBox="' + viewport + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></div>';
+  if (viewport) {
+    const [, , width, height] = viewport.split(' ').map(Number);
+    // The outer SVG fits the emblem into the square card slot. The inner SVG
+    // clips to the exact sprite rectangle, excluding neighbours in letterboxing.
+    return '<div class="car-logo car-logo-approved"><svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + escapeHtml(brand.name) + '" focusable="false"><svg class="car-logo-crop" viewBox="' + viewport + '" width="' + width + '" height="' + height + '" overflow="hidden"><image href="car-brand-logos-approved.png" width="1024" height="1536" /></svg></svg></div>';
+  }
   if (brand) {
     const opaque = {"omoda": [256, 256], "lada": [611, 256], "genesis": [661, 256], "jetour": [1584, 256]};
     const light = ['ram','cupra','jaguar','zeekr','nissan','polestar','cadillac','maserati','hummer'];
