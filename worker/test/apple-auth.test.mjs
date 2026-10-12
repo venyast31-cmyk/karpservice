@@ -19,7 +19,7 @@ const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 
 async function setup({ redirectPath } = {}) {
   const db = new DatabaseSync(':memory:');
-  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql', '0008_profile_name.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const signing = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const kid = randomUUID();
@@ -250,4 +250,28 @@ test('Apple-first mode binds Telegram proof to its Apple owner and gates CRM unt
   assert.equal(t.db.prepare('SELECT count(*) AS n FROM sessions').get().n,0);
   assert.equal(t.calls.some(x=>x.url.includes('roapp') && x.body && String(x.body).includes('phones')),false);
  } finally {t.close();}
+});
+
+
+test('profile names persist across login and CRM name refresh, scoped to the authenticated account', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), { sub: 'other-profile-owner' })).response.json();
+    assert.equal((await t.call('account/name', 'POST', { name: 'Changed' })).status, 401);
+    assert.equal((await t.call('account/name', 'GET', null, auth.token)).status, 405);
+    for (const name of ['', '   ', 'x'.repeat(161), 123, 'a\u0000b']) {
+      assert.equal((await t.call('account/name', 'POST', { name }, auth.token)).status, 400);
+    }
+    const response = await t.call('account/name', 'POST', { name: '  Євгеній   Карпенко  ', customer_id: 999, subject_hash: 'other-profile-owner' }, auth.token);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).name, 'Євгеній Карпенко');
+    assert.equal((await (await t.call('', 'GET', null, auth.token)).json()).customer.first_name, 'Євгеній Карпенко');
+    assert.equal((await (await t.call('', 'GET', null, other.token)).json()).customer.first_name, 'Тест Apple');
+    t.db.prepare("UPDATE apple_accounts SET customer_name='CRM name'").run();
+    await t.call('auth/logout', 'POST', {}, auth.token);
+    const next = await (await t.complete(await t.start())).response.json();
+    assert.equal((await (await t.call('', 'GET', null, next.token)).json()).customer.first_name, 'Євгеній Карпенко');
+    assert.equal((await t.call('account/name', 'POST', {name:'Stale'}, auth.token)).status, 401);
+  } finally { t.close(); }
 });

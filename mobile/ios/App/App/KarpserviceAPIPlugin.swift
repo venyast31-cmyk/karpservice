@@ -25,6 +25,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
         "cars/remove": "POST", "booking": "POST", "auth/request": "POST", "auth/password": "POST",
         "account/deletion-policy": "GET", "account/deletion": "POST",
+        "account/name": "POST",
         "auth/link-status": "POST", "auth/verify": "POST", "auth/logout": "POST", "auth/me": "GET"
     ]
     private lazy var session: URLSession = {

@@ -7,6 +7,7 @@ import {
   requireAuthSession
 } from "./auth.js";
 import { handleDeletionRoute } from "./deletion.js";
+import { handleProfileRoute } from './profile.js';
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -1337,6 +1338,8 @@ var index_default = {
         findCustomerByPhone
       });
       if (authResponse) return authResponse;
+      const profileResponse = await handleProfileRoute(request, env, corsHeaders);
+      if (profileResponse) return profileResponse;
       const deletionResponse = await handleDeletionRoute(request, env, corsHeaders);
       if (deletionResponse) return deletionResponse;
 

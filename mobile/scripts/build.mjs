@@ -18,6 +18,10 @@ replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Ka
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
+.native-name-edit{display:inline-flex;width:auto;margin:8px 0 0;padding:8px 12px;font-size:14px;color:var(--mint);background:transparent;border:1px solid #397d68;border-radius:10px}
+.native-name-form{padding:18px;margin-top:16px;border:1px solid #303b40;border-radius:16px}
+.native-name-form[hidden]{display:none}.native-name-form input{width:100%;font-size:16px}
+.native-name-buttons{display:flex;gap:10px;margin-top:12px}.native-name-buttons button{flex:1}
 .native-links{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:22px 0;font-size:14px}
 .native-links a{color:#98cdb6;text-underline-offset:4px}
 .native-notice{padding:12px 16px;margin:12px 0;border:1px solid #f3b63f;border-radius:12px;color:#f3b63f}
@@ -33,6 +37,22 @@ html,body,body *{touch-action:manipulation}
 .native-demo[hidden]{display:none}.native-demo strong{display:block}.native-demo button{flex:0 0 auto;width:auto;margin:0;padding:8px 12px;font-size:13px}
 .car-logo svg{width:38px;height:38px;color:#267b62}.native-promo{padding:28px;background:linear-gradient(150deg,#084d38,#0a3028);border:1px solid #30745d;border-radius:22px;color:#fff}.native-promo img{width:56px;border-radius:12px}.native-promo strong{display:block;font-size:32px;line-height:1.12;margin:24px 0 18px}.native-promo p{font-size:17px;color:#d9eddf;margin:0}
 </style>`);
+replaceOnce('<strong id="profileName">—</strong>', '<strong id="profileName">—</strong><button id="nativeEditName" class="native-name-edit" type="button" aria-controls="nativeNameForm" aria-expanded="false">Змінити ім’я</button>');
+replaceOnce('    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>', `    <form id="nativeNameForm" class="native-name-form" hidden>
+      <label for="nativeNameInput">Ім’я в застосунку</label>
+      <input id="nativeNameInput" name="name" type="text" autocomplete="name" maxlength="160" required>
+      <div class="native-name-buttons"><button id="nativeSaveName" class="primary" type="submit">Зберегти</button><button id="nativeCancelName" class="secondary" type="button">Скасувати</button></div>
+      <p id="nativeNameStatus" class="native-note" role="status" aria-live="polite"></p>
+    </form>
+    <p id="nativeNameSaved" class="native-note" role="status" aria-live="polite"></p>
+    <button class="secondary" type="button" onclick="logout()">Вийти з профілю</button>`);
+replaceOnce('function renderProfile(){', `window.applyProfileName = function(name){
+  if (!customerData?.customer) return;
+  customerData.customer.first_name = name;
+  customerData.customer.last_name = '';
+  renderProfile();
+};
+function renderProfile(){`);
 replaceOnce('<div class="app">', '<div class="app">\n<div id="nativeOffline" class="native-notice" role="status" hidden>Немає інтернету. Перевірте з’єднання та спробуйте ще раз.</div>\n<div id="nativeDemoBanner" class="native-demo" role="status" hidden><div><strong>Демо · вигадані дані</strong>Записи залишаються на цьому пристрої.</div><button id="nativeDemoExit" class="secondary" type="button">Вийти</button></div>');
 replaceOnce('Введіть номер із нашої CRM та підтвердьте вхід через Telegram.', 'Увійдіть через Apple. Потім підключіть номер телефону, щоб побачити свої авто та історію обслуговування.');
 replaceOnce('    <div id="phoneAuthStep" class="card auth-step">', `    <button id="nativeAppleLogin" class="apple-login" type="button" aria-label="Увійти через Apple">Увійти через Apple</button>
