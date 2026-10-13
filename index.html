@@ -2228,8 +2228,28 @@ function initializeNewsCarousel(){
   carousel.setAttribute('role', 'region');
   carousel.setAttribute('aria-label', 'Банери новин — гортайте вліво або вправо');
   home.querySelectorAll('.news-card').forEach((card, index) => {
-    const visual = card.querySelector('.news-promo-image, .news-banner');
+    let visual = card.querySelector('.news-promo-image, .news-banner');
     if (!visual) return;
+    // Compose portrait announcements as full-width banners, matching booking news.
+    const bannerCopy = card.querySelector('#mechanicVacancyDetails')
+      ? 'Шукаємо автомеханіка в команду!'
+      : card.querySelector('#oilPromoDetails')
+        ? 'Безкоштовна заміна мастила та фільтрів'
+        : '';
+    if (bannerCopy) {
+      const banner = document.createElement('div');
+      banner.className = 'news-banner';
+      const copy = document.createElement('div');
+      copy.className = 'news-banner-copy';
+      copy.textContent = bannerCopy;
+      const logo = document.createElement('img');
+      logo.className = 'news-banner-logo';
+      logo.src = 'logo.jpg';
+      logo.alt = 'Karpservice';
+      banner.append(copy, logo);
+      visual.replaceWith(banner);
+      visual = banner;
+    }
     card.id = card.id || 'newsArticle' + index;
     const slide = document.createElement('button');
     slide.type = 'button';
