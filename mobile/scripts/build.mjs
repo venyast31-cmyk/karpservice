@@ -11,17 +11,18 @@ const replaceOnce = (search, value) => {
   if (html.split(search).length !== 2) throw new Error(`Frontend changed; review mobile insertion: ${search.slice(0, 100)}`);
   html = html.replace(search, value);
 };
-replaceOnce('<div class="brand"><img class="brand-logo" src="logo.jpg" alt="" /><span>Karpservice</span></div>', '<img class="brand-logo" src="logo.jpg" alt="" /><span id="nativeBrandTitle">Твій Karpservice</span>');
+replaceOnce('<div class="brand"><img class="brand-logo" src="logo.jpg" alt="" /><span>Karpservice</span></div>', '<svg class="brand-logo" viewBox="175 125 1000 1000" aria-hidden="true" focusable="false"><image href="logo.jpg" width="1254" height="1254" /></svg><span id="nativeBrandTitle">Твій Karpservice</span>');
 replaceOnce('<h1 class="news-feed-title">Новини</h1>', '');
 replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Karpservice — Онлайн-запис</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://cdn.bm.parts; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <script src="native.js"></script>
 <style>
 /* Equal side columns keep the title centered independently of the cart badge. */
-.app>.top{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px}
-.app>.top>.brand-logo{width:44px;height:44px;border-radius:11px}
+.app>.top{display:grid;grid-template-columns:52px minmax(0,1fr) 52px;align-items:center;gap:8px;padding:12px 8px}
+.app>.top>.brand-logo{width:52px;height:52px;border-radius:13px;overflow:hidden;filter:none}
 #nativeBrandTitle{min-width:0;text-align:center;white-space:nowrap;font-size:clamp(17px,5vw,21px);font-weight:750;line-height:1.2;letter-spacing:-.35px}
-.app>.top>.header-cart{width:44px;height:44px;margin:0}
+.app>.top>.header-cart{width:44px;height:44px;margin:0;justify-self:center}
+@media(max-width:350px){#nativeBrandTitle{font-size:16px}}
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
