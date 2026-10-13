@@ -44,7 +44,6 @@
   const save=()=>{try{localStorage.setItem(storageKey,JSON.stringify({cart,key,locked}));}catch{}badge();};
   function badge(){
     const count=cart.reduce((n,p)=>n+p.quantity,0);
-    if($('shopCartCount'))$('shopCartCount').textContent=count?`Кошик · ${count}`:'Кошик';
     const badge=$('headerCartCount');
     if(badge){badge.textContent=String(count);badge.hidden=count===0;}
     if($('headerCart'))$('headerCart').setAttribute('aria-label',count?`Відкрити кошик, товарів: ${count}`:'Відкрити порожній кошик');
@@ -54,7 +53,7 @@
   function image(src,alt=''){return src?`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:'<span class="shop-image-placeholder" aria-hidden="true">KARP</span>';}
   function preserveForm(){if($('shopCar'))carId=$('shopCar').value;if($('shopComment'))comment=$('shopComment').value;}
   const findCategory=(id,nodes=categories)=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
-  function categoryCards(nodes){return nodes.map(c=>`<button class="shop-category" type="button" data-category="${esc(c.id)}"><span class="shop-category-image">${image(c.image,c.name)}</span><strong>${esc(c.name)}</strong><span class="shop-category-arrow" aria-hidden="true">↗</span></button>`).join('');}
+  function categoryCards(nodes){return nodes.map(c=>`<button class="shop-category" type="button" data-category="${esc(c.id)}"><span class="shop-category-image">${image(c.image,c.name)}</span><strong>${esc(c.name)}</strong></button>`).join('');}
   async function open(){version++;path=[];show('shop');badge();if(!categories.length){status('Завантажуємо каталог…');try{const d=await request('shop/categories');categories=d.categories;renderCategories();status(d.configured===false?'Каталог тимчасово недоступний. Спробуйте пізніше.':'');}catch(e){status(e.message);}}}
   function renderCategories(){$('shopCategories').innerHTML=categoryCards(categories);}
   function choose(id){
