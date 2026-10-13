@@ -20,7 +20,7 @@ export function searchFilters(params){
 }
 export function filterView(data,brands){
   return {
-    filters:(Array.isArray(data.filters)?data.filters:[]).filter(f=>typeof f.name==='string'&&Array.isArray(f.values)).map(f=>({name:f.name,values:f.values.filter(v=>typeof v.value==='string').map(v=>({value:v.value,count:Number(v.products_count)||0}))})),
+    filters:(Array.isArray(data.filters)?data.filters:[]).filter(f=>typeof f.name==='string'&&Array.isArray(f.values)).map(f=>({name:f.name,values:f.values.filter(v=>typeof v.value==='string'&&v.value.trim()&&v.value.length+f.name.length<250&&!/[\r\n\x00]/.test(v.value)).map(v=>({value:v.value,count:Number(v.products_count)||0}))})),
     brands:(Array.isArray(brands.brands)?brands.brands:[]).filter(b=>typeof b.name==='string').map(b=>({name:b.name,count:Number(b.products_count)||0}))
   };
 }
