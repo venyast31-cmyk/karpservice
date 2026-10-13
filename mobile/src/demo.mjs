@@ -21,7 +21,16 @@ export function createDemoSession(liveRequest) {
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reject('Некоректні демодані.');
 
       if(route==='shop/categories'&&method==='GET')return reply({success:true,configured:true,categories:demoShopCategories});
-      if(route==='shop/products'&&method==='GET')return reply({success:true,products:demoShopProducts(new URLSearchParams(query).get('category')),has_more:false});
+      if(route==='shop/filters'&&method==='GET')return reply({success:true,brands:[{name:'Демо',count:1}],filters:[]});
+      if(route==='shop/product'&&method==='GET'){
+        const id=new URLSearchParams(query).get('id'),p=demoShopCategories.flatMap(c=>demoShopProducts(c.id)).find(p=>p.id===id);
+        return p?reply({success:true,product:{...p,images:[],description:'Демонстраційний товар для перевірки застосунку.',details:{Тип:'Демонстраційний'},cars:[],oe:[]}}):reject('Товар не знайдено.',404);
+      }
+      if(route==='shop/products'&&method==='GET'){
+        const params=new URLSearchParams(query),brands=params.getAll('brands'),q=(params.get('q')||'').toLowerCase();
+        const products=demoShopProducts(params.get('category')).filter(p=>(!brands.length||brands.includes(p.brand))&&(!q||[p.name,p.article].join(' ').toLowerCase().includes(q))&&params.get('promo')!=='1'&&params.get('new_product')!=='1');
+        return reply({success:true,products,has_more:false});
+      }
       if(route==='shop/orders'&&method==='GET')return reply({success:true,orders:state.shopOrders||[]});
       if(route==='shop/checkout'&&method==='POST'){
         if(!Array.isArray(body.items)||!body.items.length)return reject('Кошик порожній.');
