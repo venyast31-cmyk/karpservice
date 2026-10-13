@@ -5,11 +5,52 @@
   let categories=[],products=[],category='',path=[],page=1,q='',version=0,cart=[],key='',locked=false,carId='',comment='';
   let filters={brands:[],gf:[],promo:false,new_product:false},filterOptions={brands:[],filters:[]},filterVersion=0;
   let detailProduct=null,detailVersion=0,detailOrigin='shopProducts',detailScroll=0;
-  function filterParams(){const params=new URLSearchParams({category,page:String(page),q});for(const k of ['brands','gf'])for(const v of filters[k])params.append(k,v);for(const k of ['promo','new_product'])if(filters[k])params.set(k,'1');return params;}
+  let vehicleNodes=[],vehicleCar='',vehicleVersion=0,vinVersion=0,vehicleBrandsLoaded=false;
+  function vehicleParams(){const node=vehicleNodes.find(n=>n.id===category);return node&&vehicleCar?{car:vehicleCar,node:node.path}:{};}
+  const vehicleStatus=text=>{$('shopVehicleStatus').textContent=text;};
+  function options(select,rows,placeholder){select.innerHTML=`<option value="">${esc(placeholder)}</option>`+rows.map(x=>`<option value="${esc(x.name)}">${esc(x.name)}</option>`).join('');select.disabled=!rows.length;}
+  function clearVehicleResults(){vehicleNodes=[];vehicleCar='';$('shopVehicleResults').hidden=true;$('shopVehicleGroups').innerHTML='';}
+  async function loadVehicleBrands(){
+    if(vehicleBrandsLoaded)return;
+    $('shopVehicleRetry').hidden=true;vehicleStatus('Завантажуємо марки…');
+    try{const d=await request('shop/vehicles');options($('shopVehicleBrand'),d.options,'Оберіть марку');vehicleBrandsLoaded=d.options.length>0;vehicleStatus(d.options.length?'':'Марки тимчасово недоступні.');$('shopVehicleRetry').hidden=vehicleBrandsLoaded;}
+    catch(e){vehicleStatus(e.message);$('shopVehicleRetry').hidden=false;}
+  }
+  async function loadVehicleModels(){
+    const current=++vehicleVersion,brand=$('shopVehicleBrand').value;
+    clearVehicleResults();$('shopVehicleSubmit').disabled=true;options($('shopVehicleModel'),[],brand?'Завантажуємо моделі…':'Спочатку оберіть марку');$('shopVehicleRetry').hidden=true;
+    if(!brand){vehicleStatus('');return;}
+    vehicleStatus('Завантажуємо моделі…');
+    try{const d=await request('shop/vehicles?'+new URLSearchParams({brand}));if(current!==vehicleVersion)return;options($('shopVehicleModel'),d.options,'Оберіть модель і покоління');vehicleStatus(d.options.length?'':'Для цієї марки немає моделей із доступними товарами.');}
+    catch(e){if(current===vehicleVersion){vehicleStatus(e.message);$('shopVehicleRetry').hidden=false;}}
+  }
+  async function findVin(e){
+    e.preventDefault();const vin=$('shopVin').value.trim().toUpperCase();$('shopVin').value=vin;
+    const current=++vinVersion,selectionVersion=vehicleVersion;
+    if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)){$('shopVinStatus').textContent='Введіть 17 символів VIN без I, O та Q.';return;}
+    $('shopVinSubmit').disabled=true;$('shopVinStatus').textContent='Шукаємо автомобіль…';
+    try{const d=await request('shop/vehicles?'+new URLSearchParams({vin}));if(current!==vinVersion)return;
+      $('shopVinStatus').textContent=d.vehicle?[d.vehicle.brand,d.vehicle.model,d.vehicle.year].filter(Boolean).join(' · ')+'. '+d.message:d.message;
+      if(d.vehicle&&selectionVersion===vehicleVersion){await loadVehicleBrands();if(current!==vinVersion||selectionVersion!==vehicleVersion)return;const brand=[...$('shopVehicleBrand').options].find(o=>o.value&&o.value.toUpperCase()===d.vehicle.brand.toUpperCase());if(brand){$('shopVehicleBrand').value=brand.value;await loadVehicleModels();}}
+    }catch(e){if(current===vinVersion)$('shopVinStatus').textContent=e.message+' Оберіть марку та модель нижче.';}
+    finally{if(current===vinVersion)$('shopVinSubmit').disabled=false;}
+  }
+  async function loadVehicleGroups(e){
+    e.preventDefault();const brand=$('shopVehicleBrand').value,model=$('shopVehicleModel').value;if(!brand||!model)return;
+    const current=++vehicleVersion,car=brand+'>'+model;clearVehicleResults();$('shopVehicleSubmit').disabled=true;vehicleStatus('Завантажуємо групи запчастин…');
+    try{const d=await request('shop/vehicle-groups?'+new URLSearchParams({car}));if(current!==vehicleVersion)return;vehicleCar=car;vehicleNodes=d.groups;
+      $('shopVehicleTitle').textContent=brand+' '+model;$('shopVehicleResults').hidden=false;
+      $('shopVehicleGroups').innerHTML=vehicleNodes.map(c=>`<button type="button" class="shop-vehicle-group" data-category="${esc(c.id)}">${esc(c.name)}</button>`).join('');
+      vehicleStatus(d.groups.length?'':'Запчастин для цієї моделі зараз не знайдено.');
+      if(d.groups.length)$('shopVehicleResults').scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){if(current===vehicleVersion)vehicleStatus(e.message);}
+    finally{if(current===vehicleVersion)$('shopVehicleSubmit').disabled=false;}
+  }
+  function filterParams(){const params=new URLSearchParams({category,page:String(page),q,...vehicleParams()});for(const k of ['brands','gf'])for(const v of filters[k])params.append(k,v);for(const k of ['promo','new_product'])if(filters[k])params.set(k,'1');return params;}
   function filterBadge(){const n=filters.brands.length+filters.gf.length+Number(filters.promo)+Number(filters.new_product);$('shopFilterSummary').textContent=n?`Фільтри · ${n}`:'Фільтри';}
   async function loadFilters(){
     const current=++filterVersion;filterOptions={brands:[],filters:[]};$('shopFilterFields').textContent='Завантажуємо фільтри…';
-    try{const d=await request('shop/filters?'+new URLSearchParams({category,q}));if(current!==filterVersion)return;filterOptions=d;renderFilters();$('shopFilterStatus').textContent=d.partial?'Частина фільтрів тимчасово недоступна.':'';}
+    try{const d=await request('shop/filters?'+new URLSearchParams({category,q,...vehicleParams()}));if(current!==filterVersion)return;filterOptions=d;renderFilters();$('shopFilterStatus').textContent=d.partial?'Частина фільтрів тимчасово недоступна.':'';}
     catch(e){if(current===filterVersion){$('shopFilterFields').textContent='';$('shopFilterStatus').textContent=e.message;}}
   }
   function renderFilters(){
@@ -52,15 +93,15 @@
   function status(text){$('shopStatus').textContent=text;}
   function image(src,alt=''){return src?`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:'<span class="shop-image-placeholder" aria-hidden="true">KARP</span>';}
   function preserveForm(){if($('shopCar'))carId=$('shopCar').value;if($('shopComment'))comment=$('shopComment').value;}
-  const findCategory=(id,nodes=categories)=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
+  const findCategory=(id,nodes=[...categories,...vehicleNodes])=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
   function categoryCards(nodes){return nodes.map(c=>`<button class="shop-category" type="button" data-category="${esc(c.id)}"><span class="shop-category-image">${image(c.image,c.name)}</span><strong>${esc(c.name)}</strong></button>`).join('');}
-  async function open(){version++;path=[];show('shop');badge();if(!categories.length){status('Завантажуємо каталог…');try{const d=await request('shop/categories');categories=d.categories;renderCategories();status(d.configured===false?'Каталог тимчасово недоступний. Спробуйте пізніше.':'');}catch(e){status(e.message);}}}
+  async function open(){version++;path=[];show('shop');badge();loadVehicleBrands();if(!categories.length){status('Завантажуємо каталог…');try{const d=await request('shop/categories');categories=d.categories;renderCategories();status(d.configured===false?'Каталог тимчасово недоступний. Спробуйте пізніше.':'');}catch(e){status(e.message);}}}
   function renderCategories(){$('shopCategories').innerHTML=categoryCards(categories);}
   function choose(id){
     const node=findCategory(id);if(!node)return;
     version++;filterVersion++;category=id;q='';filters={brands:[],gf:[],promo:false,new_product:false};filterBadge();$('shopFilters').open=false;$('shopPromo').checked=false;$('shopNew').checked=false;$('shopSearch').value='';
     if(path.at(-1)!==id)path.push(id);
-    show('shopProducts');$('shopCategoryTitle').textContent=node.name;
+    show('shopProducts');$('shopCategoryTitle').textContent=node.name;$('shopVehicleScope').hidden=!vehicleParams().car;$('shopVehicleScope').textContent=vehicleParams().car?vehicleCar.replace('>',' · ')+' — підбір за моделлю. Комплектацію перевірить менеджер.':'';
     const children=node.children||[];
     $('shopSubcategories').innerHTML=categoryCards(children);
     $('shopSubcategories').hidden=!children.length;
@@ -75,7 +116,7 @@
   }
   async function browse(id,more=false){
     const node=findCategory(id);if(!node)return;
-    category=id;show('shopProducts');$('shopCategoryTitle').textContent=node.name;
+    category=id;show('shopProducts');$('shopCategoryTitle').textContent=node.name;$('shopVehicleScope').hidden=!vehicleParams().car;$('shopVehicleScope').textContent=vehicleParams().car?vehicleCar.replace('>',' · ')+' — підбір за моделлю. Комплектацію перевірить менеджер.':'';
     if(!more){page=1;products=[];$('shopProductList').innerHTML='';}
     const current=++version;$('shopProductStatus').textContent='Перевіряємо ціни й наявність…';$('shopMore').hidden=true;
     try{
@@ -147,9 +188,16 @@
   window.Shop={detailBack,open,browse:choose,back,openCart,orders,reset,loadFeatured};
   document.addEventListener('DOMContentLoaded',()=>{
     badge();
+    $('shopVinForm').addEventListener('submit',findVin);
+    $('shopVin').addEventListener('input',()=>{vinVersion++;$('shopVinSubmit').disabled=false;$('shopVinStatus').textContent='';});
+    $('shopVehicleForm').addEventListener('submit',loadVehicleGroups);
+    $('shopVehicleBrand').addEventListener('change',loadVehicleModels);
+    $('shopVehicleModel').addEventListener('change',()=>{vehicleVersion++;clearVehicleResults();vehicleStatus('');$('shopVehicleSubmit').disabled=!$('shopVehicleModel').value;});
+    $('shopVehicleRetry').addEventListener('click',()=>vehicleBrandsLoaded?loadVehicleModels():loadVehicleBrands());
+    $('shopVehicleClear').addEventListener('click',()=>{vehicleVersion++;vinVersion++;$('shopVinSubmit').disabled=false;$('shopVin').value='';$('shopVinStatus').textContent='';$('shopVehicleBrand').value='';loadVehicleModels();});
     loadFeatured();
     $('homeProducts').addEventListener('click',e=>{const b=e.target.closest('[data-featured-add]');if(b){add(Number(b.dataset.featuredAdd),featured,b);return;}const card=e.target.closest('[data-featured-product]');if(card)product(Number(card.dataset.featuredProduct),featured,'home');});
-    for(const id of ['shopCategories','shopSubcategories'])$(id).addEventListener('click',e=>{const b=e.target.closest('[data-category]');if(b)choose(b.dataset.category);});
+    for(const id of ['shopCategories','shopSubcategories','shopVehicleGroups'])$(id).addEventListener('click',e=>{const b=e.target.closest('[data-category]');if(b)choose(b.dataset.category);});
     $('shopSearchForm').addEventListener('submit',e=>{e.preventDefault();q=$('shopSearch').value.trim();loadFilters();browse(category);});
     $('shopMore').addEventListener('click',()=>{page++;browse(category,true);});
     $('shopProductList').addEventListener('click',e=>{const b=e.target.closest('[data-add]');if(b){add(Number(b.dataset.add));return;}const card=e.target.closest('[data-product]');if(card)product(Number(card.dataset.product));});

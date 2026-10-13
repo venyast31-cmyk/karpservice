@@ -19,3 +19,13 @@
 .shop-vin-availability{font-size:12px;line-height:1.5;color:#b0c0b8;margin:12px 0 0}
 .shop-groups-title{font-size:21px;line-height:1.3;margin:0 0 16px}
 .shop-category:active{border-color:var(--mint);background:#164032}
+
+.shop-vehicle-form{margin-top:20px;padding-top:18px;border-top:1px solid #345146}
+.shop-vehicle-form select{margin:0 0 14px;font-size:14px;width:100%;min-width:0}
+.shop-vehicle-form button{margin-top:12px}
+.shop-vehicle-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:28px}
+.shop-vehicle-group{width:100%;margin:0;padding:16px 12px;text-align:left;font-size:14px;line-height:1.4;border:1px solid #345146;border-radius:16px;background:#17372d;color:#f5f7f6;overflow-wrap:anywhere}
+#shopVehicleResults{scroll-margin-top:110px}
+#shopVehicleResults h2{font-size:20px;line-height:1.3;margin:0;overflow-wrap:anywhere}
+#shopVehicleResults .shop-toolbar{margin-bottom:10px}
+#shopVehicleResults[hidden],#shopVehicleRetry[hidden]{display:none}

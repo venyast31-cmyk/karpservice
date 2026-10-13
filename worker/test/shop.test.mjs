@@ -151,5 +151,6 @@ test('detail isolates supplier data, merges photos and filters reach supplier on
   await request('products?'+params);assert.deepEqual(search.searchParams.getAll('brands'),['MOTUL','ROWЕ']);assert.equal(search.searchParams.get('gf'),'В’язкість:5W30');assert.equal(search.searchParams.get('page'),'2');assert.equal(search.searchParams.get('promo'),'1');
   const f=await(await request('filters?category='+encodeURIComponent(leaf.id))).json();assert.equal(f.filters[0].values[0].value,'5W30');assert.equal(f.brands[0].name,'MOTUL');
   assert.equal((await request('products?category=oil&promo=invalid')).status,400);
+  await request('products?'+new URLSearchParams({car:'BMW>3 (E90)',node:'ГАЛЬМІВНА СИСТЕМА',page:'2',brands:'ATE'}));assert.deepEqual(search.searchParams.getAll('cars'),['BMW>3 (E90)']);assert.equal(search.searchParams.get('nodes'),'ГАЛЬМІВНА СИСТЕМА');assert.equal(search.searchParams.get('group'),null);assert.equal(search.searchParams.get('page'),'2');assert.equal(search.searchParams.get('brands'),'ATE');
  }finally{globalThis.fetch=original;}
 });

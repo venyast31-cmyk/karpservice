@@ -22,7 +22,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
     private let vault = SessionVault()
     private var appleFlow: AppleSignInFlow?
     private let routes: [String: String] = [
-        "shop/product": "GET", "shop/filters": "GET", "shop/categories": "GET", "shop/products": "GET", "shop/orders": "GET", "shop/checkout": "POST",
+        "shop/vehicles": "GET", "shop/vehicle-groups": "GET", "shop/product": "GET", "shop/filters": "GET", "shop/categories": "GET", "shop/products": "GET", "shop/orders": "GET", "shop/checkout": "POST",
         "": "GET", "order": "GET", "availability": "GET", "cars": "POST",
         "cars/remove": "POST", "booking": "POST", "auth/request": "POST", "auth/password": "POST",
         "account/deletion-policy": "GET", "account/deletion": "POST",
@@ -87,7 +87,7 @@ public final class KarpserviceAPIPlugin: CAPPlugin, CAPBridgedPlugin, URLSession
                     call.resolve(["status": 401, "data": ["success": false, "error": "Увійдіть через Apple."]])
                     return
                 }
-                let publicRoute = ["shop/product", "shop/filters", "shop/categories", "shop/products", "auth/password", "auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
+                let publicRoute = ["shop/vehicles", "shop/vehicle-groups", "shop/product", "shop/filters", "shop/categories", "shop/products", "auth/password", "auth/request", "auth/link-status", "auth/verify", "auth/logout"].contains(route)
                 if !publicRoute && token == nil {
                     call.resolve(["status": 401, "data": ["success": false, "error": "Увійдіть у профіль Karpservice."]])
                     return

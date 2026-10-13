@@ -506,15 +506,30 @@
   <section id="shop" class="screen">
     <div class="shop-toolbar"><h1>Магазин</h1></div>
     <div class="shop-vin-panel" aria-labelledby="shopVinTitle">
-      <span class="shop-vin-eyebrow">ЗАПЧАСТИНИ ДЛЯ ВАШОГО АВТО</span>
-      <h2 id="shopVinTitle">Пошук за VIN-кодом</h2>
-      <p class="shop-vin-description">Каталог запчастин зі схемами вузлів</p>
-      <label for="shopVin">VIN-код автомобіля</label>
-      <div class="shop-vin-search">
-        <input id="shopVin" class="vin-input" type="text" placeholder="17 символів VIN" maxlength="17" disabled aria-describedby="shopVinAvailability">
-        <button type="button" class="primary" disabled>Знайти</button>
-      </div>
-      <p id="shopVinAvailability" class="shop-vin-availability">VIN-каталог зі схемами ще не підключений. Поки що оберіть товари у швидких групах нижче.</p>
+      <h2 id="shopVinTitle">Запчастини для авто</h2>
+      <p class="shop-vin-description">Знайдіть авто за VIN або оберіть марку й модель</p>
+      <form id="shopVinForm">
+        <label for="shopVin">VIN-код автомобіля</label>
+        <div class="shop-vin-search">
+          <input id="shopVin" class="vin-input" type="text" placeholder="17 символів VIN" maxlength="17" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="shopVinStatus">
+          <button id="shopVinSubmit" type="submit" class="primary">Знайти</button>
+        </div>
+      </form>
+      <p id="shopVinStatus" class="shop-vin-availability" role="status"></p>
+      <form id="shopVehicleForm" class="shop-vehicle-form">
+        <label for="shopVehicleBrand">Марка</label>
+        <select id="shopVehicleBrand" required disabled><option value="">Завантажуємо марки…</option></select>
+        <label for="shopVehicleModel">Модель і покоління</label>
+        <select id="shopVehicleModel" required disabled><option value="">Спочатку оберіть марку</option></select>
+        <p id="shopVehicleStatus" class="shop-vin-availability" role="status"></p>
+        <button id="shopVehicleRetry" type="button" class="secondary" hidden>Повторити завантаження</button>
+        <button id="shopVehicleSubmit" class="primary" type="submit" disabled>Показати групи запчастин</button>
+      </form>
+    </div>
+    <div id="shopVehicleResults" hidden>
+      <div class="shop-toolbar"><h2 id="shopVehicleTitle"></h2><button id="shopVehicleClear" class="secondary" type="button">Скинути</button></div>
+      <p class="shop-message">Підбір за моделлю авто. Сумісність із двигуном і комплектацією уточнить менеджер перед замовленням.</p>
+      <div id="shopVehicleGroups" class="shop-vehicle-groups"></div>
     </div>
     <h2 class="shop-groups-title">Швидкі групи</h2>
     <div id="shopCategories" class="shop-categories"></div>
@@ -524,6 +539,7 @@
   <section id="shopProducts" class="screen">
     <div class="shop-toolbar"><button class="back" type="button" onclick="Shop.back()">← Назад</button><button class="secondary" type="button" onclick="Shop.openCart()">Кошик</button></div>
     <h1 id="shopCategoryTitle" class="shop-category-title"></h1>
+    <p id="shopVehicleScope" class="shop-message" hidden></p>
     <div id="shopSubcategories" class="shop-categories" hidden></div>
     <form id="shopSearchForm" class="shop-search"><input id="shopSearch" type="search" maxlength="100" placeholder="Назва або артикул" aria-label="Пошук товару"><button class="secondary" type="submit">Знайти</button></form>
     <details id="shopFilters" class="shop-filters"><summary id="shopFilterSummary">Фільтри</summary><form id="shopFilterForm"><div id="shopFilterFields"></div><label class="shop-filter-option"><input id="shopPromo" type="checkbox"><span>Акційні товари</span></label><label class="shop-filter-option"><input id="shopNew" type="checkbox"><span>Новинки</span></label><p id="shopFilterStatus" role="status"></p><button id="shopFilterRetry" class="shop-filter-retry" type="button">Оновити фільтри</button><div class="shop-filter-actions"><button class="primary" type="submit">Застосувати</button><button id="shopFilterReset" class="secondary" type="button">Скинути</button></div></form></details>

@@ -57,7 +57,7 @@ export async function handleReviewAccount(request, env, headers) {
     ]);
     return reply({ success: true, review_account: true, status: 'deleted' });
   }
-  const allowed = { '/shop/product':'GET','/shop/filters':'GET','/shop/categories':'GET','/shop/products':'GET','/shop/orders':'GET','/shop/checkout':'POST', '/': 'GET', '/order': 'GET', '/cars': 'POST', '/cars/remove': 'POST', '/booking': 'POST', '/availability': 'GET' };
+  const allowed = { '/shop/vehicles':'GET','/shop/vehicle-groups':'GET', '/shop/product':'GET','/shop/filters':'GET','/shop/categories':'GET','/shop/products':'GET','/shop/orders':'GET','/shop/checkout':'POST', '/': 'GET', '/order': 'GET', '/cars': 'POST', '/cars/remove': 'POST', '/booking': 'POST', '/availability': 'GET' };
   if (allowed[url.pathname] !== request.method) return error('Маршрут недоступний.', 403);
   if (url.pathname === '/availability') return reply({ success: true, bookings: [], review_account: true });
   const tour = createDemoSession(() => { throw new Error('Review account cannot access live transport'); });
