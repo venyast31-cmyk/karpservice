@@ -228,8 +228,8 @@ replaceOnce('<section id="login" class="screen active">', `<section id="guestSer
 replaceOnce('  body.is-authenticated .bottom-nav{display:grid}', '  .bottom-nav{display:grid}');
 replaceOnce('  body.is-authenticated .app{', '  .app{');
 replaceOnce('function show(id){', `function show(id){
-  if (!customerData && !['home', 'newsDetail', 'shop', 'shopProducts', 'shopCart', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';
-  if (customerData?.phone_linked === false && !['home', 'newsDetail', 'shop', 'shopProducts', 'shopCart', 'profile', 'phoneLink', 'login', 'guestServices', 'guestContacts'].includes(id)) id = 'profile';`);
+  if (!customerData && !['home', 'newsDetail', 'shop', 'shopProduct', 'shopProducts', 'shopCart', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';
+  if (customerData?.phone_linked === false && !['home', 'newsDetail', 'shop', 'shopProduct', 'shopProducts', 'shopCart', 'profile', 'phoneLink', 'login', 'guestServices', 'guestContacts'].includes(id)) id = 'profile';`);
 replaceOnce("    home:'homeNav', cars:'carsNav', addCar:'carsNav',", "    home:'homeNav', guestServices:'bookingNav', guestContacts:'profileNav', phoneLink:'profileNav', cars:'carsNav', addCar:'carsNav',");
 replaceOnce('async function openClientHome(){', `function openGuestLogin(){
   resetAuthFlow();

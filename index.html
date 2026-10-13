@@ -514,8 +514,10 @@
     <h1 id="shopCategoryTitle" class="shop-category-title"></h1>
     <div id="shopSubcategories" class="shop-categories" hidden></div>
     <form id="shopSearchForm" class="shop-search"><input id="shopSearch" type="search" maxlength="100" placeholder="Назва або артикул" aria-label="Пошук товару"><button class="secondary" type="submit">Знайти</button></form>
+    <details id="shopFilters" class="shop-filters"><summary id="shopFilterSummary">Фільтри</summary><form id="shopFilterForm"><div id="shopFilterFields"></div><label class="shop-filter-option"><input id="shopPromo" type="checkbox"><span>Акційні товари</span></label><label class="shop-filter-option"><input id="shopNew" type="checkbox"><span>Новинки</span></label><p id="shopFilterStatus" role="status"></p><button id="shopFilterRetry" class="shop-filter-retry" type="button">Оновити фільтри</button><div class="shop-filter-actions"><button class="primary" type="submit">Застосувати</button><button id="shopFilterReset" class="secondary" type="button">Скинути</button></div></form></details>
     <p id="shopProductStatus" class="shop-message" role="status"></p><div id="shopProductList"></div><button id="shopMore" class="secondary" type="button" hidden>Показати ще</button>
   </section>
+  <section id="shopProduct" class="screen"><button id="shopDetailBack" class="back" type="button">← Назад</button><p id="shopDetailStatus" class="shop-message" role="status"></p><button id="shopDetailRetry" class="secondary" type="button" hidden>Спробувати ще</button><div id="shopDetailContent"></div></section>
   <section id="shopCart" class="screen">
     <button class="back" type="button" onclick="Shop.open()">← До магазину</button><h1>Кошик</h1>
     <div id="shopCartList"></div>
@@ -859,10 +861,10 @@ function show(id){
     home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'carsNav', history:'carsNav', order:'carsNav',
-    shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
+    shopProduct:'shopNav', shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
     newsDetail:'homeNav', profile:'profileNav'
   };
-  const inShop = ['shop', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
+  const inShop = ['shop', 'shopProduct', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
   const centerNav = document.getElementById('bookingNav');
   centerNav.querySelector('.bottom-nav-label').textContent = inShop ? 'Кошик' : 'Запис';
   centerNav.setAttribute('aria-label', inShop ? 'Відкрити кошик' : 'Записатися на сервіс');

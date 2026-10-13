@@ -125,3 +125,31 @@ test('CRM deadline uses whole-second ISO, Kyiv time and skips weekends across DS
  assert.equal(shopDueDate(new Date('2026-10-23T10:00:00Z')),'2026-10-26T16:00:00Z');
  assert.equal(shopDueDate(new Date('2026-03-27T10:00:00Z')),'2026-03-30T15:00:00Z');
 });
+
+test('detail isolates supplier data, merges photos and filters reach supplier on every page',async()=>{
+ const db=new MemoryD1();
+ for(const f of ['0001_auth.sql','0012_shop.sql','0013_shop_credentials.sql'])db.database.exec(await readFile(new URL('../migrations/'+f,import.meta.url),'utf8'));
+ const env={AUTH_DB:db,BUSMARKET_API_TOKEN:'supplier-key'},id='B'.repeat(32);
+ db.database.prepare('INSERT INTO shop_catalog VALUES(?,?,?)').run(id,'oil',Date.now());
+ const original=globalThis.fetch;let search;
+ const raw={uuid:id,name:'Oil',brand:'MOTUL',article:'1',price:'100',currency_name:'UAH',default_image:'https://cdn.bm.parts/photos/one.jpg',images:['https://cdn.bm.parts/photos/two.jpg'],description:'<p>Опис</p>',details:{'В’язкість':'5W30',purchase_price:100},cars:[{brand:'BMW'}],oe:['123'],in_stocks:[{uuid:WAREHOUSES[0].id,quantity:'5',name:'PRIVATE'}],analogs:{C:{name:'Alternative',price:'50'}}};
+ globalThis.fetch=async input=>{
+  const u=new URL(input);
+  if(u.pathname.endsWith('/images'))return Response.json({images:['https://cdn.bm.parts/photos/two.jpg','javascript:bad']});
+  if(u.pathname.startsWith('/product/'))return Response.json({product:raw});
+  if(u.pathname.endsWith('/filters'))return Response.json({filters:[{name:'В’язкість',values:[{value:'5W30',products_count:3}]}]});
+  if(u.pathname.endsWith('/brands'))return Response.json({brands:[{name:'MOTUL',products_count:5}]});
+  search=u;return Response.json({products:{[id]:raw},search:{total_pages:3}});
+ };
+ const request=path=>handleShop(new Request('https://app.test/shop/'+path),env,{});
+ try{
+  const p=(await(await request('product?id='+id)).json()).product;
+  assert.equal(p.price,13000);assert.equal(p.images.length,2);assert.equal(p.details.purchase_price,undefined);assert.equal(p.stocks[0].name,undefined);assert.equal(p.analogs[0].price,undefined);assert.equal(p.description,raw.description);
+  assert.equal((await request('product?id=bad')).status,400);
+  assert.equal((await request('product?id='+'C'.repeat(32))).status,404);
+  const leaf=findCategory('oil').children[0],params=new URLSearchParams({category:leaf.id,page:'2',gf:'В’язкість:5W30',promo:'1'});params.append('brands','MOTUL');params.append('brands','ROWЕ');
+  await request('products?'+params);assert.deepEqual(search.searchParams.getAll('brands'),['MOTUL','ROWЕ']);assert.equal(search.searchParams.get('gf'),'В’язкість:5W30');assert.equal(search.searchParams.get('page'),'2');assert.equal(search.searchParams.get('promo'),'1');
+  const f=await(await request('filters?category='+encodeURIComponent(leaf.id))).json();assert.equal(f.filters[0].values[0].value,'5W30');assert.equal(f.brands[0].name,'MOTUL');
+  assert.equal((await request('products?category=oil&promo=invalid')).status,400);
+ }finally{globalThis.fetch=original;}
+});

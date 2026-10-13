@@ -1,3 +1,4 @@
+import {searchFilters,filterView,detailView} from './shop-details.js';
 import { requireAuthSession, consumeRateLimit } from './auth.js';
 import { CATEGORIES } from './shop-catalog.js';
 export { CATEGORIES };
@@ -59,7 +60,7 @@ async function supplier(env,path,params={}) {
   const token=await supplierToken(env);
   if(!token) throw new Error('supplier_unconfigured');
   const u=new URL('https://api.bm.parts'+path);
-  for(const [k,v] of Object.entries(params)) u.searchParams.set(k,String(v));
+  for(const [k,v] of Object.entries(params)) for(const item of Array.isArray(v)?v:[v]) u.searchParams.append(k,String(item));
   if(path!='/search/products/groups') for(const w of WAREHOUSES) u.searchParams.append('warehouses',w.id);
   const r=await fetch(u,{headers:{Authorization:token,'User-Agent':'Karpservice/1.0',Accept:'application/json'},signal:AbortSignal.timeout(18000),redirect:'manual'});
   if(!r.ok) throw new Error('supplier_'+r.status);
@@ -72,6 +73,24 @@ export async function handleShop(request,env,headers,dependencies={}) {
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
     if(u.pathname==='/shop/categories' && request.method==='GET') return reply({success:true,categories:CATEGORIES.map(publicCategory),configured:Boolean(await supplierToken(env))});
+    if(['/shop/product','/shop/filters'].includes(u.pathname) && request.method==='GET') {
+      if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
+      if(u.pathname==='/shop/product'){
+        const id=u.searchParams.get('id')||'';
+        if(!/^[A-F0-9]{32}$/i.test(id))return error('Некоректний товар.');
+        if(!await env.AUTH_DB.prepare('SELECT product_id FROM shop_catalog WHERE product_id=?').bind(id).first())return error('Відкрийте товар із каталогу.',404);
+        const [data,gallery]=await Promise.all([supplier(env,`/product/${id}`,{output_field:'all',oe:'full',save:false,with_extra:false}),supplier(env,`/product/${id}/images`).catch(()=>null)]);
+        const raw=data.product||{},base=productView(raw,id);
+        const fallback={id,name:String(raw.name||''),article:String(raw.article||''),brand:String(raw.brand||''),image:photo(raw.default_image),price:['UAH','ГРН','грн'].includes(raw.currency_name)?retailPrice(raw.price):null,step:Math.max(1,Math.ceil(Number(raw.multiplicity)||1)),stocks:[]};
+        return reply({success:true,product:detailView(raw,publicProduct(base||fallback),gallery?.images,photo),images_incomplete:gallery===null});
+      }
+      const category=findCategory(u.searchParams.get('category'));
+      if(!category)return error('Оберіть категорію.');
+      const q=(u.searchParams.get('q')||'').trim();if(q.length>100)return error('Некоректний пошук.');
+      const results=await Promise.allSettled([supplier(env,`/search/products/groups/${category.group.split('/').map(encodeURIComponent).join('/')}/filters`,{q,available:'1'}),supplier(env,'/search/products/aggregations/brands',{group:category.group,q,available:'1'})]);
+      if(results.every(r=>r.status==='rejected'))throw new Error('supplier_filters');
+      return reply({success:true,...filterView(results[0].value||{},results[1].value||{}),partial:results.some(r=>r.status==='rejected')});
+    }
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
       const category=findCategory(u.searchParams.get('category'));
@@ -80,7 +99,8 @@ export async function handleShop(request,env,headers,dependencies={}) {
       if(!Number.isInteger(page)||page<1||page>1000||q.length>100)return error('Некоректний пошук.');
       // Legacy clients may still request the parent wipers category. Restrict it to blades too.
       const group=category.id==='wipers'||category.name==='Система склоочисника' ? findCategory('wipers:Система склоочисника/Щітки склоочисника').group : category.group;
-      const d=await supplier(env,'/search/products',{group,q,page,per_page:24,available:'1',save:false,with_extra:false});
+      let filters;try{filters=searchFilters(u.searchParams);}catch{return error('Некоректні фільтри.');}
+      const d=await supplier(env,'/search/products',{group,q,page,per_page:24,available:'1',save:false,with_extra:false,...filters});
       const products=Object.entries(d.products||{}).map(([id,p])=>productView(p,p.uuid||id)).filter(Boolean);
       // Cache only membership, never purchase prices; checkout always reloads stock and price.
       if(products.length)await env.AUTH_DB.batch(products.map(p=>env.AUTH_DB.prepare('INSERT INTO shop_catalog(product_id,category_id,seen_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET category_id=excluded.category_id,seen_at=excluded.seen_at').bind(p.id,category.id,Date.now())));
