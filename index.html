@@ -672,8 +672,11 @@
     <span class="bottom-nav-label">Авто</span>
   </button>
   <button id="bookingNav" class="booking-nav" type="button" onclick="openQuickBooking()">
-    <span class="booking-nav-icon">
+    <span class="booking-nav-icon" id="bookingNavIcon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="3"/><path d="M8 3.5v4M16 3.5v4M3.5 10h17M12 13v5M9.5 15.5h5"/></svg>
+    </span>
+    <span id="cartNavIcon" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h2l2.5 12h11l2-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
     </span>
     <span class="bottom-nav-label">Запис</span>
   </button>
@@ -822,9 +825,16 @@ function show(id){
     home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'carsNav', history:'carsNav', order:'carsNav',
-    shop:'shopNav', shopProducts:'shopNav', shopCart:'shopNav', shopOrders:'shopNav',
+    shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
     profile:'profileNav'
   };
+  const inShop = ['shop', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
+  const centerNav = document.getElementById('bookingNav');
+  centerNav.querySelector('.bottom-nav-label').textContent = inShop ? 'Кошик' : 'Запис';
+  centerNav.setAttribute('aria-label', inShop ? 'Відкрити кошик' : 'Записатися на сервіс');
+  centerNav.onclick = inShop ? () => Shop.openCart() : () => openQuickBooking();
+  document.getElementById('bookingNavIcon').style.display = inShop ? 'none' : '';
+  document.getElementById('cartNavIcon').style.display = inShop ? '' : 'none';
   const activeNav = navByScreen[id] || '';
   document.querySelectorAll('.bottom-nav button').forEach(tab => {
     const isActive = tab.id === activeNav;
