@@ -190,7 +190,29 @@
   body.is-authenticated .app{
     padding-bottom:calc(126px + env(safe-area-inset-bottom,0px))
   }
-  .news-feed-title{margin-bottom:42px}
+  .news-feed-title{margin-bottom:20px}
+  .news-carousel{
+    display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;width:100%;
+    scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 0 24px;padding:0;
+  }
+  .news-carousel::-webkit-scrollbar{display:none}
+  .news-carousel-slide{
+    flex:0 0 91%;min-width:0;aspect-ratio:2.2/1;margin:0;padding:0;
+    border:1px solid rgba(114,230,170,.28);border-radius:20px;overflow:hidden;
+    background:#10392e;color:var(--text);scroll-snap-align:start;scroll-snap-stop:always;
+    box-shadow:none;cursor:pointer;
+  }
+  .news-carousel-slide .news-promo-image,
+  .news-carousel-slide .news-promo-image.native-promo-art{
+    display:block;width:100%;height:100%;aspect-ratio:auto;object-fit:contain;
+    border:0;border-radius:0;box-shadow:none;
+  }
+  .news-carousel-slide .news-banner{width:100%;height:100%;min-height:0;border:0;border-radius:0;box-shadow:none;padding:18px;align-items:center}
+  .news-carousel-slide .news-banner-copy{font-size:clamp(18px,5vw,24px);text-align:left}
+  .news-carousel-slide:focus-visible{outline:2px solid var(--mint);outline-offset:-4px}
+  #home .news-card{scroll-margin-top:20px}
+  @media(prefers-reduced-motion:reduce){.news-carousel{scroll-behavior:auto}}
   .news-card{margin:0 0 24px}
   .news-promo-image{
     display:block;width:100%;height:auto;aspect-ratio:1/1;object-fit:cover;border-radius:22px;
@@ -2196,6 +2218,39 @@ if (dateInput){
 window.setInterval(() => {
   if (document.getElementById('time')?.classList.contains('active')) refreshTimeSlots();
 }, 60000);
+
+function initializeNewsCarousel(){
+  const home = document.getElementById('home');
+  if (!home || document.getElementById('newsCarousel')) return;
+  const carousel = document.createElement('div');
+  carousel.id = 'newsCarousel';
+  carousel.className = 'news-carousel';
+  carousel.setAttribute('role', 'region');
+  carousel.setAttribute('aria-label', 'Банери новин — гортайте вліво або вправо');
+  home.querySelectorAll('.news-card').forEach((card, index) => {
+    const visual = card.querySelector('.news-promo-image, .news-banner');
+    if (!visual) return;
+    card.id = card.id || 'newsArticle' + index;
+    const slide = document.createElement('button');
+    slide.type = 'button';
+    slide.className = 'news-carousel-slide';
+    slide.setAttribute('aria-label', card.querySelector('h2')?.textContent || 'Відкрити новину');
+    slide.setAttribute('aria-controls', card.id);
+    slide.appendChild(visual);
+    slide.addEventListener('click', () => {
+      const more = card.querySelector('.news-more');
+      if (more && more.getAttribute('aria-expanded') !== 'true') more.click();
+      card.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+    });
+    carousel.appendChild(slide);
+  });
+  if (carousel.children.length) {
+    const heading = home.querySelector('.news-feed-title');
+    if (heading) heading.after(carousel);
+    else home.prepend(carousel);
+  }
+}
+initializeNewsCarousel();
 
 async function initializeApp(){
   await loadCustomer({initial:true});
