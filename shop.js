@@ -45,13 +45,13 @@
       $('shopMore').hidden=!d.has_more;
     }catch(e){if(current===version){$('shopProductStatus').textContent=e.message;if(more){page--;$('shopMore').hidden=false;}}}
   }
-  function add(index){
+  function add(index,source=products,button=null){
     if(locked){alert('Спочатку перевірте статус попереднього замовлення в кошику.');return;}
-    const p=products[index],old=cart.find(x=>x.id===p.id),quantity=(old?.quantity||0)+p.step,stock=preferredStock(p,quantity);
+    const p=source[index];if(!p)return;const old=cart.find(x=>x.id===p.id),quantity=(old?.quantity||0)+p.step,stock=preferredStock(p,quantity);
     if(!stock||quantity>99){alert('Недостатньо товару для цієї кількості.');return;}
     if(old){old.quantity=quantity;old.price=p.price;old.stocks=p.stocks;old.warehouse=stock.id;}else{if(cart.length>=20){alert('У кошику може бути до 20 позицій.');return;}cart.push({...p,warehouse:stock.id,quantity:p.step});}
     $('shopReceipt').hidden=true;
-    key='';save();const b=document.querySelector(`[data-add="${index}"]`);if(b){b.textContent='Додано ✓';setTimeout(()=>{if(b.isConnected)b.textContent='У кошик';},1200);}
+    key='';save();const b=button||document.querySelector(`[data-add="${index}"]`);if(b){b.textContent='Додано ✓';setTimeout(()=>{if(b.isConnected)b.textContent='У кошик';},1200);}
   }
   function openCart(){show('shopCart');renderCart();}
   function renderCart(){
@@ -83,9 +83,31 @@
   }
   async function orders(){show('shopOrders');$('shopOrdersList').textContent='Завантаження…';try{const d=await request('shop/orders');$('shopOrdersList').innerHTML=d.orders.length?d.orders.map(o=>`<article class="card"><strong>${o.status==='sent'?'Передано менеджеру':'Потребує перевірки менеджером'}</strong><p class="small">${esc(new Date(o.created_at).toLocaleString('uk-UA'))}<br>№ ${esc(o.public_id)}</p><b>${money(o.total_cents)}</b></article>`).join(''):'<div class="card empty">Замовлень поки немає.</div>';}catch(e){$('shopOrdersList').textContent=e.message;}}
   function reset(){version++;cart=[];key='';locked=false;carId='';comment='';save();if($('shopOrdersList'))$('shopOrdersList').innerHTML='';if($('shopReceipt'))$('shopReceipt').hidden=true;}
-  window.Shop={open,browse:choose,back,openCart,orders,reset};
+  let featured=[],featuredLoading=false,featuredLoaded=false;
+  async function loadFeatured(){
+    if(featuredLoading||featuredLoaded)return;
+    featuredLoading=true;$('homeProductsRetry').hidden=true;$('homeProductsStatus').textContent='Завантажуємо товари…';
+    try{
+      if(!categories.length){const d=await request('shop/categories');categories=d.categories;renderCategories();}
+      const nodes=[];const walk=list=>{for(const c of list){nodes.push(c);walk(c.children||[]);}};walk(categories);
+      const groups=['Оливи моторні для легкового транспорту','Антифризи','Засоби по догляду за авто'].map(name=>nodes.find(c=>c.name===name)).filter(Boolean);
+      const results=await Promise.allSettled(groups.map(c=>request('shop/products?'+new URLSearchParams({category:c.id,page:'1'}))));
+      const pools=results.map(r=>r.status==='fulfilled'?(r.value.products||[]).filter(p=>preferredStock(p)):[]);
+      featured=[];const seen=new Set();
+      for(let i=0;featured.length<20&&pools.some(p=>i<p.length);i++)for(const pool of pools){const p=pool[i];if(p&&!seen.has(p.id)&&featured.length<20){seen.add(p.id);featured.push(p);}}
+      $('homeProducts').innerHTML=featured.map((p,i)=>`<article class="shop-product"><div class="shop-product-photo">${image(p.image,p.name)}</div><div class="shop-product-body"><div class="shop-brand">${esc(p.brand)}</div><h2>${esc(p.name)}</h2><strong class="shop-price">${money(p.price)}</strong><button class="primary" type="button" data-featured-add="${i}">У кошик</button></div></article>`).join('');
+      const partial=results.some(r=>r.status==='rejected');
+      featuredLoaded=featured.length>0&&!partial;
+      $('homeProductsStatus').textContent=partial?'Частину товарів не вдалося завантажити.':featured.length?'':'Товари тимчасово недоступні.';
+      $('homeProductsRetry').hidden=featuredLoaded;
+    }catch(e){$('homeProductsStatus').textContent='Не вдалося завантажити товари.';$('homeProductsRetry').hidden=false;}
+    finally{featuredLoading=false;}
+  }
+  window.Shop={open,browse:choose,back,openCart,orders,reset,loadFeatured};
   document.addEventListener('DOMContentLoaded',()=>{
     badge();
+    loadFeatured();
+    $('homeProducts').addEventListener('click',e=>{const b=e.target.closest('[data-featured-add]');if(b)add(Number(b.dataset.featuredAdd),featured,b);});
     for(const id of ['shopCategories','shopSubcategories'])$(id).addEventListener('click',e=>{const b=e.target.closest('[data-category]');if(b)choose(b.dataset.category);});
     $('shopSearchForm').addEventListener('submit',e=>{e.preventDefault();q=$('shopSearch').value.trim();browse(category);});
     $('shopMore').addEventListener('click',()=>{page++;browse(category,true);});
