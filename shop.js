@@ -19,8 +19,9 @@
   function plainDescription(value){const doc=new DOMParser().parseFromString(String(value||''),'text/html');doc.querySelectorAll('script,style,iframe,object').forEach(n=>n.remove());doc.querySelectorAll('br,p,div,li').forEach(n=>n.append('\n'));return esc(doc.body.textContent.trim());}
   function infoValue(value){
     if(value==null)return '';
+    if(typeof value==='boolean')return value?'Так':'Ні';
     if(Array.isArray(value))return value.map(infoValue).filter(Boolean).map(v=>`<li>${v}</li>`).join('')?`<ul>${value.map(infoValue).filter(Boolean).map(v=>`<li>${v}</li>`).join('')}</ul>`:'';
-    if(typeof value==='object')return `<dl>${Object.entries(value).filter(([,v])=>v!==null&&v!=='').map(([k,v])=>`<div><dt>${esc(({name:'Назва',value:'Значення',brand:'Бренд',article:'Артикул',model:'Модель',year:'Рік',engine:'Двигун',number:'Номер',quantity:'Кількість',description:'Опис',url:'Посилання',uuid:'Код',type:'Тип'})[k]||k)}</dt><dd>${infoValue(v)}</dd></div>`).join('')}</dl>`;
+    if(typeof value==='object')return `<dl>${Object.entries(value).filter(([,v])=>v!==null&&v!=='').map(([k,v])=>`<div><dt>${esc(({name:'Назва',value:'Значення',brand:'Бренд',article:'Артикул',model:'Модель',year:'Рік',engine:'Двигун',number:'Номер',quantity:'Кількість',description:'Опис',url:'Посилання',uuid:'Код',type:'Тип',is_oem:'Оригінальний номер'})[k]||k)}</dt><dd>${infoValue(v)}</dd></div>`).join('')}</dl>`;
     if(typeof value==='string'&&/^https:\/\//i.test(value)){try{const url=new URL(value);if(url.protocol==='https:'&&!url.username&&!url.password)return `<a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">Відкрити матеріал ↗</a>`;}catch{}}
     return esc(value);
   }
