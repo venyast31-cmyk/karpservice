@@ -249,7 +249,7 @@ ${phoneFlow.replace(/\n  <\/section>$/, '\n</div>\n  </section>')}`);
 html = html.replace('>Увійти</button>', '>Підтвердити номер</button>');
 html = html.replace("btn.textContent = 'Увійти';", "btn.textContent = 'Підтвердити номер';");
 await writeFile(`${out}/index.html`, html);
-for (const asset of ['shop.js', 'shop.css', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
+for (const asset of ['shop.js', 'shop.css', 'news-vacancy-wide.jpg', 'news-oil-wide.jpg', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });
 }
 await cp(`${mobile}public`, out, { recursive: true });

@@ -38,6 +38,10 @@
       calc(16px + env(safe-area-inset-left,0px))
   }
   .top{display:flex;align-items:center;gap:14px;margin-bottom:24px;position:sticky;top:env(safe-area-inset-top,0px);z-index:100;padding:12px 0;background:#0d1718;box-shadow:0 -20px 0 #0d1718}
+  .header-cart{position:relative;flex:0 0 44px;width:44px;height:44px;padding:10px;margin:0 2px 0 auto;background:transparent;color:var(--mint);border:0;border-radius:12px;box-shadow:none}
+  .header-cart svg{display:block;width:24px;height:24px}
+  .header-cart-count{position:absolute;top:-2px;right:-4px;min-width:19px;height:19px;padding:0 4px;display:flex;align-items:center;justify-content:center;background:#ef3b46;color:#fff;border:2px solid #0d1718;border-radius:999px;font-size:10px;font-weight:800;line-height:1}
+  .header-cart-count[hidden]{display:none}
   .brand{display:flex;align-items:center;gap:11px;font-size:23px;font-weight:820;letter-spacing:-.25px;min-width:0}
   .brand-logo{width:50px;height:50px;display:block;border-radius:13px;filter:drop-shadow(0 10px 22px rgba(4,77,56,.32))}
   .badge{
@@ -205,7 +209,7 @@
   }
   .news-carousel-slide .news-promo-image,
   .news-carousel-slide .news-promo-image.native-promo-art{
-    display:block;width:100%;height:100%;aspect-ratio:auto;object-fit:contain;
+    display:block;width:100%;height:100%;aspect-ratio:auto;object-fit:cover;
     border:0;border-radius:0;box-shadow:none;
   }
   .news-carousel-slide .news-banner{width:100%;height:100%;min-height:0;border:0;border-radius:0;box-shadow:none;padding:18px;align-items:center}
@@ -412,6 +416,10 @@
 <div class="app">
   <div class="top">
     <div class="brand"><img class="brand-logo" src="logo.jpg" alt="" /><span>Karpservice</span></div>
+    <button id="headerCart" class="header-cart" type="button" onclick="Shop.openCart()" aria-label="Відкрити кошик">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h2l2.5 12h11l2-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+      <span id="headerCartCount" class="header-cart-count" aria-live="polite" hidden>0</span>
+    </button>
   </div>
 
   <section id="login" class="screen active">
@@ -2234,23 +2242,13 @@ function initializeNewsCarousel(){
   home.querySelectorAll('.news-card').forEach((card, index) => {
     let visual = card.querySelector('.news-promo-image, .news-banner');
     if (!visual) return;
-    // Compose portrait announcements as full-width banners, matching booking news.
-    const bannerCopy = card.querySelector('#mechanicVacancyDetails')
-      ? 'Шукаємо автомеханіка в команду!'
-      : card.querySelector('#oilPromoDetails')
-        ? 'Безкоштовна заміна мастила та фільтрів'
-        : '';
-    if (bannerCopy) {
-      const banner = document.createElement('div');
-      banner.className = 'news-banner';
-      const copy = document.createElement('div');
-      copy.className = 'news-banner-copy';
-      copy.textContent = bannerCopy;
-      const logo = document.createElement('img');
-      logo.className = 'news-banner-logo';
-      logo.src = 'logo.jpg';
-      logo.alt = 'Karpservice';
-      banner.append(copy, logo);
+    const bannerSrc = card.querySelector('#mechanicVacancyDetails') ? 'news-vacancy-wide.jpg'
+      : card.querySelector('#oilPromoDetails') ? 'news-oil-wide.jpg' : '';
+    if (bannerSrc) {
+      const banner = document.createElement('img');
+      banner.className = 'news-promo-image';
+      banner.src = bannerSrc;
+      banner.alt = card.querySelector('h2')?.textContent || 'Новина Karpservice';
       visual.replaceWith(banner);
       visual = banner;
     }
@@ -2280,7 +2278,7 @@ function initializeNewsCarousel(){
 initializeNewsCarousel();
 const homeFeatured = document.createElement('section');
 homeFeatured.className = 'home-featured';
-homeFeatured.innerHTML = '<div class="shop-toolbar"><h2>Топ 20 товарів</h2><button class="secondary" type="button" onclick="Shop.open()">Магазин →</button></div><p class="shop-message">Мастила, антифризи та автохімія</p><div id="homeProducts" class="home-products"></div><p id="homeProductsStatus" class="shop-message" role="status"></p><button id="homeProductsRetry" class="secondary" type="button" onclick="Shop.loadFeatured()" hidden>Спробувати ще раз</button>';
+homeFeatured.innerHTML = '<div class="shop-toolbar"><h2>Топ 20 товарів</h2><button class="secondary" type="button" onclick="Shop.open()">Магазин →</button></div><div id="homeProducts" class="home-products"></div><p id="homeProductsStatus" class="shop-message" role="status"></p><button id="homeProductsRetry" class="secondary" type="button" onclick="Shop.loadFeatured()" hidden>Спробувати ще раз</button>';
 document.getElementById('home').appendChild(homeFeatured);
 
 async function initializeApp(){

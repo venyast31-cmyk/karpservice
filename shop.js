@@ -6,7 +6,13 @@
   const storageKey='karpservice.shop.cart.v1';
   try {const d=JSON.parse(localStorage.getItem(storageKey)||'{}');if(Array.isArray(d.cart)&&d.cart.length<=20){cart=d.cart.filter(p=>p&&typeof p.id==='string'&&Array.isArray(p.stocks)&&Number.isInteger(p.quantity)&&p.quantity>0&&p.quantity<=99&&Number.isInteger(p.price)&&p.price>0&&Number.isInteger(p.step)&&p.step>0);key=typeof d.key==='string'?d.key:'';locked=d.locked===true;}}catch{}
   const save=()=>{try{localStorage.setItem(storageKey,JSON.stringify({cart,key,locked}));}catch{}badge();};
-  function badge(){const count=cart.reduce((n,p)=>n+p.quantity,0);if($('shopCartCount'))$('shopCartCount').textContent=count?`Кошик · ${count}`:'Кошик';}
+  function badge(){
+    const count=cart.reduce((n,p)=>n+p.quantity,0);
+    if($('shopCartCount'))$('shopCartCount').textContent=count?`Кошик · ${count}`:'Кошик';
+    const badge=$('headerCartCount');
+    if(badge){badge.textContent=String(count);badge.hidden=count===0;}
+    if($('headerCart'))$('headerCart').setAttribute('aria-label',count?`Відкрити кошик, товарів: ${count}`:'Відкрити порожній кошик');
+  }
   async function request(path,options){const r=await apiFetch(path,options);const d=await r.json();if(!r.ok)throw new Error(d.error||'Не вдалося завантажити магазин.');return d;}
   function status(text){$('shopStatus').textContent=text;}
   function image(src,alt=''){return src?`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:'<span class="shop-image-placeholder" aria-hidden="true">KARP</span>';}
