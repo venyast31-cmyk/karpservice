@@ -18,7 +18,7 @@ function app(customerData = null) {
     customerData,
     document: {
       querySelectorAll: () => [],
-      getElementById: id => ({ classList: { add: () => { current = id; } }, textContent: '' }),
+      getElementById: id => ({ classList: { add: () => { current = id; } }, textContent: '', style: {}, querySelector: () => ({ textContent: '' }), setAttribute() {} }),
     },
     window: { scrollTo() {} },
     resetAuthFlow() {}, renderCustomer() {},
