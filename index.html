@@ -37,7 +37,7 @@
       calc(36px + env(safe-area-inset-bottom,0px))
       calc(16px + env(safe-area-inset-left,0px))
   }
-  .top{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+  .top{display:flex;align-items:center;gap:14px;margin-bottom:24px;position:sticky;top:env(safe-area-inset-top,0px);z-index:100;padding:12px 0;background:#0d1718;box-shadow:0 -20px 0 #0d1718}
   .brand{display:flex;align-items:center;gap:11px;font-size:23px;font-weight:820;letter-spacing:-.25px;min-width:0}
   .brand-logo{width:50px;height:50px;display:block;border-radius:13px;filter:drop-shadow(0 10px 22px rgba(4,77,56,.32))}
   .badge{
@@ -491,6 +491,10 @@
     </article>
   </section>
 
+  <section id="newsDetail" class="screen">
+    <button class="back" type="button" onclick="show('home')">← До новин</button>
+    <div id="newsDetailContent"></div>
+  </section>
   <section id="shop" class="screen">
     <div class="shop-toolbar"><h1>Магазин</h1><button class="secondary" type="button" onclick="Shop.openCart()" id="shopCartCount">Кошик</button></div>
     <div id="shopCategories" class="shop-categories"></div>
@@ -848,7 +852,7 @@ function show(id){
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'carsNav', history:'carsNav', order:'carsNav',
     shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
-    profile:'profileNav'
+    newsDetail:'homeNav', profile:'profileNav'
   };
   const inShop = ['shop', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
   const centerNav = document.getElementById('bookingNav');
@@ -2260,8 +2264,11 @@ function initializeNewsCarousel(){
     slide.addEventListener('click', () => {
       const more = card.querySelector('.news-more');
       if (more && more.getAttribute('aria-expanded') !== 'true') more.click();
-      card.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+      document.querySelectorAll('#newsDetailContent .news-card').forEach(item => { item.hidden = item !== card; });
+      show('newsDetail');
     });
+    document.getElementById('newsDetailContent').appendChild(card);
+    card.hidden = true;
     carousel.appendChild(slide);
   });
   if (carousel.children.length) {
@@ -2271,6 +2278,10 @@ function initializeNewsCarousel(){
   }
 }
 initializeNewsCarousel();
+const homeFeatured = document.createElement('section');
+homeFeatured.className = 'home-featured';
+homeFeatured.innerHTML = '<div class="shop-toolbar"><h2>Топ 20 товарів</h2><button class="secondary" type="button" onclick="Shop.open()">Магазин →</button></div><p class="shop-message">Мастила, антифризи та автохімія</p><div id="homeProducts" class="home-products"></div><p id="homeProductsStatus" class="shop-message" role="status"></p><button id="homeProductsRetry" class="secondary" type="button" onclick="Shop.loadFeatured()" hidden>Спробувати ще раз</button>';
+document.getElementById('home').appendChild(homeFeatured);
 
 async function initializeApp(){
   await loadCustomer({initial:true});
