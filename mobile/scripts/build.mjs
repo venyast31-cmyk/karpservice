@@ -11,13 +11,17 @@ const replaceOnce = (search, value) => {
   if (html.split(search).length !== 2) throw new Error(`Frontend changed; review mobile insertion: ${search.slice(0, 100)}`);
   html = html.replace(search, value);
 };
-replaceOnce('<span>Karpservice</span></div>', '<span id="nativeBrandTitle">Karpservice</span></div>');
+replaceOnce('<div class="brand"><img class="brand-logo" src="logo.jpg" alt="" /><span>Karpservice</span></div>', '<img class="brand-logo" src="logo.jpg" alt="" /><span id="nativeBrandTitle">Твій Karpservice</span>');
 replaceOnce('<h1 class="news-feed-title">Новини</h1>', '');
-replaceOnce("  if (el) el.classList.add('active');", "  if (el) el.classList.add('active');\n  const brandTitle = document.getElementById('nativeBrandTitle');\n  if (brandTitle) brandTitle.textContent = ['home', 'newsDetail'].includes(id) ? 'Новини' : 'Karpservice';");
 replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Karpservice — Онлайн-запис</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://cdn.bm.parts; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <script src="native.js"></script>
 <style>
+/* Equal side columns keep the title centered independently of the cart badge. */
+.app>.top{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:10px}
+.app>.top>.brand-logo{width:44px;height:44px;border-radius:11px}
+#nativeBrandTitle{min-width:0;text-align:center;white-space:nowrap;font-size:clamp(17px,5vw,21px);font-weight:750;line-height:1.2;letter-spacing:-.35px}
+.app>.top>.header-cart{width:44px;height:44px;margin:0}
 /* Prevent accidental double-tap zoom, including inside nested scroll areas.
    Keep normal scrolling and deliberate pinch-to-zoom available. */
 html,body,body *{touch-action:manipulation}
