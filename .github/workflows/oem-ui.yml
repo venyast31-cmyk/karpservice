@@ -26,5 +26,5 @@ jobs:
         if: always()
         with:
           name: oem-mobile-preview
-          path: ${{ runner.temp }}/karp-oem-parts.png
+          path: ${{ runner.temp }}/karp-oem-*.png
           retention-days: 7

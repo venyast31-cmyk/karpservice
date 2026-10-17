@@ -540,19 +540,21 @@
     <button class="secondary shop-order-link" type="button" onclick="Shop.orders()">Мої замовлення</button>
   </section>
   <section id="shopOem" class="screen">
-    <button id="oemBack" class="back" type="button">← До магазину</button>
+    <div class="oem-toolbar"><button id="oemBack" class="back" type="button" aria-label="Назад">‹</button><h1 id="oemTitle">Каталог запчастин</h1></div>
     <div id="oemCar" class="oem-car"></div>
-    <h1 id="oemTitle" class="shop-category-title">Каталог запчастин</h1>
-    <div id="oemQuick" class="oem-quick"></div>
-    <form id="oemSearch" class="shop-search"><input id="oemQuery" type="search" maxlength="120" placeholder="Назва деталі англійською або артикул" aria-label="Пошук у каталозі авто"><button type="submit" class="secondary">Знайти</button></form>
+    <form id="oemSearch" class="shop-search"><input id="oemQuery" type="search" maxlength="120" placeholder="Пошук деталі або артикула" aria-label="Пошук у каталозі авто"><button type="submit" class="secondary" aria-label="Знайти деталь">Знайти</button></form>
+    <div id="oemTabs" class="oem-tabs" role="group" aria-label="Вид каталогу"><button id="oemQuickTab" type="button" aria-pressed="true">Швидкі групи</button><button id="oemCategoriesTab" type="button" aria-pressed="false">Категорії</button></div>
+    <div id="oemQuick" hidden></div>
     <p id="oemStatus" class="shop-message" role="status"></p>
     <button id="oemRetry" class="secondary" type="button" hidden>Спробувати ще</button>
     <div id="oemNodes" class="oem-nodes"></div>
     <div id="oemDiagram" hidden>
-      <div class="oem-zoom"><span>Натисніть номер на схемі</span><button id="oemZoomOut" type="button" class="secondary" aria-label="Зменшити схему">−</button><button id="oemZoomIn" type="button" class="secondary" aria-label="Збільшити схему">+</button></div>
+      <div class="oem-zoom"><button id="oemExpand" type="button" class="secondary">На весь екран</button><span></span><button id="oemZoomOut" type="button" class="secondary" aria-label="Зменшити схему">−</button><button id="oemZoomIn" type="button" class="secondary" aria-label="Збільшити схему">+</button></div>
+      <div id="oemImageHome"></div>
       <div id="oemViewport" class="oem-viewport"><div id="oemCanvas" class="oem-canvas"><img id="oemImage" alt="Схема вузла" referrerpolicy="no-referrer"><div id="oemPoints"></div></div></div>
       <div class="oem-part-tools"><strong id="oemPartTitle">Деталі на схемі</strong><button id="oemAllParts" type="button" class="secondary" hidden>Усі деталі</button></div>
       <div id="oemParts"></div>
+      <dialog id="oemFullscreen" aria-label="Схема вузла"><div class="oem-full-tools"><button id="oemClose" type="button" aria-label="Закрити схему">‹ Назад</button><span>Схема вузла</span><button id="oemFullMinus" type="button" aria-label="Зменшити">−</button><button id="oemFullPlus" type="button" aria-label="Збільшити">+</button></div><div id="oemFullImage"></div><p>Натисніть номер, щоб переглянути деталь</p></dialog>
     </div>
   </section>
   <section id="shopProducts" class="screen">
@@ -901,6 +903,7 @@ function finishInitialLoading(){
 }
 
 function show(id){
+  document.body.classList.toggle('oem-active',id==='shopOem');
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const el = document.getElementById(id);
   if (el) el.classList.add('active');

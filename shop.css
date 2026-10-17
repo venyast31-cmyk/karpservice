@@ -49,3 +49,48 @@ input,select,textarea{font-size:16px!important}
 .oem-part-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:24px 0 12px}.oem-part-tools button{font-size:13px;width:auto;padding:10px}
 .oem-part{border:1px solid #314a40;background:#17231e;border-radius:16px;padding:16px;margin-bottom:12px;overflow-wrap:anywhere}.oem-part-heading{display:flex;gap:10px;align-items:baseline}.oem-part h2{font-size:16px;line-height:1.45;margin:0}.oem-reference{border:1px solid #426756;border-radius:6px;padding:3px 6px;color:var(--mint);font-size:13px}.oem-number{display:block;font:700 18px ui-monospace,monospace;margin:12px 0}.oem-part small{display:block;color:#a4b4ac;margin-bottom:12px}.oem-part details{font-size:14px;line-height:1.5;margin:12px 0}.oem-part button{margin-top:12px;width:100%}
 #shopOem{min-width:0}#shopOem input,#shopVin{font-size:16px;min-width:0}#shopOem [hidden]{display:none!important}
+/* Compact vehicle catalog: one row per category and one focused diagram. */
+body.oem-active .top{padding:3px 0;margin-bottom:6px;min-height:38px;gap:8px}
+body.oem-active .top .brand-logo{width:28px;height:28px;border-radius:8px}
+body.oem-active .top .brand{font-size:15px!important;gap:8px}
+body.oem-active .top .header-cart{height:36px;width:36px;flex-basis:36px;padding:6px}
+.oem-toolbar{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;align-items:center;gap:6px;margin:4px 0 10px}
+#oemBack{width:36px;height:40px;padding:0;margin:0;font-size:34px;font-weight:400;text-align:left;line-height:1}
+#oemTitle{font-size:19px;line-height:1.3;text-align:center;margin:0;overflow-wrap:anywhere;font-weight:650}
+#oemCar{padding:0 2px 10px;margin:0;border:0;border-radius:0;background:none}
+#oemCar details{margin:0;font-size:12px;color:#9bafa6}
+#oemCar summary{cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:12px;line-height:20px;list-style:none}
+#oemCar summary span{color:var(--mint);white-space:nowrap}#oemCar dl{font-size:12px}
+#oemSearch{display:flex;gap:6px;margin:0 0 14px}#oemQuery{height:44px;border-radius:12px;padding:10px 12px;font-weight:400}
+#oemSearch button{width:auto;flex:none;padding:10px 12px;height:44px;border-radius:12px;font-size:13px}
+.oem-tabs{display:flex;background:#17221f;border:1px solid #293b33;border-radius:12px;padding:4px;gap:4px;margin:0 0 12px}
+.oem-tabs button{width:50%;border:0;background:none;box-shadow:none;color:#a6b7ae;font-size:14px;font-weight:600;padding:10px 4px;border-radius:9px;min-height:40px}
+.oem-tabs button[aria-pressed=true]{background:#096146;color:#effff7}
+#oemStatus:empty{display:none}#oemStatus{font-size:14px;line-height:1.5;margin:12px 0}
+#oemNodes{display:block;border-top:1px solid #26352f}
+#oemNodes:empty{border:0}
+.oem-node{display:flex;align-items:center;gap:12px;width:100%;min-height:49px;padding:12px 2px;margin:0;border:0;border-bottom:1px solid #26352f;border-radius:0;background:none;box-shadow:none;font-size:16px;font-weight:400;line-height:1.4}
+.oem-node span{flex:1;min-width:0;padding:0;overflow-wrap:break-word}
+.oem-node i{font-size:24px;color:#778c81;font-style:normal;font-weight:300;flex:none;padding:0 3px}
+.oem-node img{width:86px;height:68px;flex:none;object-fit:contain;border-radius:8px}
+.oem-node:active{background:#163d2e}.oem-node:focus-visible{outline:2px solid var(--mint);outline-offset:-2px}
+.oem-zoom{margin:10px 0;gap:6px}.oem-zoom button{height:34px;width:34px;font-size:20px;border-radius:9px}
+.oem-zoom #oemExpand{font-size:12px;width:auto;padding:0 10px}
+.oem-viewport{max-height:45vh;border-radius:12px;border:0}
+.oem-part-tools{margin:18px 0 6px;font-size:14px}.oem-part-tools button{padding:8px;font-size:11px}
+.oem-part{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(108px,38%);gap:9px;align-items:start;border:0;border-bottom:1px solid #2c3c34;background:none;border-radius:0;padding:14px 0;margin:0;overflow-wrap:anywhere}
+.oem-reference{border:0;padding:2px 0;color:#91a49a;font-weight:400;font-size:13px}
+.oem-part h2{font-size:13px;font-weight:500;line-height:1.45;margin:0 0 4px;color:#e2eee7}
+.oem-part small{font-size:11px;line-height:1.4;margin:4px 0;color:#94a89d}
+.oem-part details{font-size:12px;margin:8px 0 0}.oem-part details p{line-height:1.4}
+.oem-part .oem-buy{margin:0;padding:8px 5px;border:1px solid #279b6c;background:#092d21;color:#8be4b4;border-radius:8px;font-size:12px;font-weight:550;min-height:44px;box-shadow:none}
+.oem-part .oem-buy small{font:10px -apple-system,BlinkMacSystemFont,sans-serif;color:#a1bcad;margin:4px 0 0}
+#oemFullscreen{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;border:0;border-radius:0;padding:calc(8px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));box-sizing:border-box;background:#fff;color:#153127;overflow:auto}
+#oemFullscreen[open]{display:flex;flex-direction:column}
+.oem-full-tools{display:flex;align-items:center;gap:10px;flex:none}.oem-full-tools span{flex:1;font-size:13px;text-align:center}
+.oem-full-tools button{width:auto;min-width:40px;min-height:44px;padding:8px;border:0;border-radius:8px;background:#edf4f0;box-shadow:none;color:#17583d;font-size:15px}
+#oemFullImage{display:flex;flex:1;align-items:center;min-height:0;overflow:hidden;margin:16px 0}
+#oemFullImage .oem-viewport{max-height:100%;border-radius:0;width:100%}
+#oemFullscreen p{font-size:12px;text-align:center;color:#60766a;flex:none}
+body.oem-full-open{overflow:hidden}
+@media(max-width:360px){.oem-node{font-size:15px}.oem-part{grid-template-columns:20px minmax(0,1fr) 108px;gap:6px}#oemTitle{font-size:17px}}

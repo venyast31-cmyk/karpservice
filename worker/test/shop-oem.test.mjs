@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {vehiclesView,nodesView,partsView,oemImage,handleOem} from '../src/shop-oem.js';
+import {vehiclesView,nodesView,partsView,oemImage,handleOem,quickView,searchView} from '../src/shop-oem.js';
 const fixture=async name=>JSON.parse(await readFile(new URL('./fixtures/oem-'+name+'.json',import.meta.url),'utf8')).data;
 test('provider sample response maps exact model, equipment and nested catalogue',async()=>{
  const result=vehiclesView(await fixture('resolve'));
@@ -34,4 +34,14 @@ test('invalid VIN, unknown vehicle and exhausted quota never call provider',asyn
  assert.equal((await handleOem(new Request('https://example.com/shop/oem/resolve',{method:'POST',body:'{"vin":"bad"}'}),env,{},deps)).status,400);
  assert.equal((await handleOem(new Request('https://example.com/shop/oem?op=groups&vehicle='+'a'.repeat(32)),env,{},deps)).status,410);
  assert.equal((await handleOem(new Request('https://example.com/shop/oem/resolve',{method:'POST',body:'{"vin":"WDC1660231A178846"}'}),env,{}, {...deps,rate:async(e,k)=>k!=='oem-vin-global'})).status,429);
+});
+
+test('quick taxonomy keeps provider identifiers and searches retain matched articles',async()=>{
+ const nodes=quickView((await fixture('quick')).quick_taxonomy.tree);
+ assert.equal(nodes[0].children[0].quick,'service-oil-filter');
+ assert.equal(nodes[1].children.find(x=>x.name==='Cylinder head gasket').quick,'dvigatel-prokladka-gbts');
+ assert.equal(nodes[0].children[0].query,undefined);
+ const found=searchView((await fixture('search')).items);
+ assert.ok(found[0].matches.includes('A6421800010'));
+ assert.ok(!found[0].foundParts);
 });

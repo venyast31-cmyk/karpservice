@@ -17,6 +17,7 @@ function app(customerData = null) {
   const context = createContext({
     customerData,
     document: {
+      body: { classList: { toggle() {} } },
       querySelectorAll: () => [],
       getElementById: id => ({ classList: { add: () => { current = id; } }, textContent: '', style: {}, querySelector: () => ({ textContent: '' }), setAttribute() {} }),
     },

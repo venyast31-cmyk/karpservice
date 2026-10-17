@@ -14,6 +14,16 @@ export function nodesView(rows,depth=0) {
   if(depth>10)return [];
   return list(rows).slice(0,500).map(n=>({id:validId(n.hash)?n.hash:'',name:text(n.name),image:oemImage(n.image),parts:n.can_fetch_parts===true||n.kind==='diagram',children:nodesView(n.children,depth+1)})).filter(n=>n.id||n.children.length);
 }
+export function quickView(rows,depth=0) {
+  if(depth>8)return [];
+  return list(rows).slice(0,500).map(n=>({id:'',name:text(n.label),quick:/^[a-z0-9-]{2,100}$/.test(n.quick_category||'')?n.quick_category:'',children:quickView(n.children,depth+1)})).filter(n=>n.quick||n.children.length);
+}
+export function searchView(items) {
+  return nodesView(items.map(n=>({...n,kind:'diagram'}))).map(n=>{
+    const source=items.find(x=>x.hash===n.id);
+    return {...n,matches:[...new Set(list(source?.foundParts).flatMap(p=>[p.number,p.part_no,p.part_number,...list(p.numbers)]).filter(v=>typeof v==='string'&&/^[A-Za-z0-9 .\/-]{2,100}$/.test(v)))].slice(0,500)};
+  });
+}
 export function partsView(d) {
   if(!Array.isArray(d?.data?.parts))throw new VinalfaError('oem_invalid_response');
   return {name:text(d.sectionName),image:oemImage(d.data.image),parts:d.data.parts.slice(0,1000).map(p=>({reference:text(p.reference,60),points:list(p.points).filter(p=>[p.x,p.y,p.width,p.height].every(Number.isFinite)&&p.x>=0&&p.y>=0&&p.width>0&&p.height>0).slice(0,30).map(({x,y,width,height})=>({x,y,width,height})),numbers:list(p.numbers).slice(0,100).map(n=>({number:text(n.number,100),replacement:text(n.replace,100),name:text(n.label),quantity:text(n.count,30),description:list(n.description).slice(0,40).map(x=>({name:text(x.name),value:text(x.desc,1500)}))}))}))};
@@ -48,18 +58,19 @@ export async function handleOem(request,env,headers,deps={}) {
     }
     if(request.method!=='GET')return fail('invalid_query',405);
     const op=u.searchParams.get('op'),vehicle=u.searchParams.get('vehicle'),section=u.searchParams.get('section');
-    if(!validId(vehicle)||!['groups','children','parts','search'].includes(op)||(['children','parts'].includes(op)&&!validId(section)))return fail('invalid_catalog_id',400);
+    if(!validId(vehicle)||!['groups','children','parts','search','quick'].includes(op)||(['children','parts'].includes(op)&&!validId(section)))return fail('invalid_catalog_id',400);
     if(!await getCache('vehicle:'+vehicle))return reply({success:false,error:'Повторіть пошук автомобіля за VIN.',code:'oem_vehicle_expired'},410);
     const q=text(u.searchParams.get('q'),121),quick=text(u.searchParams.get('quick'),101);
     if(op==='search'&&!(quick?/^[a-z0-9-]{2,100}$/.test(quick):q.length>=2&&q.length<=120))return fail('invalid_query',400);
-    const key='nav:'+await sha256Hex(JSON.stringify([op,vehicle,section,q,quick]));const cached=await getCache(key);
+    const key='nav2:'+await sha256Hex(JSON.stringify([op,vehicle,section,q,quick]));const cached=await getCache(key);
     if(cached)return reply({success:true,...cached});
     if(!await rate(env,'oem-provider-global',100,60))return fail('oem_limit',429);
     let result;
+    if(op==='quick'){const d=await api.quickSelection(vehicle);if(!Array.isArray(d?.quick_taxonomy?.tree))throw new VinalfaError('oem_invalid_response');result={nodes:quickView(d.quick_taxonomy.tree)};}
     if(op==='groups'){const d=await api.groups(vehicle);if(!Array.isArray(d?.data?.sections))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.data.sections)};}
     if(op==='children'){const d=await api.children(section);if(!Array.isArray(d?.data?.units)&&!Array.isArray(d?.data?.sections))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.data.units||d.data.sections)};}
     if(op==='parts')result=partsView(await api.parts(section,vehicle));
-    if(op==='search'){const d=quick?await api.quickSearch(vehicle,quick):await api.search(vehicle,q);if(!Array.isArray(d.items))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.items.map(n=>({...n,kind:'diagram'})))};}
+    if(op==='search'){const d=quick?await api.quickSearch(vehicle,quick):await api.search(vehicle,q);if(!Array.isArray(d.items))throw new VinalfaError('oem_invalid_response');result={nodes:searchView(d.items)};}
     await putCache(key,result);return reply({success:true,...result});
   }catch(e){if(e instanceof VinalfaError)return reply({success:false,error:messages[e.message]||messages.oem_unavailable,code:e.message,...(e.upstreamStatus?{upstream_status:e.upstreamStatus}:{})},e.status);return fail('oem_unavailable',503);}
 }
