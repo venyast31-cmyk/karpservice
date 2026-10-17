@@ -1,0 +1,48 @@
+name: Configure Vinalfa API
+on:
+  push:
+    branches: ['release/api']
+    paths: ['.github/workflows/vinalfa-configure.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: karpservice-api-production
+  cancel-in-progress: false
+jobs:
+  configure:
+    if: github.repository == 'venyast31-cmyk/karpservice' && github.ref == 'refs/heads/release/api'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Store Vinalfa token in Worker
+        working-directory: worker
+        env:
+          VINALFA_API_TOKEN: ${{ secrets.VINALFA_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+          CI: 'true'
+        run: |
+          test -n "$VINALFA_API_TOKEN" || { echo 'VINALFA_API_TOKEN is missing from repository secrets'; exit 1; }
+          printf '%s' "$VINALFA_API_TOKEN" | npx --yes wrangler@4.127.1 secret put VINALFA_API_TOKEN
+      - name: Verify Vinalfa access without spending VIN quota
+        env:
+          VINALFA_API_TOKEN: ${{ secrets.VINALFA_API_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          const response = await fetch('https://api.vinalfa.com/oem/v2/catalogs', {
+            headers: { Authorization: 'Bearer ' + process.env.VINALFA_API_TOKEN, Accept: 'application/json' },
+            redirect: 'error',
+            signal: AbortSignal.timeout(20000)
+          });
+          console.log('Vinalfa catalogs HTTP status:', response.status);
+          if (!response.ok) throw new Error('Vinalfa access check failed; token value and provider response are withheld');
+          console.log('Vinalfa API access verified. No VIN lookup performed.');
+          JS
