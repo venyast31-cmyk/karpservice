@@ -1,1 +1,0 @@
-const r=await fetch('https://api.vinalfa.com/oem/v2/catalogs',{headers:{Authorization:'Bearer '+process.env.VINALFA_API_TOKEN},redirect:'manual'});const d=await r.json();console.log(JSON.stringify({status:r.status,data:d.data}));

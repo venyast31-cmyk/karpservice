@@ -23,7 +23,7 @@ test('missing secret disables access', async () => {
   await assert.rejects(createVinalfa({}, () => assert.fail('unexpected request')).catalogs(), /oem_unconfigured/);
 });
 test('provider errors cannot expose provider payloads', async () => {
-  for (const [status, code] of [[401,'oem_access_unavailable'],[403,'oem_access_unavailable'],[429,'oem_limit'],[404,'oem_not_found'],[500,'oem_unavailable']]) {
+  for (const [status, code] of [[302,'oem_unavailable'],[401,'oem_access_unavailable'],[403,'oem_access_unavailable'],[429,'oem_limit'],[404,'oem_not_found'],[500,'oem_unavailable']]) {
     const api = createVinalfa({VINALFA_API_TOKEN:'test-only'}, async () => new Response('sensitive provider detail', {status}));
     await assert.rejects(api.catalogs(), e => e.message === code);
   }
@@ -33,4 +33,9 @@ test('rejects malformed successful responses', async () => {
     const api = createVinalfa({VINALFA_API_TOKEN:'test-only'}, async () => Response.json(data));
     await assert.rejects(api.catalogs(), /oem_invalid_response/);
   }
+});
+
+test('catalog subscription denial is distinct from authentication failures', async () => {
+  const api = createVinalfa({VINALFA_API_TOKEN:'test-only'}, async () => Response.json({error:{code:'catalog_not_available',message:'private provider detail'}},{status:403}));
+  await assert.rejects(api.groups(id), e => e.message === 'oem_catalog_unavailable' && e.status === 403);
 });
