@@ -401,6 +401,7 @@
 </style>
 <link rel="stylesheet" href="shop.css">
 <script src="shop.js" defer></script>
+<script src="shop-oem.js" defer></script>
 </head>
 <body>
 <div id="appLoader" class="app-loader" role="status" aria-live="polite" aria-label="Завантаження програми">
@@ -507,7 +508,7 @@
     <div class="shop-toolbar"><h1>Магазин</h1></div>
     <div class="shop-vin-panel" aria-labelledby="shopVinTitle">
       <h2 id="shopVinTitle">Запчастини для авто</h2>
-      <p class="shop-vin-description">Знайдіть авто за VIN або оберіть марку й модель</p>
+      <p class="shop-vin-description">Знайдіть своє авто, відкрийте схему та оберіть деталь</p>
       <form id="shopVinForm">
         <label for="shopVin">VIN-код автомобіля</label>
         <div class="shop-vin-search">
@@ -516,6 +517,8 @@
         </div>
       </form>
       <p id="shopVinStatus" class="shop-vin-availability" role="status"></p>
+      <div id="shopVinChoices"></div>
+      <details class="shop-manual"><summary>Підібрати за маркою та моделлю</summary>
       <form id="shopVehicleForm" class="shop-vehicle-form">
         <label for="shopVehicleBrand">Марка</label>
         <select id="shopVehicleBrand" required disabled><option value="">Завантажуємо марки…</option></select>
@@ -524,7 +527,7 @@
         <p id="shopVehicleStatus" class="shop-vin-availability" role="status"></p>
         <button id="shopVehicleRetry" type="button" class="secondary" hidden>Повторити завантаження</button>
         <button id="shopVehicleSubmit" class="primary" type="submit" disabled>Показати групи запчастин</button>
-      </form>
+      </form></details>
     </div>
     <div id="shopVehicleResults" hidden>
       <div class="shop-toolbar"><h2 id="shopVehicleTitle"></h2><button id="shopVehicleClear" class="secondary" type="button">Скинути</button></div>
@@ -535,6 +538,22 @@
     <div id="shopCategories" class="shop-categories"></div>
     <p id="shopStatus" class="shop-message" role="status"></p>
     <button class="secondary shop-order-link" type="button" onclick="Shop.orders()">Мої замовлення</button>
+  </section>
+  <section id="shopOem" class="screen">
+    <button id="oemBack" class="back" type="button">← До магазину</button>
+    <div id="oemCar" class="oem-car"></div>
+    <h1 id="oemTitle" class="shop-category-title">Каталог запчастин</h1>
+    <div id="oemQuick" class="oem-quick"></div>
+    <form id="oemSearch" class="shop-search"><input id="oemQuery" type="search" maxlength="120" placeholder="Назва деталі англійською або артикул" aria-label="Пошук у каталозі авто"><button type="submit" class="secondary">Знайти</button></form>
+    <p id="oemStatus" class="shop-message" role="status"></p>
+    <button id="oemRetry" class="secondary" type="button" hidden>Спробувати ще</button>
+    <div id="oemNodes" class="oem-nodes"></div>
+    <div id="oemDiagram" hidden>
+      <div class="oem-zoom"><span>Натисніть номер на схемі</span><button id="oemZoomOut" type="button" class="secondary" aria-label="Зменшити схему">−</button><button id="oemZoomIn" type="button" class="secondary" aria-label="Збільшити схему">+</button></div>
+      <div id="oemViewport" class="oem-viewport"><div id="oemCanvas" class="oem-canvas"><img id="oemImage" alt="Схема вузла" referrerpolicy="no-referrer"><div id="oemPoints"></div></div></div>
+      <div class="oem-part-tools"><strong id="oemPartTitle">Деталі на схемі</strong><button id="oemAllParts" type="button" class="secondary" hidden>Усі деталі</button></div>
+      <div id="oemParts"></div>
+    </div>
   </section>
   <section id="shopProducts" class="screen">
     <div class="shop-toolbar"><button class="back" type="button" onclick="Shop.back()">← Назад</button><button class="secondary" type="button" onclick="Shop.openCart()">Кошик</button></div>
@@ -889,10 +908,10 @@ function show(id){
     home:'homeNav', cars:'carsNav', addCar:'carsNav',
     service:'bookingNav', time:'bookingNav', done:'bookingNav',
     allHistory:'carsNav', history:'carsNav', order:'carsNav',
-    shopProduct:'shopNav', shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
+    shopOem:'shopNav', shopProduct:'shopNav', shop:'shopNav', shopProducts:'shopNav', shopCart:'bookingNav', shopOrders:'shopNav',
     newsDetail:'homeNav', profile:'profileNav'
   };
-  const inShop = ['shop', 'shopProduct', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
+  const inShop = ['shopOem', 'shop', 'shopProduct', 'shopProducts', 'shopCart', 'shopOrders'].includes(id);
   const centerNav = document.getElementById('bookingNav');
   centerNav.querySelector('.bottom-nav-label').textContent = inShop ? 'Кошик' : 'Запис';
   centerNav.setAttribute('aria-label', inShop ? 'Відкрити кошик' : 'Записатися на сервіс');

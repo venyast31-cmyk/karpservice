@@ -1,0 +1,39 @@
+const {chromium}=require('playwright');
+const fs=require('fs');const http=require('http');const path=require('path');
+const root=path.resolve(__dirname,'../..');
+(async()=>{
+const {vehiclesView,nodesView,partsView}=await import(root+'/worker/src/shop-oem.js');
+const f=n=>JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-'+n+'.json')).data;
+const server=http.createServer((req,res)=>{const p=path.join(root,new URL(req.url,'http://localhost').pathname);try{res.setHeader('Content-Type',p.endsWith('.js')?'application/javascript':p.endsWith('.css')?'text/css':p.endsWith('.html')?'text/html':'image/jpeg');res.end(fs.readFileSync(p));}catch{res.statusCode=404;res.end();}}).listen(0,'127.0.0.1');
+await new Promise(r=>server.once('listening',r));
+const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.route('https://**',route=>route.abort());
+await page.route('https://vinalfa.com/images/oem?**',route=>route.continue());
+await page.goto('http://127.0.0.1:'+server.address().port+'/index.html');
+await page.evaluate(({resolve,groups,children,parts})=>{
+ window.apiFetch=async(path,options)=>{
+  const u=new URL(path,'https://mock/');let d={};
+  if(u.pathname==='/shop/oem/resolve')d=resolve;
+  else if(u.pathname==='/shop/oem')d=u.searchParams.get('op')==='parts'?parts:u.searchParams.get('op')==='children'?children:groups;
+  else if(u.pathname==='/shop/vehicles')d={options:[]};
+  else if(u.pathname==='/shop/categories')d={categories:[],configured:true};
+  else if(u.pathname==='/shop/products')d={products:[],has_more:false};
+  else if(u.pathname==='/shop/filters')d={brands:[],filters:[]};
+  return new Response(JSON.stringify({success:true,...d}),{status:200});
+ };show('shop');
+},{resolve:vehiclesView(f('resolve')),groups:{nodes:nodesView(f('groups').data.sections)},children:{nodes:nodesView(f('children').data.units)},parts:partsView(f('parts'))});
+await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
+await page.locator('#shopOem.active').waitFor();
+await page.getByRole('button',{name:'Двигун',exact:true}).click();await page.getByRole('button',{name:'642.826 OM642',exact:true}).click();await page.getByRole('button',{name:'Корпус двигуна',exact:true}).click();await page.getByRole('button',{name:'Двигун',exact:true}).click();
+await page.getByRole('button',{name:'Ціна та наявність',exact:true}).waitFor();
+await page.locator('#oemImage').evaluate(img=>img.complete&&img.naturalWidth?Promise.resolve():new Promise((resolve,reject)=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',()=>reject(new Error('Scheme image failed')),{once:true});}));
+await page.getByRole('button',{name:'Позиція 5',exact:true}).click();
+await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-parts.png'),fullPage:true});
+await page.getByRole('button',{name:'Ціна та наявність',exact:true}).click();
+if(await page.locator('#shopSearch').inputValue()!=='Q0000000001')throw new Error('OE missing');
+await page.locator('#shopProducts').getByRole('button',{name:'← Назад',exact:true}).click();
+if(!await page.locator('#shopOem').evaluate(e=>e.classList.contains('active')))throw new Error('Back lost diagram');
+const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw new Error('Horizontal viewport overflow');
+console.log(JSON.stringify({flow:'VIN → exact vehicle → groups → diagram → OE search → back',overflow,errors}));
+await browser.close();server.close();
+})().catch(e=>{console.error(e);process.exit(1);});

@@ -1,3 +1,4 @@
+import {handleOem} from './shop-oem.js';
 import {vehicleSelection,vehicleCatalogue,vehicleGroups} from './shop-vehicles.js';
 import {searchFilters,filterView,detailView} from './shop-details.js';
 import { requireAuthSession, consumeRateLimit } from './auth.js';
@@ -70,6 +71,7 @@ async function supplier(env,path,params={}) {
 export async function handleShop(request,env,headers,dependencies={}) {
   const u=new URL(request.url);
   if(!u.pathname.startsWith('/shop/'))return null;
+  if(u.pathname==='/shop/oem'||u.pathname==='/shop/oem/resolve')return handleOem(request,env,headers,dependencies.oem);
   const reply=(d,status=200)=>Response.json(d,{status,headers});
   const error=(m,status=400)=>reply({success:false,error:m},status);
   try {
@@ -91,7 +93,7 @@ export async function handleShop(request,env,headers,dependencies={}) {
         return reply({success:true,product:detailView(raw,publicProduct(base||fallback),gallery?.images,photo),images_incomplete:gallery===null});
       }
       let selection;try{selection=vehicleSelection(u.searchParams);}catch{return error('Некоректний автомобіль.');}
-      const category=selection.cars?{id:'vehicle:'+String(u.searchParams.get('node')||''),group:null}:findCategory(u.searchParams.get('category'));
+      const category=selection.cars?{id:'vehicle:'+String(u.searchParams.get('node')||''),group:null}:u.searchParams.get('category')==='oe'&&/^[A-Za-z0-9 .\/-]{2,100}$/.test(u.searchParams.get('q')||'')?{id:'oe',group:null}:findCategory(u.searchParams.get('category'));
       if(!category)return error('Оберіть категорію.');
       const q=(u.searchParams.get('q')||'').trim();if(q.length>100)return error('Некоректний пошук.');
       const results=await Promise.allSettled([category.group?supplier(env,`/search/products/groups/${category.group.split('/').map(encodeURIComponent).join('/')}/filters`,{q,available:'1'}):Promise.resolve({filters:[]}),supplier(env,'/search/products/aggregations/brands',{...(category.group?{group:category.group}:{}),...selection,q,available:'1'})]);
@@ -101,7 +103,7 @@ export async function handleShop(request,env,headers,dependencies={}) {
     if(u.pathname==='/shop/products' && request.method==='GET') {
       if(!await consumeRateLimit(env,`shop:${request.headers.get('CF-Connecting-IP')||'unknown'}`,90,60))return error('Забагато запитів. Спробуйте за хвилину.',429);
       let selection;try{selection=vehicleSelection(u.searchParams);}catch{return error('Некоректний автомобіль.');}
-      const category=selection.cars?{id:'vehicle:'+String(u.searchParams.get('node')||''),group:null}:findCategory(u.searchParams.get('category'));
+      const category=selection.cars?{id:'vehicle:'+String(u.searchParams.get('node')||''),group:null}:u.searchParams.get('category')==='oe'&&/^[A-Za-z0-9 .\/-]{2,100}$/.test(u.searchParams.get('q')||'')?{id:'oe',group:null}:findCategory(u.searchParams.get('category'));
       if(!category)return error('Оберіть категорію.');
       const page=Number(u.searchParams.get('page')||1),q=(u.searchParams.get('q')||'').trim();
       if(!Number.isInteger(page)||page<1||page>1000||q.length>100)return error('Некоректний пошук.');

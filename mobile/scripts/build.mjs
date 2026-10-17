@@ -14,7 +14,7 @@ const replaceOnce = (search, value) => {
 replaceOnce('<div class="brand"><img class="brand-logo" src="logo.jpg" alt="" /><span>Karpservice</span></div>', '<svg class="brand-logo" viewBox="175 125 1000 1000" aria-hidden="true" focusable="false"><image href="logo.jpg" width="1254" height="1254" /></svg><span id="nativeBrandTitle">Твій Karpservice</span>');
 replaceOnce('<h1 class="news-feed-title">Новини</h1>', '');
 replaceOnce('<title>Karpservice — Онлайн-запис</title>', `<title>Karpservice — Онлайн-запис</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://cdn.bm.parts; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://cdn.bm.parts https://vinalfa.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <script src="native.js"></script>
 <style>
 /* Equal side columns keep the title centered independently of the cart badge. */
@@ -228,8 +228,8 @@ replaceOnce('<section id="login" class="screen active">', `<section id="guestSer
 replaceOnce('  body.is-authenticated .bottom-nav{display:grid}', '  .bottom-nav{display:grid}');
 replaceOnce('  body.is-authenticated .app{', '  .app{');
 replaceOnce('function show(id){', `function show(id){
-  if (!customerData && !['home', 'newsDetail', 'shop', 'shopProduct', 'shopProducts', 'shopCart', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';
-  if (customerData?.phone_linked === false && !['home', 'newsDetail', 'shop', 'shopProduct', 'shopProducts', 'shopCart', 'profile', 'phoneLink', 'login', 'guestServices', 'guestContacts'].includes(id)) id = 'profile';`);
+  if (!customerData && !['home', 'newsDetail', 'shop', 'shopOem', 'shopProduct', 'shopProducts', 'shopCart', 'guestServices', 'guestContacts', 'login'].includes(id)) id = 'login';
+  if (customerData?.phone_linked === false && !['home', 'newsDetail', 'shop', 'shopOem', 'shopProduct', 'shopProducts', 'shopCart', 'profile', 'phoneLink', 'login', 'guestServices', 'guestContacts'].includes(id)) id = 'profile';`);
 replaceOnce("    home:'homeNav', cars:'carsNav', addCar:'carsNav',", "    home:'homeNav', guestServices:'bookingNav', guestContacts:'profileNav', phoneLink:'profileNav', cars:'carsNav', addCar:'carsNav',");
 replaceOnce('async function openClientHome(){', `function openGuestLogin(){
   resetAuthFlow();
@@ -254,7 +254,7 @@ ${phoneFlow.replace(/\n  <\/section>$/, '\n</div>\n  </section>')}`);
 html = html.replace('>Увійти</button>', '>Підтвердити номер</button>');
 html = html.replace("btn.textContent = 'Увійти';", "btn.textContent = 'Підтвердити номер';");
 await writeFile(`${out}/index.html`, html);
-for (const asset of ['shop.js', 'shop.css', 'news-vacancy-wide.jpg', 'news-oil-wide.jpg', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
+for (const asset of ['shop.js', 'shop-oem.js', 'shop.css', 'news-vacancy-wide.jpg', 'news-oil-wide.jpg', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });
 }
 await cp(`${mobile}public`, out, { recursive: true });

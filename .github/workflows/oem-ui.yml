@@ -1,0 +1,30 @@
+name: Verify OEM mobile flow
+on:
+  push:
+    branches: ['feature/shop-oct12']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated browser test runtime
+        run: |
+          npm install --prefix "$RUNNER_TEMP/oem-browser" --no-audit --no-fund playwright@1.58.2
+          node "$RUNNER_TEMP/oem-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Exercise mobile OEM flow
+        run: NODE_PATH="$RUNNER_TEMP/oem-browser/node_modules" node mobile/scripts/check-oem-ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oem-mobile-preview
+          path: ${{ runner.temp }}/karp-oem-parts.png
+          retention-days: 7

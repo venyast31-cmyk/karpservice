@@ -2,6 +2,7 @@
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=c=>new Intl.NumberFormat('uk-UA',{style:'currency',currency:'UAH',maximumFractionDigits:2}).format(c/100);
+  let oeNode=null;
   let categories=[],products=[],category='',path=[],page=1,q='',version=0,cart=[],key='',locked=false,carId='',comment='';
   let filters={brands:[],gf:[],promo:false,new_product:false},filterOptions={brands:[],filters:[]},filterVersion=0;
   let detailProduct=null,detailVersion=0,detailOrigin='shopProducts',detailScroll=0;
@@ -59,17 +60,7 @@
       }}
     catch(e){if(current===vehicleVersion){vehicleStatus(e.message);$('shopVehicleRetry').hidden=false;}}
   }
-  async function findVin(e){
-    e.preventDefault();const vin=$('shopVin').value.trim().toUpperCase();$('shopVin').value=vin;
-    const current=++vinVersion,selectionVersion=vehicleVersion;
-    if(!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)){$('shopVinStatus').textContent='Введіть 17 символів VIN без I, O та Q.';return;}
-    $('shopVinSubmit').disabled=true;$('shopVinStatus').textContent='Шукаємо автомобіль…';
-    try{const d=await request('shop/vehicles?'+new URLSearchParams({vin}));if(current!==vinVersion)return;
-      $('shopVinStatus').textContent=d.vehicle?[d.vehicle.brand,d.vehicle.model,d.vehicle.year].filter(Boolean).join(' · ')+'. '+d.message:d.message;
-      if(d.vehicle&&selectionVersion===vehicleVersion){await loadVehicleBrands();if(current!==vinVersion||selectionVersion!==vehicleVersion)return;const brand=[...$('shopVehicleBrand').options].find(o=>o.value&&o.value.toUpperCase()===d.vehicle.brand.toUpperCase());if(brand){$('shopVehicleBrand').value=brand.value;await loadVehicleModels({...d.vehicle,searchVersion:current});}}
-    }catch(e){if(current===vinVersion)$('shopVinStatus').textContent=e.message+' Оберіть марку та модель нижче.';}
-    finally{if(current===vinVersion)$('shopVinSubmit').disabled=false;}
-  }
+  async function findVin(e){return window.Oem.find(e);}
   async function loadVehicleGroups(e){
     e.preventDefault();const brand=$('shopVehicleBrand').value,model=$('shopVehicleModel').value;if(!brand||!model)return;
     const current=++vehicleVersion,car=brand+'>'+model;clearVehicleResults();$('shopVehicleSubmit').disabled=true;vehicleStatus('Завантажуємо групи запчастин…');
@@ -128,7 +119,7 @@
   function status(text){$('shopStatus').textContent=text;}
   function image(src,alt=''){return src?`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:'<span class="shop-image-placeholder" aria-hidden="true">KARP</span>';}
   function preserveForm(){if($('shopCar'))carId=$('shopCar').value;if($('shopComment'))comment=$('shopComment').value;}
-  const findCategory=(id,nodes=[...categories,...vehicleNodes])=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
+  const findCategory=(id,nodes=[...categories,...vehicleNodes,...(oeNode?[oeNode]:[])])=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
   function categoryCards(nodes){return nodes.map(c=>`<button class="shop-category" type="button" data-category="${esc(c.id)}"><span class="shop-category-image">${image(c.image,c.name)}</span><strong>${esc(c.name)}</strong></button>`).join('');}
   async function open(){version++;path=[];show('shop');badge();loadVehicleBrands();if(!categories.length){status('Завантажуємо каталог…');try{const d=await request('shop/categories');categories=d.categories;renderCategories();status(d.configured===false?'Каталог тимчасово недоступний. Спробуйте пізніше.':'');}catch(e){status(e.message);}}}
   function renderCategories(){$('shopCategories').innerHTML=categoryCards(categories);}
@@ -142,9 +133,13 @@
     $('shopSubcategories').hidden=!children.length;
     $('shopSearchForm').hidden=Boolean(children.length);$('shopFilters').hidden=Boolean(children.length);
     $('shopProductList').innerHTML='';$('shopProductStatus').textContent='';$('shopMore').hidden=true;
-    if(!children.length){loadFilters();return browse(id);}
+    if(!children.length&&id!=='oe'){loadFilters();return browse(id);}
   }
-  function back(){version++;path.pop();const id=path.at(-1);if(id)choose(id);else open();}
+  function openOe(article){
+    oeNode={id:'oe',name:'Деталі за OE '+article,children:[]};
+    choose('oe');q=article;$('shopSearch').value=article;loadFilters();browse('oe');
+  }
+  function back(){if(category==='oe'){version++;window.Oem.resume();return;}version++;path.pop();const id=path.at(-1);if(id)choose(id);else open();}
   function preferredStock(p,quantity=p.step){
     const rank=s=>s.delivery==='Доставка сьогодні'?0:s.delivery==='Доставка завтра'?1:2;
     return [...p.stocks].filter(s=>s.quantity>=quantity).sort((a,b)=>rank(a)-rank(b)||b.quantity-a.quantity)[0];
@@ -220,11 +215,11 @@
     }catch(e){$('homeProductsStatus').textContent='Не вдалося завантажити товари.';$('homeProductsRetry').hidden=false;}
     finally{featuredLoading=false;}
   }
-  window.Shop={detailBack,open,browse:choose,back,openCart,orders,reset,loadFeatured};
+  window.Shop={oe:openOe,detailBack,open,browse:choose,back,openCart,orders,reset,loadFeatured};
   document.addEventListener('DOMContentLoaded',()=>{
     badge();
     $('shopVinForm').addEventListener('submit',findVin);
-    $('shopVin').addEventListener('input',()=>{vinVersion++;$('shopVinSubmit').disabled=false;$('shopVinStatus').textContent='';});
+    $('shopVin').addEventListener('input',()=>{window.Oem?.invalidate();vinVersion++;$('shopVinSubmit').disabled=false;$('shopVinStatus').textContent='';});
     $('shopVehicleForm').addEventListener('submit',loadVehicleGroups);
     $('shopVehicleBrand').addEventListener('change',loadVehicleModels);
     $('shopVehicleModel').addEventListener('change',()=>{vehicleVersion++;clearVehicleResults();vehicleStatus('');$('shopVehicleSubmit').disabled=!$('shopVehicleModel').value;});
