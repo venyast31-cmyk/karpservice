@@ -16,12 +16,47 @@
     try{const d=await request('shop/vehicles');options($('shopVehicleBrand'),d.options,'Оберіть марку');vehicleBrandsLoaded=d.options.length>0;vehicleStatus(d.options.length?'':'Марки тимчасово недоступні.');$('shopVehicleRetry').hidden=vehicleBrandsLoaded;}
     catch(e){vehicleStatus(e.message);$('shopVehicleRetry').hidden=false;}
   }
-  async function loadVehicleModels(){
+  // Match catalogue identities only; never guess a generation from a model badge.
+  async function matchVehicleModel(identity,models,loadEngines){
+    const normalize=s=>String(s||'').toUpperCase().replace(/[^A-ZА-ЯІЇЄ0-9]/g,'');
+    const wanted=normalize(identity.model);
+    if(!wanted)return [];
+    const exact=models.filter(x=>normalize(x.name)===wanted);
+    if(exact.length===1)return [exact[0].name];
+    if(normalize(identity.brand)!=='MERCEDESBENZ')return [];
+    const badge=String(identity.model).toUpperCase().match(/^([A-Z]{1,3})\s*\d{2,3}(?:\s|$)/);
+    if(!badge)return [];
+    const family=badge[1];
+    const candidates=models.filter(x=>new RegExp('^'+family+'(?:-CLASS|\\s|\\()').test(x.name.toUpperCase()));
+    if(!candidates.length||candidates.length>20)return [];
+    const results=await Promise.allSettled(candidates.map(async x=>{
+      const engines=await loadEngines(x.name);
+      return engines.some(e=>normalize(e.name.split('(')[0].replace(/\d+\s*(?:л\.с\.|кВт|HP|KW).*$/i,''))===wanted)?x.name:'';
+    }));
+    // An unavailable generation must not turn an ambiguous match into a unique one.
+    if(results.some(x=>x.status==='rejected'))return [];
+    const matches=results.map(x=>x.value).filter(Boolean);
+    return matches;
+  }
+  async function loadVehicleModels(identity=null){
     const current=++vehicleVersion,brand=$('shopVehicleBrand').value;
-    clearVehicleResults();$('shopVehicleSubmit').disabled=true;options($('shopVehicleModel'),[],brand?'Завантажуємо моделі…':'Спочатку оберіть марку');$('shopVehicleRetry').hidden=true;
+    clearVehicleResults();document.getElementById('shopModelMatches')?.remove();$('shopVehicleSubmit').disabled=true;options($('shopVehicleModel'),[],brand?'Завантажуємо моделі…':'Спочатку оберіть марку');$('shopVehicleRetry').hidden=true;
     if(!brand){vehicleStatus('');return;}
     vehicleStatus('Завантажуємо моделі…');
-    try{const d=await request('shop/vehicles?'+new URLSearchParams({brand}));if(current!==vehicleVersion)return;options($('shopVehicleModel'),d.options,'Оберіть модель і покоління');vehicleStatus(d.options.length?'':'Для цієї марки немає моделей із доступними товарами.');}
+    try{const d=await request('shop/vehicles?'+new URLSearchParams({brand}));if(current!==vehicleVersion)return;options($('shopVehicleModel'),d.options,'Оберіть модель і покоління');vehicleStatus(d.options.length?'':'Для цієї марки немає моделей із доступними товарами.');
+      if(identity?.model){
+        vehicleStatus('Зіставляємо модель із каталогом…');
+        const match=await matchVehicleModel(identity,d.options,async model=>{const result=await request('shop/vehicles?'+new URLSearchParams({brand,model}));return result.options;});
+        if(current!==vehicleVersion||identity.searchVersion!==vinVersion)return;
+        if(match.length===1){$('shopVehicleModel').value=match[0];$('shopVehicleSubmit').disabled=false;vehicleStatus('Модель знайдено: '+match[0]+'. Перевірте вибір і відкрийте групи запчастин.');}
+        else if(match.length>1){
+          vehicleStatus('Для '+identity.model+' BM повернув кілька поколінь. Оберіть своє:');
+          const choices=document.createElement('div');choices.id='shopModelMatches';choices.className='shop-model-matches';
+          for(const name of match){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=name;button.addEventListener('click',()=>{$('shopVehicleModel').value=name;$('shopVehicleModel').dispatchEvent(new Event('change'));choices.remove();});choices.append(button);}
+          $('shopVehicleStatus').after(choices);
+        }
+        else vehicleStatus('BM визначив '+identity.model+', але точне покоління не підтверджено. Оберіть його зі списку.');
+      }}
     catch(e){if(current===vehicleVersion){vehicleStatus(e.message);$('shopVehicleRetry').hidden=false;}}
   }
   async function findVin(e){
@@ -31,7 +66,7 @@
     $('shopVinSubmit').disabled=true;$('shopVinStatus').textContent='Шукаємо автомобіль…';
     try{const d=await request('shop/vehicles?'+new URLSearchParams({vin}));if(current!==vinVersion)return;
       $('shopVinStatus').textContent=d.vehicle?[d.vehicle.brand,d.vehicle.model,d.vehicle.year].filter(Boolean).join(' · ')+'. '+d.message:d.message;
-      if(d.vehicle&&selectionVersion===vehicleVersion){await loadVehicleBrands();if(current!==vinVersion||selectionVersion!==vehicleVersion)return;const brand=[...$('shopVehicleBrand').options].find(o=>o.value&&o.value.toUpperCase()===d.vehicle.brand.toUpperCase());if(brand){$('shopVehicleBrand').value=brand.value;await loadVehicleModels();}}
+      if(d.vehicle&&selectionVersion===vehicleVersion){await loadVehicleBrands();if(current!==vinVersion||selectionVersion!==vehicleVersion)return;const brand=[...$('shopVehicleBrand').options].find(o=>o.value&&o.value.toUpperCase()===d.vehicle.brand.toUpperCase());if(brand){$('shopVehicleBrand').value=brand.value;await loadVehicleModels({...d.vehicle,searchVersion:current});}}
     }catch(e){if(current===vinVersion)$('shopVinStatus').textContent=e.message+' Оберіть марку та модель нижче.';}
     finally{if(current===vinVersion)$('shopVinSubmit').disabled=false;}
   }
