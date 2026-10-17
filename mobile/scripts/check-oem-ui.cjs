@@ -31,12 +31,14 @@ await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-
 await page.getByRole('button',{name:'Двигун',exact:true}).click();
 await page.getByRole('button',{name:'Прокладки та ущільнення',exact:true}).click();
 await page.getByRole('button',{name:'Прокладка головки циліндра',exact:true}).click();
-await page.locator('.oem-node').first().click();
+await page.locator('.oem-result').first().waitFor();
 await page.getByRole('button',{name:'Ціна та наявність Q0000000001',exact:true}).waitFor();
 if(await page.getByRole('button',{name:'Ціна та наявність OTHER123',exact:true}).count())throw new Error('Unrelated part leaked into quick result');
-await page.getByRole('button',{name:'Усі деталі вузла',exact:true}).click();
+await page.locator('.oem-result-image').first().click();
+await page.locator('#oemFullscreen[open]').waitFor();
+await page.locator('#oemFullList').click();
 await page.getByRole('button',{name:'Ціна та наявність OTHER123',exact:true}).waitFor();
-await page.locator('#oemBack').click();await page.locator('#oemCategoriesTab').click();
+await page.locator('#oemBack').click();await page.locator('#oemBack').click();await page.locator('#oemCategoriesTab').click();
 
 await page.getByRole('button',{name:'Двигун',exact:true}).click();await page.getByRole('button',{name:'642.826 OM642',exact:true}).click();await page.getByRole('button',{name:'Корпус двигуна',exact:true}).click();await page.getByRole('button',{name:'Двигун',exact:true}).click();
 await page.getByRole('button',{name:'Ціна та наявність Q0000000001',exact:true}).waitFor();
@@ -54,6 +56,32 @@ if(await page.locator('#shopSearch').inputValue()!=='Q0000000001')throw new Erro
 await page.locator('#shopProducts').getByRole('button',{name:'← Назад',exact:true}).click();
 if(!await page.locator('#shopOem').evaluate(e=>e.classList.contains('active')))throw new Error('Back lost diagram');
 const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw new Error('Horizontal viewport overflow');
+// Reproduce the user's radiator → expansion tank → full positions → BM products flow.
+const {quickSearchWithFallback}=await import(root+'/worker/src/oem-search.js');
+const {searchView}=await import(root+'/worker/src/shop-oem.js');
+const results=searchView((await quickSearchWithFallback({quickSearch:async()=>({items:[]}),search:async()=>f('search-radiator')},'a'.repeat(32),'cooling-radiator',async()=>f('quick').quick_taxonomy.tree)).items);
+await page.evaluate(({resolve,quick,results,radiator,expansion})=>{
+ window.apiFetch=async(path)=>{const u=new URL(path,'https://mock/');let d={};
+ if(u.pathname==='/shop/oem/resolve')d=resolve;
+ else if(u.pathname==='/shop/oem')d=u.searchParams.get('op')==='quick'?quick:u.searchParams.get('op')==='search'?{nodes:results}:u.searchParams.get('section')===results[0].id?radiator:expansion;
+ else if(u.pathname==='/shop/categories')d={categories:[],configured:true};
+ else if(u.pathname==='/shop/products')d={products:[],has_more:false};
+ else if(u.pathname==='/shop/filters')d={brands:[],filters:[]};
+ return new Response(JSON.stringify({success:true,...d}));};show('shop');
+},{resolve:vehiclesView(f('resolve')),quick:{nodes:quickView(f('quick').quick_taxonomy.tree)},results,radiator:JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-radiator-view.json')),expansion:JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-expansion-view.json'))});
+await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
+await page.getByRole('button',{name:'Система охолодження',exact:true}).click();await page.getByRole('button',{name:'Радіатор',exact:true}).click();
+await page.getByRole('button',{name:'Ціна та наявність A2205000903',exact:true}).waitFor();
+if(await page.locator('.oem-result').count()!==2)throw new Error('Radiator schemes missing');
+const expansionCard=page.locator('.oem-result').filter({has:page.getByRole('heading',{name:'Розширювальний бачок, кріплення та шланги',exact:true})});
+await expansionCard.scrollIntoViewIfNeeded();
+await expansionCard.getByRole('button',{name:'Ціна та наявність A2105010515',exact:true}).waitFor();
+await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-radiator.png'),fullPage:true});
+await expansionCard.locator('.oem-result-image').click();await page.locator('#oemFullscreen[open]').waitFor();
+await page.locator('#oemFullList').click();
+await page.getByRole('button',{name:'Ціна та наявність A2205000049',exact:true}).click();
+if(await page.locator('#shopSearch').inputValue()!=='A2205000049')throw new Error('Expansion tank OE was lost');
+await page.locator('#shopProducts').getByRole('button',{name:'← Назад',exact:true}).click();
 // A new vehicle must not retain the previous scheme title on subscription denial.
 await page.evaluate(()=>{
  window.apiFetch=async(path)=>new Response(JSON.stringify(path==='shop/oem/resolve'?{success:true,vehicles:[{id:'b'.repeat(32),brand:'Landrover',model:'Range Rover Sport',equipment:[]}]}:{success:false,code:'oem_catalog_unavailable',error:'Каталог не входить у підписку'}),{status:path==='shop/oem/resolve'?200:403});
