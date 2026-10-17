@@ -17,7 +17,9 @@ jobs:
         with:
           node-version: '24'
       - name: Bundle native app interface
-        run: node mobile/scripts/build.mjs
+        run: |
+          npm ci --prefix mobile --no-audit --no-fund
+          node mobile/scripts/build.mjs
       - name: Install isolated browser test runtime
         run: |
           npm install --prefix "$RUNNER_TEMP/oem-browser" --no-audit --no-fund playwright@1.58.2
