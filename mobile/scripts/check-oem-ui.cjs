@@ -26,6 +26,7 @@ await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#sh
 await page.locator('#shopOem.active').waitFor();
 await page.getByRole('button',{name:'Деталі для ТО',exact:true}).waitFor();
 if(await page.locator('.oem-node').first().evaluate(e=>e.getBoundingClientRect().height)>60)throw new Error('Category row too tall');
+await page.locator('#appLoader').waitFor({state:'hidden'});
 await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-groups.png'),fullPage:true});
 await page.getByRole('button',{name:'Двигун',exact:true}).click();
 await page.getByRole('button',{name:'Прокладки та ущільнення',exact:true}).click();
