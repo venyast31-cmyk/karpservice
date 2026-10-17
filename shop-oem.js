@@ -1,11 +1,11 @@
 (() => {
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const labels={'M':'Двигун','GA':'Автоматична коробка передач','ENGINE':'Двигун','ENGINE HOUSING':'Корпус двигуна','ENGINE MANAGEMENT':'Керування двигуном','FUEL INJECTION':'Впорскування пального','ENGINE LUBRICATION':'Система змащування','ENGINE COOLING':'Охолодження двигуна','ENGINE SUSPENSION':'Опори двигуна','AUTOMATIC TRANSMISSION':'Автоматична коробка передач','TRANSFER CASE':'Роздавальна коробка','FRONT AXLE':'Передня вісь','REAR AXLE':'Задня вісь','WHEELS':'Колеса','PROPELLER SHAFT':'Карданний вал','BRAKES':'Гальма','STEERING':'Кермове керування','FUEL SYSTEM':'Паливна система','EXHAUST SYSTEM':'Вихлопна система','RADIATOR':'Радіатор','ELECTRICAL SYSTEM':'Електрика','HEATING AND VENTILATION':'Опалення та вентиляція','WASHER SYSTEM':'Склоомивачі','FRONT DOORS':'Передні двері','REAR DOORS':'Задні двері','WINDOWS':'Скло','ROOF':'Дах','ACCESSORIES':'Аксесуари','OIL FILTER AND OIL COOLER':'Масляний фільтр і теплообмінник','OIL FILTER':'Масляний фільтр','TS OIL FILTER ELEMENT':'Фільтрувальний елемент','CYLINDER HEAD':'Головка блока циліндрів','CYLINDER CRANKCASE':'Блок циліндрів','TIMING CASE':'Корпус ГРМ','OIL PAN & OIL LEVEL DISPLAY':'Піддон та рівень мастила'};
+  const labels={'ATTACHMENT PARTS':'Навісні деталі','M':'Двигун','GA':'Автоматична коробка передач','ENGINE':'Двигун','ENGINE HOUSING':'Корпус двигуна','ENGINE MANAGEMENT':'Керування двигуном','FUEL INJECTION':'Впорскування пального','ENGINE LUBRICATION':'Система змащування','ENGINE COOLING':'Охолодження двигуна','ENGINE SUSPENSION':'Опори двигуна','AUTOMATIC TRANSMISSION':'Автоматична коробка передач','TRANSFER CASE':'Роздавальна коробка','FRONT AXLE':'Передня вісь','REAR AXLE':'Задня вісь','WHEELS':'Колеса','PROPELLER SHAFT':'Карданний вал','BRAKES':'Гальма','STEERING':'Кермове керування','FUEL SYSTEM':'Паливна система','EXHAUST SYSTEM':'Вихлопна система','RADIATOR':'Радіатор','ELECTRICAL SYSTEM':'Електрика','HEATING AND VENTILATION':'Опалення та вентиляція','WASHER SYSTEM':'Склоомивачі','FRONT DOORS':'Передні двері','REAR DOORS':'Задні двері','WINDOWS':'Скло','ROOF':'Дах','ACCESSORIES':'Аксесуари','OIL FILTER AND OIL COOLER':'Масляний фільтр і теплообмінник','OIL FILTER':'Масляний фільтр','TS OIL FILTER ELEMENT':'Фільтрувальний елемент','CYLINDER HEAD':'Головка блока циліндрів','CYLINDER CRANKCASE':'Блок циліндрів','TIMING CASE':'Корпус ГРМ','OIL PAN & OIL LEVEL DISPLAY':'Піддон та рівень мастила'};
   const label=s=>labels[s]||s;
   const quick=[['service-oil-filter','Масляний фільтр'],['service-air-filter','Повітряний фільтр'],['service-cabin-filter','Фільтр салону'],['service-fuel-filter','Паливний фільтр'],['service-brake-pads','Гальмівні колодки'],['service-wipers','Щітки']];
   let epoch=0,car=null,history=[],view=null,retry=null,zoom=1,selected=null,vinEpoch=0;
-  async function request(path,options){const r=await apiFetch(path,options);const d=await r.json();if(!r.ok)throw new Error(d.error||'Каталог тимчасово недоступний.');return d;}
+  async function request(path,options){const r=await apiFetch(path,options);const d=await r.json();if(!r.ok){const e=new Error(d.error||'Каталог тимчасово недоступний.');e.code=d.code;throw e;}return d;}
   function invalidate(){vinEpoch++;epoch++;$('shopVinChoices').replaceChildren();}
   function carText(v){return [v.brand,v.model].filter(Boolean).join(' ');}
   function carMeta(v){return [v.date&&'Випуск: '+v.date,v.engine&&'Двигун: '+v.engine,v.transmission&&'КПП: '+v.transmission].filter(Boolean).join(' · ');}
@@ -22,7 +22,7 @@
     }catch(err){if(current===vinEpoch)$('shopVinStatus').textContent=err.message;}
     finally{if(current===vinEpoch)$('shopVinSubmit').disabled=false;}
   }
-  async function selectCar(v){car=v;history=[];view=null;$('oemNodes').replaceChildren();$('oemDiagram').hidden=true;$('oemQuery').value='';show('shopOem');$('oemCar').innerHTML=`<strong>${esc(carText(v))}</strong><small>${esc(carMeta(v))}</small>${v.equipment.length?`<details><summary>Комплектація</summary><dl>${v.equipment.map(x=>`<dt>${esc(x.name)}</dt><dd>${esc(x.value)}</dd>`).join('')}</dl></details>`:''}`;await navigate('groups',{},'Групи запчастин',false);}
+  async function selectCar(v){car=v;history=[];view=null;retry=null;$('oemTitle').textContent='Групи запчастин';$('oemBack').textContent='← До магазину';$('oemQuick').hidden=false;$('oemSearch').hidden=false;$('oemNodes').replaceChildren();$('oemDiagram').hidden=true;$('oemQuery').value='';show('shopOem');$('oemCar').innerHTML=`<strong>${esc(carText(v))}</strong><small>${esc(carMeta(v))}</small>${v.equipment.length?`<details><summary>Комплектація</summary><dl>${v.equipment.map(x=>`<dt>${esc(x.name)}</dt><dd>${esc(x.value)}</dd>`).join('')}</dl></details>`:''}`;await navigate('groups',{},'Групи запчастин',false);}
   async function navigate(op,params,title,push=true){
     const current=++epoch,vehicle=car.id;
     $('oemStatus').textContent=op==='parts'?'Завантажуємо схему…':'Завантажуємо каталог…';$('oemRetry').hidden=true;
@@ -30,7 +30,7 @@
     const action=()=>navigate(op,params,title,push);retry=action;
     try{const d=await request('shop/oem?'+new URLSearchParams({op,vehicle,...params}));if(current!==epoch)return;
       if(push&&view)history.push(view);view={op,title,data:d};render();retry=null;
-    }catch(e){if(current===epoch){$('oemStatus').textContent=e.message;$('oemRetry').hidden=false;}}
+    }catch(e){if(current===epoch){$('oemStatus').textContent=e.message;const unavailable=e.code==='oem_catalog_unavailable';$('oemRetry').hidden=unavailable;if(unavailable){retry=null;$('oemNodes').replaceChildren();$('oemDiagram').hidden=true;$('oemQuick').hidden=true;$('oemSearch').hidden=true;}}}
     finally{if(current===epoch)$('oemNodes').removeAttribute('aria-busy');}
   }
   function openNode(n){

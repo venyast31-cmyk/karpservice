@@ -34,3 +34,8 @@ test('rejects malformed successful responses', async () => {
     await assert.rejects(api.catalogs(), /oem_invalid_response/);
   }
 });
+
+test('catalog subscription denial is distinct from authentication failures', async () => {
+  const api = createVinalfa({VINALFA_API_TOKEN:'test-only'}, async () => Response.json({error:{code:'catalog_not_available',message:'private provider detail'}},{status:403}));
+  await assert.rejects(api.groups(id), e => e.message === 'oem_catalog_unavailable' && e.status === 403);
+});

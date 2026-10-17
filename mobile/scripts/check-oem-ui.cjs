@@ -36,6 +36,15 @@ if(await page.locator('#shopSearch').inputValue()!=='Q0000000001')throw new Erro
 await page.locator('#shopProducts').getByRole('button',{name:'← Назад',exact:true}).click();
 if(!await page.locator('#shopOem').evaluate(e=>e.classList.contains('active')))throw new Error('Back lost diagram');
 const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw new Error('Horizontal viewport overflow');
+// A new vehicle must not retain the previous scheme title on subscription denial.
+await page.evaluate(()=>{
+ window.apiFetch=async(path)=>new Response(JSON.stringify(path==='shop/oem/resolve'?{success:true,vehicles:[{id:'b'.repeat(32),brand:'Landrover',model:'Range Rover Sport',equipment:[]}]}:{success:false,code:'oem_catalog_unavailable',error:'Каталог не входить у підписку'}),{status:path==='shop/oem/resolve'?200:403});
+ show('shop');
+});
+await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
+await page.locator('#oemStatus').filter({hasText:'Каталог не входить у підписку'}).waitFor();
+if(await page.locator('#oemTitle').textContent()!=='Групи запчастин')throw new Error('Stale vehicle heading');
+if(await page.locator('#oemRetry').isVisible()||await page.locator('#oemSearch').isVisible()||await page.locator('#oemQuick').isVisible())throw new Error('Unavailable catalog offers futile requests');
 console.log(JSON.stringify({flow:'VIN → exact vehicle → groups → diagram → OE search → back',overflow,errors}));
 await browser.close();server.close();
 })().catch(e=>{console.error(e);process.exit(1);});

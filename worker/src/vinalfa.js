@@ -23,7 +23,11 @@ export function createVinalfa(env, fetcher = fetch) {
     if (!response.ok) {
       if (response.status === 429) throw new VinalfaError('oem_limit', 429);
       if (response.status === 404) throw new VinalfaError('oem_not_found', 404);
-      if ([401, 403].includes(response.status)) throw new VinalfaError('oem_access_unavailable', 503);
+      if ([401, 403].includes(response.status)) {
+        const detail = await response.json().catch(() => null);
+        if (detail?.error?.code === 'catalog_not_available') throw new VinalfaError('oem_catalog_unavailable', 403);
+        throw new VinalfaError('oem_access_unavailable', 503);
+      }
       const failure=new VinalfaError('oem_unavailable');failure.upstreamStatus=response.status;throw failure;
     }
     let payload;
