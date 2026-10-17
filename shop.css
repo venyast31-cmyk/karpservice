@@ -94,3 +94,6 @@ body.oem-active .top .header-cart{height:36px;width:36px;flex-basis:36px;padding
 #oemFullscreen p{font-size:12px;text-align:center;color:#60766a;flex:none}
 body.oem-full-open{overflow:hidden}
 @media(max-width:360px){.oem-node{font-size:15px}.oem-part{grid-template-columns:20px minmax(0,1fr) 108px;gap:6px}#oemTitle{font-size:17px}}
+body.oem-active .app>.top{grid-template-columns:32px minmax(0,1fr) 36px;padding:3px 0}
+body.oem-active #nativeBrandTitle{font-size:15px;letter-spacing:0}
+body.oem-active .app>.top>.header-cart{width:36px;height:36px}

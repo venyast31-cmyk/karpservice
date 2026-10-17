@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'../..');
 (async()=>{
 const {vehiclesView,nodesView,partsView,quickView}=await import(root+'/worker/src/shop-oem.js');
 const f=n=>JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-'+n+'.json')).data;
-const server=http.createServer((req,res)=>{const p=path.join(root,new URL(req.url,'http://localhost').pathname);try{res.setHeader('Content-Type',p.endsWith('.js')?'application/javascript':p.endsWith('.css')?'text/css':p.endsWith('.html')?'text/html':'image/jpeg');res.end(fs.readFileSync(p));}catch{res.statusCode=404;res.end();}}).listen(0,'127.0.0.1');
+const server=http.createServer((req,res)=>{const p=path.join(root,'mobile/dist',new URL(req.url,'http://localhost').pathname);try{res.setHeader('Content-Type',p.endsWith('.js')?'application/javascript':p.endsWith('.css')?'text/css':p.endsWith('.html')?'text/html':'image/jpeg');res.end(fs.readFileSync(p));}catch{res.statusCode=404;res.end();}}).listen(0,'127.0.0.1');
 await new Promise(r=>server.once('listening',r));
 const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.route('https://**',route=>route.abort());
