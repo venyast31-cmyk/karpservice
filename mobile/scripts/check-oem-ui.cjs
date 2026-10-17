@@ -24,7 +24,7 @@ await page.evaluate(({resolve,groups,children,parts,quick})=>{
 },{resolve:vehiclesView(f('resolve')),groups:{nodes:nodesView(f('groups').data.sections)},children:{nodes:nodesView(f('children').data.units)},parts:{...partsView(f('parts')),parts:[...partsView(f('parts')).parts,{reference:'999',points:[],numbers:[{number:'OTHER123',name:'Unrelated part',quantity:'1',replacement:'',description:[]}]}]},quick:{nodes:quickView(f('quick').quick_taxonomy.tree)}});
 await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
 await page.locator('#shopOem.active').waitFor();
-await page.getByRole('button',{name:'Автоматична коробка передач',exact:true}).waitFor();
+await page.getByRole('button',{name:'Автоматична коробка передач',exact:true}).first().waitFor();
 await page.locator('#oemQuickTab').click();
 await page.getByRole('button',{name:'Деталі для ТО',exact:true}).waitFor();
 if(await page.locator('.oem-node').first().evaluate(e=>e.getBoundingClientRect().height)>60)throw new Error('Category row too tall');
