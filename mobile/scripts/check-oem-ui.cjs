@@ -76,6 +76,11 @@ if(await page.locator('.oem-result').count()!==2)throw new Error('Radiator schem
 const expansionCard=page.locator('.oem-result').filter({has:page.getByRole('heading',{name:'Розширювальний бачок, кріплення та шланги',exact:true})});
 await expansionCard.scrollIntoViewIfNeeded();
 await expansionCard.getByRole('button',{name:'Ціна та наявність A2105010515',exact:true}).waitFor();
+for(const img of await page.locator('.oem-result-image img').all()){
+ await img.scrollIntoViewIfNeeded();
+ await img.evaluate(e=>e.complete&&e.naturalWidth?Promise.resolve():new Promise((resolve,reject)=>{e.addEventListener('load',resolve,{once:true});e.addEventListener('error',()=>reject(new Error('Search scheme image failed')),{once:true});}));
+}
+await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
 await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-radiator.png'),fullPage:true});
 await expansionCard.locator('.oem-result-image').click();await page.locator('#oemFullscreen[open]').waitFor();
 await page.locator('#oemFullList').click();
