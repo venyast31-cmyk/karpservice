@@ -7,7 +7,7 @@ test('VIN request uses documented endpoint and server authorization', async () =
   const api = createVinalfa({VINALFA_API_TOKEN:'test-only'}, async (url, options) => {
     assert.equal(url, 'https://api.vinalfa.com/oem/v2/vehicles/resolve');
     assert.equal(options.headers.Authorization, 'Bearer test-only');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     assert.deepEqual(JSON.parse(options.body), {identifier:vin,identifier_type:'vin'});
     return Response.json({data:{vehicles:[]},meta:{api_version:'2.0'}});
   });

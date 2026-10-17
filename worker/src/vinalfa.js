@@ -16,7 +16,7 @@ export function createVinalfa(env, fetcher = fetch) {
         method: body ? 'POST' : 'GET',
         headers: { Authorization: `Bearer ${env.VINALFA_API_TOKEN}`, Accept: 'application/json', ...(body ? {'Content-Type': 'application/json'} : {}) },
         ...(body ? {body: JSON.stringify(body)} : {}),
-        redirect: 'error', signal: AbortSignal.timeout(20000)
+        redirect: 'manual', signal: AbortSignal.timeout(20000)
       });
     } catch(e) { throw new VinalfaError(e?.name==='TimeoutError'?'oem_timeout':'oem_network_error'); }
     // Never propagate supplier messages, credentials or raw network errors.
