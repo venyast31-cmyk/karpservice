@@ -22,7 +22,7 @@
     }catch(err){if(current===vinEpoch)$('shopVinStatus').textContent=err.message;}
     finally{if(current===vinEpoch)$('shopVinSubmit').disabled=false;}
   }
-  async function selectCar(v){car=v;history=[];view=null;$('oemQuery').value='';show('shopOem');$('oemCar').innerHTML=`<strong>${esc(carText(v))}</strong><small>${esc(carMeta(v))}</small>${v.equipment.length?`<details><summary>Комплектація</summary><dl>${v.equipment.map(x=>`<dt>${esc(x.name)}</dt><dd>${esc(x.value)}</dd>`).join('')}</dl></details>`:''}`;await navigate('groups',{},'Групи запчастин',false);}
+  async function selectCar(v){car=v;history=[];view=null;$('oemNodes').replaceChildren();$('oemDiagram').hidden=true;$('oemQuery').value='';show('shopOem');$('oemCar').innerHTML=`<strong>${esc(carText(v))}</strong><small>${esc(carMeta(v))}</small>${v.equipment.length?`<details><summary>Комплектація</summary><dl>${v.equipment.map(x=>`<dt>${esc(x.name)}</dt><dd>${esc(x.value)}</dd>`).join('')}</dl></details>`:''}`;await navigate('groups',{},'Групи запчастин',false);}
   async function navigate(op,params,title,push=true){
     const current=++epoch,vehicle=car.id;
     $('oemStatus').textContent=op==='parts'?'Завантажуємо схему…':'Завантажуємо каталог…';$('oemRetry').hidden=true;
@@ -38,7 +38,7 @@
     else if(n.id)navigate(n.parts?'parts':'children',{section:n.id},label(n.name));
   }
   function render(){
-    selected=null;zoom=1;$('oemTitle').textContent=view.title;$('oemStatus').textContent='';$('oemRetry').hidden=true;
+    selected=null;zoom=1;$('oemNodes').removeAttribute('aria-busy');$('oemTitle').textContent=view.title;$('oemStatus').textContent='';$('oemRetry').hidden=true;
     $('oemBack').textContent=history.length?'← Назад':'← До магазину';
     $('oemQuick').hidden=view.op==='parts';$('oemSearch').hidden=view.op==='parts';
     $('oemNodes').replaceChildren();$('oemDiagram').hidden=view.op!=='parts';
