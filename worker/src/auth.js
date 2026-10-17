@@ -1,5 +1,5 @@
 import { recordAnalytics } from './analytics.js';
-import { getAppleSession } from './apple-auth.js';
+import { getAppleSession, registerVerifiedCustomer } from './apple-auth.js';
 
 const OTP_TTL_SECONDS = 5 * 60;
 const LINK_TTL_SECONDS = 10 * 60;
@@ -293,7 +293,11 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     customer = { id: apple.customer_id, first_name: apple.customer_name };
   }
   if (!customer?.id) {
-    return authJson({ success: false, error: "Клієнта з таким номером не знайдено" }, 404, headers);
+    if(apple?.auth_provider!=='apple')return authJson({success:false,error:'Увійдіть через Apple для реєстрації.'},403,headers);
+    const name=typeof body.registration_name==='string'?body.registration_name.trim().replace(/\s+/g,' '):'';
+    if(body.register!==true)return authJson({success:false,stage:'registration',error:'Ви новий клієнт. Вкажіть ПІБ, щоб створити профіль Karpservice.'},404,headers);
+    if(name.length<3||name.length>160||name.split(' ').length<2||/[\u0000-\u001f\u007f]/.test(name))return authJson({success:false,stage:'registration',error:'Вкажіть ваше прізвище та ім’я.'},400,headers);
+    try{customer=await registerVerifiedCustomer(env,apple,challenge.phone,name);}catch(e){return authJson({success:false,error:e.message},e.status||409,headers);}
   }
 
   if (apple?.auth_provider === 'apple') {
@@ -480,7 +484,8 @@ async function completeTelegramLink(env, linkRequest, findCustomerByPhone) {
 
   try {
     const customer = await findCustomerByPhone(env, linkRequest.phone);
-    if (!customer?.id) {
+    const registrationProof = !customer?.id ? await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_phone_verifications WHERE proof_id=? AND expires_at>?').bind(linkRequest.token_hash,unixTime()).first() : null;
+    if (!customer?.id && !registrationProof) {
       await env.AUTH_DB.prepare(
         "UPDATE link_requests SET state = 'failed' WHERE token_hash = ?"
       ).bind(linkRequest.token_hash).run();

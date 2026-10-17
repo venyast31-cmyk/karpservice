@@ -12,17 +12,17 @@ export function vehiclesView(d) {
   return {brand:text(d.catalog),vehicles:d.data.modifications.filter(v=>validId(v.hash)).map(v=>({id:v.hash,brand:text(d.catalog),model:text(v.model),date:text(v.date),engine:text(v.engine),transmission:text(v.transmission),catalog:text(v.catalog),equipment:list(v.equipments).slice(0,120).map(x=>({name:text(x.key),value:text(x.value)}))}))};
 }
 export function nodesView(rows,depth=0) {
-  if(depth>10)return [];
-  return list(rows).slice(0,500).map(n=>({id:validId(n.hash)?n.hash:'',name:text(n.name),image:oemImage(n.image),parts:n.can_fetch_parts===true||n.kind==='diagram',children:nodesView(n.children,depth+1)})).filter(n=>n.id||n.children.length);
+  
+  return list(rows).map(n=>({id:validId(n.hash)?n.hash:'',name:text(n.name),image:oemImage(n.image),parts:n.can_fetch_parts===true||n.kind==='diagram',children:nodesView(n.children,depth+1)})).filter(n=>n.id||n.children.length);
 }
 export function quickView(rows,depth=0) {
-  if(depth>8)return [];
-  return list(rows).slice(0,500).map(n=>({id:'',name:text(n.label),quick:/^[a-z0-9-]{2,100}$/.test(n.quick_category||'')?n.quick_category:'',children:quickView(n.children,depth+1)})).filter(n=>n.quick||n.children.length);
+  
+  return list(rows).map(n=>({id:'',name:text(n.label),quick:/^[a-z0-9-]{2,100}$/.test(n.quick_category||'')?n.quick_category:'',children:quickView(n.children,depth+1)})).filter(n=>n.quick||n.children.length);
 }
 export function searchView(items) {
   return nodesView(items.map(n=>({...n,kind:'diagram'}))).map(n=>{
     const source=items.find(x=>x.hash===n.id),byRef=new Map();
-    for(const p of list(source?.foundParts).slice(0,500)){
+    for(const p of list(source?.foundParts)){
       const reference=text(p.ref,60);const part=byRef.get(reference)||{reference,numbers:[]};
       const numbers=[...new Set([p.number,p.part_no,p.part_number,...list(p.numbers)].filter(v=>typeof v==='string'&&/^[A-Za-z0-9 .\/-]{2,100}$/.test(v)))];
       for(const number of numbers)if(!part.numbers.some(n=>n.number===number))part.numbers.push({number,name:text(p.label_en||p.label),quantity:text(p.qty,30),replacement:text(p.replace,100),description:[]});
@@ -33,7 +33,7 @@ export function searchView(items) {
 }
 export function partsView(d) {
   if(!Array.isArray(d?.data?.parts))throw new VinalfaError('oem_invalid_response');
-  return {name:text(d.sectionName),image:oemImage(d.data.image),parts:d.data.parts.slice(0,1000).map(p=>({reference:text(p.reference,60),points:list(p.points).filter(p=>[p.x,p.y,p.width,p.height].every(Number.isFinite)&&p.x>=0&&p.y>=0&&p.width>0&&p.height>0).slice(0,30).map(({x,y,width,height})=>({x,y,width,height})),numbers:list(p.numbers).slice(0,100).map(n=>({number:text(n.number,100),replacement:text(n.replace,100),name:text(n.label),quantity:text(n.count,30),description:list(n.description).slice(0,40).map(x=>({name:text(x.name),value:text(x.desc,1500)}))}))}))};
+  return {name:text(d.sectionName),image:oemImage(d.data.image),parts:d.data.parts.map(p=>({reference:text(p.reference,60),points:list(p.points).filter(p=>[p.x,p.y,p.width,p.height].every(Number.isFinite)&&p.x>=0&&p.y>=0&&p.width>0&&p.height>0).map(({x,y,width,height})=>({x,y,width,height})),numbers:list(p.numbers).map(n=>({number:text(n.number,100),replacement:text(n.replace,100),name:text(n.label),quantity:text(n.count,30),description:list(n.description).slice(0,40).map(x=>({name:text(x.name),value:text(x.desc,1500)}))}))}))};
 }
 const messages={oem_catalog_unavailable:'Автомобіль визначено, але постачальник не надав доступ до схем цієї марки за поточною підпискою. Поверніться до магазину та скористайтеся підбором за маркою і моделлю.',oem_timeout:'Каталог відповідає довше звичайного. Спробуйте ще раз.',oem_network_error:'Немає зв’язку з каталогом схем. Спробуйте пізніше.',invalid_vin:'Введіть 17 символів VIN без I, O та Q.',invalid_catalog_id:'Відкрийте вузол із каталогу.',invalid_query:'Перевірте пошуковий запит.',oem_not_found:'Автомобіль або вузол не знайдено в каталозі.',oem_limit:'Ліміт VIN-пошуку тимчасово вичерпано. Скористайтеся підбором за маркою або зверніться до менеджера.',oem_unconfigured:'Каталог схем ще налаштовується.',oem_access_unavailable:'Каталог схем тимчасово недоступний. Спробуйте підбір за маркою.',oem_invalid_response:'Не вдалося прочитати відповідь каталогу. Спробуйте ще раз.',oem_unavailable:'Каталог схем тимчасово недоступний. Спробуйте ще раз.'};
 export async function handleOem(request,env,headers,deps={}) {
@@ -69,13 +69,13 @@ export async function handleOem(request,env,headers,deps={}) {
     if(!await getCache('vehicle:'+vehicle))return reply({success:false,error:'Повторіть пошук автомобіля за VIN.',code:'oem_vehicle_expired'},410);
     const q=text(u.searchParams.get('q'),121),quick=text(u.searchParams.get('quick'),101);
     if(op==='search'&&!(quick?/^[a-z0-9-]{2,100}$/.test(quick):q.length>=2&&q.length<=120))return fail('invalid_query',400);
-    const key='nav3:'+await sha256Hex(JSON.stringify([op,vehicle,section,q,quick]));const cached=await getCache(key);
+    const key='nav4:'+await sha256Hex(JSON.stringify([op,vehicle,section,q,quick]));const cached=await getCache(key);
     if(cached)return reply({success:true,...cached});
     if(!await rate(env,'oem-provider-global',100,60))return fail('oem_limit',429);
     let result;
     if(op==='quick'){const d=await api.quickSelection(vehicle);if(!Array.isArray(d?.quick_taxonomy?.tree))throw new VinalfaError('oem_invalid_response');result={nodes:quickView(d.quick_taxonomy.tree)};}
     if(op==='groups'){const d=await api.groups(vehicle);if(!Array.isArray(d?.data?.sections))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.data.sections)};}
-    if(op==='children'){const d=await api.children(section);if(!Array.isArray(d?.data?.units)&&!Array.isArray(d?.data?.sections))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.data.units||d.data.sections)};}
+    if(op==='children'){const d=await api.children(section);if(!Array.isArray(d?.data?.units)&&!Array.isArray(d?.data?.sections))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView([...list(d.data.sections),...list(d.data.units)])};}
     if(op==='parts')result=partsView(await api.parts(section,vehicle));
     if(op==='search'){
       const limitedSearch={quickSearch:(...args)=>api.quickSearch(...args),search:async(...args)=>{if(!await rate(env,'oem-provider-global',100,60))throw new VinalfaError('oem_limit',429);return api.search(...args);}};

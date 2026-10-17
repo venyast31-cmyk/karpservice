@@ -45,3 +45,12 @@ test('quick taxonomy keeps provider identifiers and searches retain matched arti
  assert.ok(found[0].matches.includes('A6421800010'));
  assert.ok(!found[0].foundParts);
 });
+
+test('complete catalogue retains every group, diagram and part beyond previous display limits',()=>{
+ const nodes=Array.from({length:601},(_,i)=>({hash:i.toString(16).padStart(32,'0'),name:'Unit '+i,kind:'diagram'}));
+ assert.equal(nodesView(nodes).length,601);
+ assert.equal(partsView({data:{parts:Array.from({length:1001},(_,i)=>({reference:String(i),numbers:[]}))}}).parts.length,1001);
+ let nested=nodes.slice(0,1);for(let i=0;i<12;i++)nested=[{name:'Level '+i,children:nested}];
+ let result=nodesView(nested);for(let i=0;i<12;i++)result=result[0].children;
+ assert.equal(result[0].id,'0'.repeat(32));
+});

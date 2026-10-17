@@ -2,6 +2,7 @@
 // indexed that category for every vehicle. Retry with the supplier's own labels.
 import {VinalfaError} from './vinalfa.js';
 const policies={
+ 'service-transmission-filter':{queries:['filter'],unit:/TRANSMISSION|GEARBOX|OIL PAN,?\s*OIL FILTER|КОРОБК|АКПП/i,part:/FILTER|ФИЛЬТР/i},
  'cooling-radiator':{queries:['radiator'],unit:/^RADIATOR[, ]|EXPANSION TANK|РАДИАТОР|РАСШИРИТЕЛЬН/i,part:/RADIATOR|РАДИАТОР|CLOSING CAP/i},
  'cooling-water-pump':{queries:['pump'],unit:/WATER PUMP|COOLANT PUMP|ВОДЯН|ОХЛАЖДАЮЩ/i,part:/WATER PUMP|COOLANT PUMP|ВОДЯН|НАСОС/i},
  'service-water-pump':{queries:['pump'],unit:/WATER PUMP|COOLANT PUMP|ВОДЯН|ОХЛАЖДАЮЩ/i,part:/WATER PUMP|COOLANT PUMP|ВОДЯН|НАСОС/i},
@@ -17,7 +18,7 @@ export async function quickSearchWithFallback(api,vehicle,id,getTaxonomy){
  const policy=policies[id];
  const primary=String(node.label||'').split(',')[0].trim();
  const singular=primary.replace(/\b([a-z]{3,})s\b/gi,(word,stem)=>/ss$/i.test(word)?word:stem);
- const queries=[...new Set([...(policy?.queries||[]),singular,primary,...String(node.query||'').split(',')].map(x=>x.trim()).filter(x=>x.length>=2))].slice(0,3);
+ const queries=[...new Set([...(policy?.queries||[]),singular,primary,...String(node.query||'').split(','),...singular.split(/\s+/).slice(1).map((_,i)=>singular.split(/\s+/).slice(i+1).join(' '))].map(x=>x.trim()).filter(x=>x.length>=2))].slice(0,5);
  for(const q of queries){
    const data=await api.search(vehicle,q);let found=items(data);
    if(policy?.unit)found=found.filter(n=>policy.unit.test(n.name||''));

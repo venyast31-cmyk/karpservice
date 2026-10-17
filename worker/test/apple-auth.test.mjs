@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFile } from 'node:fs/promises';
-import { generateKeyPairSync, sign, randomUUID } from 'node:crypto';
+import { generateKeyPairSync, sign, randomUUID, createHmac } from 'node:crypto';
 import worker from '../src/index.js';
 import { verifyAppleIdentity, getAppleSession, ensureAppleCustomer } from '../src/apple-auth.js';
 import { sha256Hex } from '../src/auth.js';
@@ -17,7 +17,7 @@ class Statement {
 const timestamp = () => Math.floor(Date.now() / 1000);
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
 
-async function setup({ redirectPath, assets = [] } = {}) {
+async function setup({ redirectPath, assets = [], newCustomer=false, uncertainCreate=false } = {}) {
   const db = new DatabaseSync(':memory:');
   for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql', '0008_profile_name.sql', '0009_profile_birth_date.sql', '0010_unique_verified_phone.sql', '0011_car_mileage.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -62,10 +62,11 @@ async function setup({ redirectPath, assets = [] } = {}) {
     if (url.toString() === 'https://api.roapp.io/v2/contacts/people' && init.method === 'POST') {
       const body = JSON.parse(init.body);
       assert.equal(body.email, 'relay@privaterelay.appleid.com');
-      assert.deepEqual(body.phones, []);
+      assert.deepEqual(body.phones, newCustomer?[{title:'Мобільний',phone:'+380671234567',notify:false,has_viber:false,has_whatsapp:false}]:[]);
+      if(uncertainCreate)throw Error('timeout');
       return Response.json({ data: { id: 123 } });
     }
-    if (url.pathname === '/v2/contacts/people' && init.method !== 'POST') return Response.json({data:[{id:123,first_name:'Власник',phones:['380670000000']}]});
+    if (url.pathname === '/v2/contacts/people' && init.method !== 'POST') return Response.json({data:newCustomer?[]:[{id:123,first_name:'Власник',phones:['380670000000']}]});
     if (url.pathname === '/v2/orders') { assert.deepEqual(url.searchParams.getAll('client_ids'), ['123']); return Response.json({ data: [], count: 0 }); }
     if (url.pathname === '/v2/warehouse/assets') return Response.json({ data: assets });
     if (url.pathname === '/v2/orders/999') return Response.json({ data: { id: 999, client_id: 999 } });
@@ -353,4 +354,27 @@ test('car mileage requires ownership, validates input and persists per customer 
     assert.equal((await t.call('cars/remove','POST',{car_id:777},next.token)).status,200);
     assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:500},next.token)).status,404);
   } finally {t.close();}
+});
+
+for(const uncertainCreate of [false,true])test('verified new customer registration '+(uncertainCreate?'does not repeat uncertain CRM writes':'requires consent and binds the exact verified phone'),async()=>{
+ const t=await setup({newCustomer:true,uncertainCreate});
+ try{
+  const login=await t.complete(await t.start());const {token}=await login.response.json();
+  const session=await getAppleSession(new Request('https://test/',{headers:{Authorization:'Bearer '+token}}),t.env);
+  const id='register-test-otp',phone='380671234567',code='123456',now=timestamp();
+  const hash=createHmac('sha256',t.env.SESSION_SECRET).update(`otp:${id}:${phone}:${code}`).digest('hex');
+  t.db.prepare('INSERT INTO otp_challenges(id,phone,telegram_user_id,code_hash,created_at,expires_at) VALUES(?,?,?,?,?,?)').run(id,phone,'77',hash,now,now+300);
+  t.db.prepare('INSERT INTO apple_phone_verifications VALUES(?,?,?)').run(id,session.apple_subject_hash,now+300);
+  const send=body=>t.call('auth/verify','POST',{challenge_id:id,code,...body},token);
+  assert.equal((await send({code:'000000',register:true,registration_name:'Новий Клієнт'})).status,401);
+  const prompt=await(await send({})).json();assert.equal(prompt.stage,'registration');
+  assert.equal(t.calls.filter(x=>x.url==='https://api.roapp.io/v2/contacts/people'&&x.body).length,0);
+  const response=await send({register:true,registration_name:'Новий Клієнт'});
+  assert.equal(response.status,uncertainCreate?409:200);
+  if(!uncertainCreate){
+   const account=t.db.prepare('SELECT customer_id,phone FROM apple_accounts').get();assert.equal(account.customer_id,123);assert.equal(account.phone,phone);
+   assert.equal((await send({register:true,registration_name:'Новий Клієнт'})).status,401);
+  }else assert.equal((await send({register:true,registration_name:'Новий Клієнт'})).status,409);
+  assert.equal(t.calls.filter(x=>x.url==='https://api.roapp.io/v2/contacts/people'&&x.body).length,1);
+ }finally{t.close();}
 });

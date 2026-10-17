@@ -1,3 +1,4 @@
+import {fulfillmentView,fulfillmentNotes} from './shop-fulfillment.js';
 import {handleOem} from './shop-oem.js';
 import {vehicleSelection,vehicleCatalogue,vehicleGroups} from './shop-vehicles.js';
 import {searchFilters,filterView,detailView} from './shop-details.js';
@@ -141,6 +142,7 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
   const customer=Number(session.customer_id);
   const old=await env.AUTH_DB.prepare('SELECT public_id,status,total_cents,crm_id FROM shop_orders WHERE customer_id=? AND request_key=?').bind(customer,b.key).first();
   if(old)return reply({success:old.status==='sent',order:old,error:old.status==='sent'?undefined:'Замовлення перевіряється. Не оформлюйте його повторно; зв’яжіться з менеджером.'},old.status==='sent'?200:202);
+  let fulfillment;try{fulfillment=fulfillmentView(b.fulfillment);}catch(e){return error(e.message);}
   if(!await consumeRateLimit(env,`checkout:${customer}`,5,600))return error('Забагато спроб. Спробуйте пізніше.',429);
   let car=null;
   if(b.car_id){car=(await getCars(customer)).find(c=>Number(c.id)===Number(b.car_id));if(!car)return error('Оберіть своє авто.',403);}
@@ -162,11 +164,11 @@ async function checkout(request,env,session,reply,error,{getCars}={}) {
     }
   }
   const total=lines.reduce((n,p)=>n+p.price*p.quantity,0),id=crypto.randomUUID();
-  const snapshot={lines,comment:b.comment,car:car?{id:car.id,vin:car.vin,name:[car.brand,car.model].filter(Boolean).join(' ')}:null};
+  const snapshot={lines,fulfillment,comment:b.comment,car:car?{id:car.id,vin:car.vin,name:[car.brand,car.model].filter(Boolean).join(' ')}:null};
   const inserted=await env.AUTH_DB.prepare("INSERT OR IGNORE INTO shop_orders(public_id,customer_id,request_key,status,total_cents,snapshot,created_at) VALUES(?,?,?,'sending',?,?,?) RETURNING public_id").bind(id,customer,b.key,total,JSON.stringify(snapshot),new Date().toISOString()).first();
   if(!inserted)return error('Це замовлення вже обробляється.',409);
   const managerIds=String(env.SHOP_MANAGER_IDS).split(',').map(Number).filter(Number.isSafeInteger);
-  const notes=[`Магазин Karpservice • ${id}`,'Менеджери: Артем та Євгеній. Ручне підтвердження. Оплата після узгодження.',...(car?[`Авто: ${snapshot.car.name}; VIN: ${car.vin||'—'}`]:[]),...lines.map(p=>`${p.brand} ${p.article} — ${p.name}; ${p.quantity} × ${(p.price/100).toFixed(2)} грн; ${p.warehouse.name}; ${p.warehouse.delivery}`),`Разом: ${(total/100).toFixed(2)} грн`, `Коментар: ${b.comment}`].join('\n');
+  const notes=[`Магазин Karpservice • ${id}`,'Менеджери: Артем та Євгеній. Ручне підтвердження. Оплата після узгодження.',fulfillmentNotes(fulfillment),...(car?[`Авто: ${snapshot.car.name}; VIN: ${car.vin||'—'}`]:[]),...lines.map(p=>`${p.brand} ${p.article} — ${p.name}; ${p.quantity} × ${(p.price/100).toFixed(2)} грн; ${p.warehouse.name}; ${p.warehouse.delivery}`),`Разом: ${(total/100).toFixed(2)} грн`, `Коментар: ${b.comment}`].join('\n');
   let r,d;
   try {
     r=await fetch('https://api.roapp.io/v2/orders',{method:'POST',headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({branch_id:Number(env.ROAPP_BRANCH_ID),order_type_id:Number(env.SHOP_ORDER_TYPE_ID),client_id:customer,due_date:shopDueDate(),manager_id:managerIds[parseInt(id.slice(0,8),16)%managerIds.length],malfunction:'Замовлення товарів із магазину Karpservice',manager_notes:notes,estimated_price:(total/100).toFixed(2)}),signal:AbortSignal.timeout(20000),redirect:'manual'});
