@@ -1,4 +1,4 @@
-name: Inspect Range Rover catalog
+name: Inspect catalog availability
 on:
   push:
     branches: [release/api]
@@ -10,11 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - run: node worker/scripts/oem-diagnose.mjs
         env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           VINALFA_API_TOKEN: ${{ secrets.VINALFA_API_TOKEN }}
