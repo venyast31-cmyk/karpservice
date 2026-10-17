@@ -16,15 +16,15 @@ export function createVinalfa(env, fetcher = fetch) {
         method: body ? 'POST' : 'GET',
         headers: { Authorization: `Bearer ${env.VINALFA_API_TOKEN}`, Accept: 'application/json', ...(body ? {'Content-Type': 'application/json'} : {}) },
         ...(body ? {body: JSON.stringify(body)} : {}),
-        redirect: 'error', signal: AbortSignal.timeout(20000)
+        redirect: 'manual', signal: AbortSignal.timeout(20000)
       });
-    } catch { throw new VinalfaError('oem_unavailable'); }
+    } catch(e) { throw new VinalfaError(e?.name==='TimeoutError'?'oem_timeout':'oem_network_error'); }
     // Never propagate supplier messages, credentials or raw network errors.
     if (!response.ok) {
       if (response.status === 429) throw new VinalfaError('oem_limit', 429);
       if (response.status === 404) throw new VinalfaError('oem_not_found', 404);
       if ([401, 403].includes(response.status)) throw new VinalfaError('oem_access_unavailable', 503);
-      throw new VinalfaError('oem_unavailable');
+      const failure=new VinalfaError('oem_unavailable');failure.upstreamStatus=response.status;throw failure;
     }
     let payload;
     try { payload = await response.json(); } catch { throw new VinalfaError('oem_invalid_response'); }

@@ -18,7 +18,7 @@ export function partsView(d) {
   if(!Array.isArray(d?.data?.parts))throw new VinalfaError('oem_invalid_response');
   return {name:text(d.sectionName),image:oemImage(d.data.image),parts:d.data.parts.slice(0,1000).map(p=>({reference:text(p.reference,60),points:list(p.points).filter(p=>[p.x,p.y,p.width,p.height].every(Number.isFinite)&&p.x>=0&&p.y>=0&&p.width>0&&p.height>0).slice(0,30).map(({x,y,width,height})=>({x,y,width,height})),numbers:list(p.numbers).slice(0,100).map(n=>({number:text(n.number,100),replacement:text(n.replace,100),name:text(n.label),quantity:text(n.count,30),description:list(n.description).slice(0,40).map(x=>({name:text(x.name),value:text(x.desc,1500)}))}))}))};
 }
-const messages={invalid_vin:'Введіть 17 символів VIN без I, O та Q.',invalid_catalog_id:'Відкрийте вузол із каталогу.',invalid_query:'Перевірте пошуковий запит.',oem_not_found:'Автомобіль або вузол не знайдено в каталозі.',oem_limit:'Ліміт VIN-пошуку тимчасово вичерпано. Скористайтеся підбором за маркою або зверніться до менеджера.',oem_unconfigured:'Каталог схем ще налаштовується.',oem_access_unavailable:'Каталог схем тимчасово недоступний. Спробуйте підбір за маркою.',oem_invalid_response:'Не вдалося прочитати відповідь каталогу. Спробуйте ще раз.',oem_unavailable:'Каталог схем тимчасово недоступний. Спробуйте ще раз.'};
+const messages={oem_timeout:'Каталог відповідає довше звичайного. Спробуйте ще раз.',oem_network_error:'Немає зв’язку з каталогом схем. Спробуйте пізніше.',invalid_vin:'Введіть 17 символів VIN без I, O та Q.',invalid_catalog_id:'Відкрийте вузол із каталогу.',invalid_query:'Перевірте пошуковий запит.',oem_not_found:'Автомобіль або вузол не знайдено в каталозі.',oem_limit:'Ліміт VIN-пошуку тимчасово вичерпано. Скористайтеся підбором за маркою або зверніться до менеджера.',oem_unconfigured:'Каталог схем ще налаштовується.',oem_access_unavailable:'Каталог схем тимчасово недоступний. Спробуйте підбір за маркою.',oem_invalid_response:'Не вдалося прочитати відповідь каталогу. Спробуйте ще раз.',oem_unavailable:'Каталог схем тимчасово недоступний. Спробуйте ще раз.'};
 export async function handleOem(request,env,headers,deps={}) {
   const u=new URL(request.url);
   if(!['/shop/oem','/shop/oem/resolve'].includes(u.pathname))return null;
@@ -61,5 +61,5 @@ export async function handleOem(request,env,headers,deps={}) {
     if(op==='parts')result=partsView(await api.parts(section,vehicle));
     if(op==='search'){const d=quick?await api.quickSearch(vehicle,quick):await api.search(vehicle,q);if(!Array.isArray(d.items))throw new VinalfaError('oem_invalid_response');result={nodes:nodesView(d.items.map(n=>({...n,kind:'diagram'})))};}
     await putCache(key,result);return reply({success:true,...result});
-  }catch(e){return fail(e instanceof VinalfaError?e.message:'oem_unavailable',e instanceof VinalfaError?e.status:503);}
+  }catch(e){if(e instanceof VinalfaError)return reply({success:false,error:messages[e.message]||messages.oem_unavailable,code:e.message,...(e.upstreamStatus?{upstream_status:e.upstreamStatus}:{})},e.status);return fail('oem_unavailable',503);}
 }
