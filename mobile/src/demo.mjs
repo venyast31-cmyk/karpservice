@@ -20,6 +20,7 @@ export function createDemoSession(liveRequest) {
       catch { return reject('Некоректні демодані.'); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reject('Некоректні демодані.');
 
+      if(route==='shop/oem'||route==='shop/oem/resolve')return reject('Схеми за VIN доступні у звичайному режимі. Демо не витрачає ліміт пошуку.',503);
       if(route==='shop/vehicles'&&method==='GET')return reply({options:[],vehicle:null,message:'VIN-пошук недоступний у демонстраційному режимі.'});
       if(route==='shop/vehicle-groups'&&method==='GET')return reply({groups:[]});
       if(route==='shop/categories'&&method==='GET')return reply({success:true,configured:true,categories:demoShopCategories});
