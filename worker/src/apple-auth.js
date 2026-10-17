@@ -231,3 +231,25 @@ export async function revokeAppleAccount(env, subject) {
     env.AUTH_DB.prepare('DELETE FROM apple_sessions WHERE subject_hash = ?').bind(subject)
   ]);
 }
+
+// Called only after an Apple-bound OTP has verified this exact phone number.
+export async function registerVerifiedCustomer(env,session,phone,name){
+  if(session.auth_provider!=='apple'||!/^380\d{9}$/.test(phone))throw fail('Спочатку підтвердьте телефон.',403);
+  if(session.customer_id)return {id:session.customer_id,first_name:session.customer_name};
+  let account;
+  try{account=await env.AUTH_DB.prepare(`UPDATE apple_accounts SET crm_creation_started_at=?,phone=?,customer_name=?,profile_name=?
+    WHERE subject_hash=? AND customer_id IS NULL AND crm_creation_started_at IS NULL AND disabled_at IS NULL RETURNING *`)
+    .bind(now(),phone,name,name,session.apple_subject_hash).first();}
+  catch{throw fail('Цей номер уже підключено до іншого профілю.',409);}
+  if(!account)throw fail('Реєстрація вже обробляється. Не створюйте новий профіль; зверніться до сервісу.',409);
+  // The phone's unique index and durable creation lock prevent duplicate CRM writes.
+  let response,data;
+  try{
+    response=await fetch('https://api.roapp.io/v2/contacts/people',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(20000),headers:{Authorization:`Bearer ${env.ROAPP_API_KEY}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({first_name:name,...(account.email?{email:account.email}:{}),phones:[{title:'Мобільний',phone:'+'+phone,notify:false,has_viber:false,has_whatsapp:false}],notes:'Самостійна реєстрація в Karpservice. Вхід через Apple; номер підтверджено через Telegram.'})});
+    data=await response.json();
+  }catch{throw fail('Перевіряємо створення профілю. Не реєструйтеся повторно; зверніться до сервісу.',409);}
+  const id=Number(data?.data?.id||data?.person?.id||data?.id);
+  if(!response.ok||!Number.isSafeInteger(id)||id<=0)throw fail('Не вдалося підтвердити створення профілю. Зверніться до сервісу.',409);
+  await env.AUTH_DB.prepare('UPDATE apple_accounts SET customer_id=? WHERE subject_hash=? AND customer_id IS NULL').bind(id,session.apple_subject_hash).run();
+  return {id,first_name:name};
+}

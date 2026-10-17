@@ -24,6 +24,8 @@ await page.evaluate(({resolve,groups,children,parts,quick})=>{
 },{resolve:vehiclesView(f('resolve')),groups:{nodes:nodesView(f('groups').data.sections)},children:{nodes:nodesView(f('children').data.units)},parts:{...partsView(f('parts')),parts:[...partsView(f('parts')).parts,{reference:'999',points:[],numbers:[{number:'OTHER123',name:'Unrelated part',quantity:'1',replacement:'',description:[]}]}]},quick:{nodes:quickView(f('quick').quick_taxonomy.tree)}});
 await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
 await page.locator('#shopOem.active').waitFor();
+await page.getByRole('button',{name:'Автоматична коробка передач',exact:true}).waitFor();
+await page.locator('#oemQuickTab').click();
 await page.getByRole('button',{name:'Деталі для ТО',exact:true}).waitFor();
 if(await page.locator('.oem-node').first().evaluate(e=>e.getBoundingClientRect().height)>60)throw new Error('Category row too tall');
 await page.locator('#appLoader').waitFor({state:'hidden'});
@@ -70,6 +72,7 @@ await page.evaluate(({resolve,quick,results,radiator,expansion})=>{
  return new Response(JSON.stringify({success:true,...d}));};show('shop');
 },{resolve:vehiclesView(f('resolve')),quick:{nodes:quickView(f('quick').quick_taxonomy.tree)},results,radiator:JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-radiator-view.json')),expansion:JSON.parse(fs.readFileSync(root+'/worker/test/fixtures/oem-expansion-view.json'))});
 await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#shopVinSubmit').click();
+await page.locator('#oemQuickTab').click();
 await page.getByRole('button',{name:'Система охолодження',exact:true}).click();await page.getByRole('button',{name:'Радіатор',exact:true}).click();
 await page.getByRole('button',{name:'Ціна та наявність A2205000903',exact:true}).waitFor();
 if(await page.locator('.oem-result').count()!==2)throw new Error('Radiator schemes missing');
@@ -96,6 +99,41 @@ await page.locator('#shopVin').fill('WDC1660231A178846');await page.locator('#sh
 await page.locator('#oemStatus').filter({hasText:'Каталог не входить у підписку'}).waitFor();
 if(await page.locator('#oemTitle').textContent()!=='Range Rover Sport')throw new Error('Stale vehicle heading');
 if(await page.locator('#oemRetry').isVisible()||await page.locator('#oemSearch').isVisible()||await page.locator('#oemQuick').isVisible())throw new Error('Unavailable catalog offers futile requests');
+// Recipient details survive quantity changes and uncertain checkout retries.
+await page.evaluate(()=>localStorage.setItem('karpservice.shop.cart.v1',JSON.stringify({cart:[{id:'A'.repeat(32),name:'Тестовий товар',brand:'TEST',article:'1',price:13000,quantity:1,step:1,warehouse:'test',stocks:[{id:'test',quantity:5,delivery:'Доставка завтра'}]}]})));
+await page.reload();await page.locator('#appLoader').waitFor({state:'hidden'});
+await page.evaluate(()=>{
+ customerData={phone_linked:true,customer:{id:123},cars:[]};window.checkoutRequests=[];
+ window.apiFetch=async(path,options)=>{
+  if(path==='shop/checkout'){window.checkoutRequests.push(JSON.parse(options.body));return new Response(JSON.stringify({success:false,order:{public_id:'test-order',status:'verification'},error:'Перевіряється'}),{status:202});}
+  return new Response(JSON.stringify({success:true,categories:[],products:[],options:[]}));
+ };Shop.openCart();
+});
+if(await page.locator('#shopShippingFields').isVisible())throw new Error('Pickup asks for delivery address');
+await page.locator('#shopFulfillment').selectOption('nova_poshta');
+for(const [field,value] of Object.entries({City:'Бориспіль',Branch:'Відділення № 1',Name:'Тестовий Одержувач',Phone:'0671234567'}))await page.locator('#shopShipping'+field).fill(value);
+await page.locator('[data-delta="1"]').click();
+if(await page.locator('#shopShippingCity').inputValue()!=='Бориспіль')throw new Error('Quantity change lost recipient');
+await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-checkout.png'),fullPage:true});
+await page.locator('#shopSubmit').click();
+await page.getByRole('button',{name:'Перевірити замовлення',exact:true}).waitFor();
+if(!await page.locator('#shopShippingCity').isDisabled())throw new Error('Pending order recipient is editable');
+await page.locator('#shopSubmit').click();
+await page.waitForFunction(()=>window.checkoutRequests.length===2);
+const sent=await page.evaluate(()=>window.checkoutRequests);
+if(sent[0].key!==sent[1].key||sent[0].fulfillment.city!=='Бориспіль'||sent[0].fulfillment.name!=='Тестовий Одержувач')throw new Error('Checkout lost recipient or changed retry key');
+// New customer prompt appears only after verified-phone response.
+await page.evaluate(()=>{
+ customerData={phone_linked:false,customer:{id:0},cars:[]};show('phoneLink');showCodeStep('registration-test','+380 *** ** 67');
+ window.apiFetch=async(path,options)=>{window.registrationRequest=JSON.parse(options.body);return new Response(JSON.stringify({success:false,stage:'registration',error:'Вкажіть ПІБ'}),{status:404});};
+});
+await page.locator('#otpCode').fill('123456');await page.locator('#verifyCodeBtn').click();
+await page.locator('#registrationName').waitFor({state:'visible'});
+await page.locator('#registrationName').fill('Новий Клієнт');await page.locator('#verifyCodeBtn').click();
+const registered=await page.evaluate(()=>window.registrationRequest);
+if(!registered.register||registered.registration_name!=='Новий Клієнт')throw new Error('Registration consent/name missing');
+await page.screenshot({path:path.join(process.env.RUNNER_TEMP||'/tmp','karp-oem-registration.png'),fullPage:true});
+if(errors.length)throw new Error(errors.join('; '));
 console.log(JSON.stringify({flow:'VIN → exact vehicle → groups → diagram → OE search → back',overflow,errors}));
 await browser.close();server.close();
 })().catch(e=>{console.error(e);process.exit(1);});

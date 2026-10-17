@@ -2,6 +2,7 @@
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=c=>new Intl.NumberFormat('uk-UA',{style:'currency',currency:'UAH',maximumFractionDigits:2}).format(c/100);
+  let fulfillment={method:'pickup'};
   let oeNode=null;
   let categories=[],products=[],category='',path=[],page=1,q='',version=0,cart=[],key='',locked=false,carId='',comment='';
   let filters={brands:[],gf:[],promo:false,new_product:false},filterOptions={brands:[],filters:[]},filterVersion=0;
@@ -107,8 +108,8 @@
   }
   function detailBack(){detailVersion++;show(detailOrigin);window.scrollTo({top:detailScroll,behavior:'instant'});}
   const storageKey='karpservice.shop.cart.v1';
-  try {const d=JSON.parse(localStorage.getItem(storageKey)||'{}');if(Array.isArray(d.cart)&&d.cart.length<=20){cart=d.cart.filter(p=>p&&typeof p.id==='string'&&Array.isArray(p.stocks)&&Number.isInteger(p.quantity)&&p.quantity>0&&p.quantity<=99&&Number.isInteger(p.price)&&p.price>0&&Number.isInteger(p.step)&&p.step>0);key=typeof d.key==='string'?d.key:'';locked=d.locked===true;}}catch{}
-  const save=()=>{try{localStorage.setItem(storageKey,JSON.stringify({cart,key,locked}));}catch{}badge();};
+  try {const d=JSON.parse(localStorage.getItem(storageKey)||'{}');if(Array.isArray(d.cart)&&d.cart.length<=20){cart=d.cart.filter(p=>p&&typeof p.id==='string'&&Array.isArray(p.stocks)&&Number.isInteger(p.quantity)&&p.quantity>0&&p.quantity<=99&&Number.isInteger(p.price)&&p.price>0&&Number.isInteger(p.step)&&p.step>0);key=typeof d.key==='string'?d.key:'';locked=d.locked===true;fulfillment=d.fulfillment||{method:'pickup'};carId=d.carId||'';comment=d.comment||'';}}catch{}
+  const save=()=>{try{localStorage.setItem(storageKey,JSON.stringify({cart,key,locked,fulfillment,carId,comment}));}catch{}badge();};
   function badge(){
     const count=cart.reduce((n,p)=>n+p.quantity,0);
     const badge=$('headerCartCount');
@@ -118,7 +119,8 @@
   async function request(path,options){const r=await apiFetch(path,options);const d=await r.json();if(!r.ok)throw new Error(d.error||'Не вдалося завантажити магазин.');return d;}
   function status(text){$('shopStatus').textContent=text;}
   function image(src,alt=''){return src?`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:'<span class="shop-image-placeholder" aria-hidden="true">KARP</span>';}
-  function preserveForm(){if($('shopCar'))carId=$('shopCar').value;if($('shopComment'))comment=$('shopComment').value;}
+  function shippingForm(){const np=$('shopFulfillment').value==='nova_poshta';$('shopShippingFields').hidden=!np;$('shopShippingFields').disabled=!np||locked;$('shopPickupAddress').hidden=np;$('shopFulfillment').disabled=locked;}
+  function preserveForm(){if(!locked){fulfillment={method:$('shopFulfillment').value,...Object.fromEntries(['City','Branch','Name','Phone'].map(k=>[k.toLowerCase(),$('shopShipping'+k).value]))};}if($('shopCar'))carId=$('shopCar').value;if($('shopComment'))comment=$('shopComment').value;}
   const findCategory=(id,nodes=[...categories,...vehicleNodes,...(oeNode?[oeNode]:[])])=>{for(const node of nodes){if(node.id===id)return node;const found=findCategory(id,node.children||[]);if(found)return found;}return null;};
   function categoryCards(nodes){return nodes.map(c=>`<button class="shop-category" type="button" data-category="${esc(c.id)}"><span class="shop-category-image">${image(c.image,c.name)}</span><strong>${esc(c.name)}</strong></button>`).join('');}
   async function open(){version++;path=[];show('shop');badge();loadVehicleBrands();if(!categories.length){status('Завантажуємо каталог…');try{const d=await request('shop/categories');categories=d.categories;renderCategories();status(d.configured===false?'Каталог тимчасово недоступний. Спробуйте пізніше.':'');}catch(e){status(e.message);}}}
@@ -172,6 +174,7 @@
     $('shopTotal').textContent=money(cart.reduce((n,p)=>n+p.price*p.quantity,0));
     $('shopCar').innerHTML='<option value="">Без прив’язки до авто</option>'+((typeof customerData!=='undefined'&&customerData?.cars)||[]).map(c=>`<option value="${Number(c.id)}">${esc([c.brand,c.model].filter(Boolean).join(' '))} · ${esc(c.vin||'')}</option>`).join('');
     $('shopCar').value=carId;$('shopComment').value=comment;$('shopCar').disabled=locked;$('shopComment').disabled=locked;
+    $('shopFulfillment').value=fulfillment.method;for(const k of ['City','Branch','Name','Phone'])$('shopShipping'+k).value=fulfillment[k.toLowerCase()]||'';shippingForm();
     $('shopSubmit').textContent=locked?'Перевірити замовлення':'Замовити';
     $('shopCheckoutStatus').textContent=locked?'Замовлення передається або потребує перевірки. Повторне натискання перевірить ту саму заявку.':'';
     badge();
@@ -182,10 +185,10 @@
     if(!customerData){show('login');return;}
     if(customerData.phone_linked===false){show('profile');return;}
     if(!cart.length)return;
-    preserveForm();key=key||crypto.randomUUID();locked=true;save();
+    preserveForm();key=key||crypto.randomUUID();locked=true;save();shippingForm();
     const current=version,button=$('shopSubmit');button.disabled=true;$('shopCheckoutStatus').textContent='Перевіряємо товари та передаємо замовлення…';
     try {
-      const r=await apiFetch('shop/checkout',{method:'POST',body:JSON.stringify({key,items:cart.map(p=>({id:p.id,warehouse:p.warehouse,price:p.price,quantity:p.quantity})),car_id:Number(carId)||null,comment})});
+      const r=await apiFetch('shop/checkout',{method:'POST',body:JSON.stringify({key,items:cart.map(p=>({id:p.id,warehouse:p.warehouse,price:p.price,quantity:p.quantity})),car_id:Number(carId)||null,comment,fulfillment})});
       const d=await r.json();if(current!==version)return;
       if(d.success){const demo=d.demo||d.review_account;cart=[];key='';locked=false;save();renderCart();$('shopCheckoutStatus').textContent='';$('shopReceipt').hidden=false;$('shopReceiptText').textContent=demo ? 'Це демонстраційне замовлення. До CRM воно не передавалося.' : `Замовлення прийнято. Менеджер уточнить наявність і зв’яжеться з вами. Номер заявки: ${d.order.public_id}`;return;}
       if([400,403,409,429,503].includes(r.status)&&!d.order){locked=false;key='';save();renderCart();}
@@ -194,7 +197,7 @@
     finally{button.disabled=false;button.textContent=locked?'Перевірити замовлення':'Замовити';}
   }
   async function orders(){show('shopOrders');$('shopOrdersList').textContent='Завантаження…';try{const d=await request('shop/orders');$('shopOrdersList').innerHTML=d.orders.length?d.orders.map(o=>`<article class="card"><strong>${o.status==='sent'?'Передано менеджеру':'Потребує перевірки менеджером'}</strong><p class="small">${esc(new Date(o.created_at).toLocaleString('uk-UA'))}<br>№ ${esc(o.public_id)}</p><b>${money(o.total_cents)}</b></article>`).join(''):'<div class="card empty">Замовлень поки немає.</div>';}catch(e){$('shopOrdersList').textContent=e.message;}}
-  function reset(){version++;cart=[];key='';locked=false;carId='';comment='';save();if($('shopOrdersList'))$('shopOrdersList').innerHTML='';if($('shopReceipt'))$('shopReceipt').hidden=true;}
+  function reset(){version++;cart=[];key='';locked=false;carId='';comment='';fulfillment={method:'pickup'};save();if($('shopOrdersList'))$('shopOrdersList').innerHTML='';if($('shopReceipt'))$('shopReceipt').hidden=true;}
   let featured=[],featuredLoading=false,featuredLoaded=false;
   async function loadFeatured(){
     if(featuredLoading||featuredLoaded)return;
@@ -231,6 +234,8 @@
     $('shopSearchForm').addEventListener('submit',e=>{e.preventDefault();q=$('shopSearch').value.trim();loadFilters();browse(category);});
     $('shopMore').addEventListener('click',()=>{page++;browse(category,true);});
     $('shopProductList').addEventListener('click',e=>{const b=e.target.closest('[data-add]');if(b){add(Number(b.dataset.add));return;}const card=e.target.closest('[data-product]');if(card)product(Number(card.dataset.product));});
+    $('shopFulfillment').addEventListener('change',()=>{preserveForm();shippingForm();save();});
+    $('shopCheckoutForm').addEventListener('input',()=>{if(!locked){preserveForm();key='';save();}});
     $('shopCartList').addEventListener('click',e=>{const b=e.target.closest('[data-qty]'),r=e.target.closest('[data-remove]');if(b)change(Number(b.dataset.qty),Number(b.dataset.delta));if(r&&!locked){preserveForm();cart.splice(Number(r.dataset.remove),1);key='';save();renderCart();}});
     $('shopDetailContent').addEventListener('click',e=>{if(e.target.closest('#shopDetailAdd'))add(0,[detailProduct],$('shopDetailAdd'));const b=e.target.closest('[data-photo]');if(b){$('shopDetailImage').src=detailProduct.images[Number(b.dataset.photo)];document.querySelectorAll('[data-photo]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));}});
     $('shopDetailBack').addEventListener('click',detailBack);$('shopDetailRetry').addEventListener('click',refreshDetail);

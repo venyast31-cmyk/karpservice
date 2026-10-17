@@ -1,3 +1,4 @@
+import {fulfillmentView} from '../src/shop-fulfillment.js';
 import assert from 'node:assert/strict';
 import {createHash,webcrypto} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
@@ -80,13 +81,14 @@ test('checkout verifies ownership, price, stock and creates at most one CRM orde
   assert.equal(u.hostname,'api.roapp.io');assert.equal(init.method,'POST');calls++;crmBody=JSON.parse(init.body);if(fail)throw new Error('timeout');return Response.json({data:{id:987}});
  };
  const send=async(body,auth=true)=>handleShop(new Request('https://app.test/shop/checkout',{method:'POST',headers:auth?{Authorization:'Bearer '+token}:{},body:JSON.stringify(body)}),env,{}, {getCars:async()=>[{id:7,vin:'TESTVIN',brand:'BMW'}]});
- const body={key:crypto.randomUUID(),comment:'',items:[{id,warehouse,quantity:1,price:13000}],car_id:7,client_id:999};
+ const body={key:crypto.randomUUID(),comment:'',fulfillment:{method:'nova_poshta',city:'Бориспіль',branch:'Відділення № 1',name:'Тестовий Одержувач',phone:'0671234567'},items:[{id,warehouse,quantity:1,price:13000}],car_id:7,client_id:999};
  try{
   assert.equal((await send(body,false)).status,401);
   assert.equal((await send({...body,car_id:999})).status,403);
   assert.equal((await send({...body,items:[{...body.items[0],price:1}]})).status,409);
   assert.equal((await send({...body,items:[{...body.items[0],quantity:6}]})).status,409);
-  const first=await(await send(body)).json();assert.equal(first.success,true);assert.equal(crmBody.client_id,123);assert.match(crmBody.due_date,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);assert.ok(Date.parse(crmBody.due_date)>Date.now());assert.match(crmBody.manager_notes,/TESTVIN/);
+  const first=await(await send(body)).json();assert.equal(first.success,true);assert.equal(crmBody.client_id,123);assert.match(crmBody.due_date,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);assert.ok(Date.parse(crmBody.due_date)>Date.now());assert.match(crmBody.manager_notes,/TESTVIN/);assert.match(crmBody.manager_notes,/Нова пошта/);assert.match(crmBody.manager_notes,/Відділення № 1/);assert.match(crmBody.manager_notes,/380671234567/);
+  const snapshot=JSON.parse(db.database.prepare('SELECT snapshot FROM shop_orders WHERE public_id=?').get(first.order.public_id).snapshot);assert.equal(snapshot.fulfillment.city,'Бориспіль');
   const second=await(await send(body)).json();assert.equal(second.order.public_id,first.order.public_id);assert.equal(calls,1);
   // An uncertain CRM response stays durable and must not repeat the write.
   db.database.exec('DELETE FROM rate_limits');fail=true;const uncertain={...body,key:crypto.randomUUID()};
@@ -153,4 +155,10 @@ test('detail isolates supplier data, merges photos and filters reach supplier on
   assert.equal((await request('products?category=oil&promo=invalid')).status,400);
   await request('products?'+new URLSearchParams({car:'BMW>3 (E90)',node:'ГАЛЬМІВНА СИСТЕМА',page:'2',brands:'ATE'}));assert.deepEqual(search.searchParams.getAll('cars'),['BMW>3 (E90)']);assert.equal(search.searchParams.get('nodes'),'ГАЛЬМІВНА СИСТЕМА');assert.equal(search.searchParams.get('group'),null);assert.equal(search.searchParams.get('page'),'2');assert.equal(search.searchParams.get('brands'),'ATE');
  }finally{globalThis.fetch=original;}
+});
+
+test('delivery requires complete recipient data; pickup discards stale shipping fields',()=>{
+ assert.deepEqual(fulfillmentView({method:'pickup',city:'old'}),{method:'pickup'});
+ assert.deepEqual(fulfillmentView(undefined),{method:'pickup'});
+ for(const x of [null,{method:'other'},{method:'nova_poshta'}, {method:'nova_poshta',city:'Київ',branch:'1',name:'Тест',phone:'123'}])assert.throws(()=>fulfillmentView(x));
 });

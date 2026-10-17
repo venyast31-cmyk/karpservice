@@ -29,5 +29,12 @@ test('unknown category and upstream denial do not trigger broad catalog searches
 test('fallback for other groups uses supplier taxonomy labels and remains bounded',async()=>{
  const calls=[];const api={quickSearch:async()=>({items:[]}),search:async(v,q)=>{calls.push(q);return {items:[]};}};
  const d=await quickSearchWithFallback(api,'a'.repeat(32),'cooling-hoses',taxonomy);
- assert.deepEqual(d.items,[]);assert.equal(calls[0],'Coolant hose');assert.ok(calls.length<=3);
+ assert.deepEqual(d.items,[]);assert.equal(calls[0],'Coolant hose');assert.ok(calls.length<=5);
+});
+
+test('transmission filters are found under short OEM labels without mixing engine filters',async()=>{
+ const api={quickSearch:async()=>({items:[]}),search:async()=>fixture('search-filter')};
+ const r=searchView((await quickSearchWithFallback(api,'a'.repeat(32),'service-transmission-filter',taxonomy)).items);
+ assert.equal(r.length,2);assert.ok(r.some(n=>n.matches.includes('A2212770195')));
+ assert.ok(r.every(n=>!n.matches.includes('A0001802609')));
 });

@@ -449,6 +449,7 @@
       <p id="codeHint">Введіть шестизначний код, який надіслав бот Karpservice.</p>
       <label for="otpCode">Код підтвердження</label>
       <input id="otpCode" class="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+      <div id="registrationFields" hidden><h2>Реєстрація в Karpservice</h2><p>Створимо вашу картку клієнта з підтвердженим номером телефону.</p><label for="registrationName">Ваші ПІБ</label><input id="registrationName" autocomplete="name" maxlength="160" placeholder="Прізвище, ім’я, по батькові"></div>
       <button id="verifyCodeBtn" class="primary" type="button" onclick="verifyTelegramCode()">Увійти</button>
       <button id="resendCodeBtn" class="secondary" type="button" onclick="requestTelegramAuth()">Надіслати код ще раз</button>
       <button class="secondary" type="button" onclick="resetAuthFlow()">Змінити номер</button>
@@ -543,7 +544,7 @@
     <div class="oem-toolbar"><button id="oemBack" class="back" type="button" aria-label="Назад">‹</button><h1 id="oemTitle">Каталог запчастин</h1></div>
     <div id="oemCar" class="oem-car"></div>
     <form id="oemSearch" class="shop-search"><input id="oemQuery" type="search" maxlength="120" placeholder="Пошук деталі або артикула" aria-label="Пошук у каталозі авто"><button type="submit" class="secondary" aria-label="Знайти деталь">Знайти</button></form>
-    <div id="oemTabs" class="oem-tabs" role="group" aria-label="Вид каталогу"><button id="oemQuickTab" type="button" aria-pressed="true">Швидкі групи</button><button id="oemCategoriesTab" type="button" aria-pressed="false">Категорії</button></div>
+    <div id="oemTabs" class="oem-tabs" role="group" aria-label="Вид каталогу"><button id="oemQuickTab" type="button" aria-pressed="true">Швидкі групи</button><button id="oemCategoriesTab" type="button" aria-pressed="false">Усі вузли</button></div>
     <div id="oemQuick" hidden></div>
     <p id="oemStatus" class="shop-message" role="status"></p>
     <button id="oemRetry" class="secondary" type="button" hidden>Спробувати ще</button>
@@ -572,9 +573,18 @@
     <div id="shopCartList"></div>
     <form id="shopCheckoutForm" class="shop-form" hidden>
       <label for="shopCar">Для якого авто? <span class="small">Необов’язково</span></label><select id="shopCar"></select>
+      <label for="shopFulfillment">Спосіб отримання</label>
+      <select id="shopFulfillment"><option value="pickup">Самовивіз із Karpservice</option><option value="nova_poshta">Доставка Новою поштою</option></select>
+      <p id="shopPickupAddress" class="small">Бориспіль, Київський Шлях, 10</p>
+      <fieldset id="shopShippingFields" hidden disabled style="border:0;padding:0;margin:0">
+        <label for="shopShippingCity">Місто / населений пункт</label><input id="shopShippingCity" autocomplete="address-level2" maxlength="120" minlength="2" required placeholder="Наприклад, Бориспіль">
+        <label for="shopShippingBranch">Відділення Нової пошти</label><input id="shopShippingBranch" maxlength="160" required placeholder="Номер відділення та адреса">
+        <label for="shopShippingName">ПІБ одержувача</label><input id="shopShippingName" autocomplete="name" maxlength="160" required placeholder="Прізвище, ім’я, по батькові">
+        <label for="shopShippingPhone">Телефон одержувача</label><input id="shopShippingPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required placeholder="+380">
+      </fieldset>
       <label for="shopComment">Коментар</label><textarea id="shopComment" maxlength="500" placeholder="Що потрібно уточнити менеджеру?"></textarea>
       <div class="sumrow"><span>Разом</span><strong id="shopTotal"></strong></div>
-      <p class="shop-message">Отримання у Karpservice: Бориспіль, Київський Шлях, 10. Менеджер підтвердить наявність, строк отримання та оплату.</p>
+      <p class="shop-message">Менеджер підтвердить наявність, строк отримання та оплату. Доставка Новою поштою — за тарифами перевізника.</p>
       <button id="shopSubmit" class="primary" type="submit">Замовити</button>
     </form>
     <p id="shopCheckoutStatus" class="shop-message" role="status"></p>
@@ -1234,6 +1244,8 @@ function resetAuthFlow(options={}){
   authLinkToken = '';
   authPhoneMasked = '';
   document.getElementById('otpCode').value = '';
+  document.getElementById('registrationFields').hidden = true;
+  document.getElementById('registrationName').value = '';
   document.getElementById('telegramLinkButton').removeAttribute('href');
   showStatus('', 'error', 'telegramLinkStatus');
   showStatus('', 'error', 'codeStatus');
@@ -1280,6 +1292,8 @@ function showCodeStep(challengeId, phoneMasked=''){
     : 'Введіть шестизначний код, який надіслав бот Karpservice.';
   document.getElementById('codeHint').textContent = hint;
   document.getElementById('otpCode').value = '';
+  document.getElementById('registrationFields').hidden = true;
+  document.getElementById('registrationName').value = '';
   showStatus('', 'error', 'codeStatus');
   setAuthStep('code');
   window.requestAnimationFrame(() => document.getElementById('otpCode')?.focus());
@@ -1393,9 +1407,10 @@ async function verifyTelegramCode(){
     const res = await apiFetch('auth/verify', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({challenge_id:authChallengeId, code})
+      body:JSON.stringify({challenge_id:authChallengeId, code,register:!document.getElementById('registrationFields').hidden,registration_name:document.getElementById('registrationName').value})
     });
     const data = await responseJson(res);
+    if(data.stage==='registration'){document.getElementById('registrationFields').hidden=false;document.getElementById('registrationName').focus();showStatus(data.error,'error','codeStatus');return;}
     if (!res.ok || !data.success){
       throw new Error(data.error || 'Не вдалося підтвердити код.');
     }
@@ -1413,7 +1428,7 @@ async function verifyTelegramCode(){
     console.error(err);
   }finally{
     btn.disabled = false;
-    btn.textContent = 'Увійти';
+    btn.textContent = document.getElementById('registrationFields').hidden?'Увійти':'Зареєструватися';
   }
 }
 

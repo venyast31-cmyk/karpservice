@@ -1,0 +1,652 @@
+{
+  "data": {
+    "items": [
+      {
+        "hash": "1f004ff711818c79f163db7a5977728b",
+        "name": "HEATER CASE WITH BLOWER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEj%2Ff6ILjpXaBeTLS%2BGWQNs4LvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "280",
+            "number": "A2108301018",
+            "label_en": "TS DUST FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "290",
+            "number": "A2108301118",
+            "label_en": "FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "300",
+            "number": "A2108350240",
+            "label_en": "HOUSING",
+            "qty": "001"
+          },
+          {
+            "ref": "310",
+            "number": "A2108350340",
+            "label_en": "HOUSING",
+            "qty": "001"
+          },
+          {
+            "ref": "320",
+            "number": "A2108303603",
+            "label_en": "HOUSING",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "61bb220128bffec98ed6b9208a01fd71",
+        "name": "TRANSMISSION HOUSING, OUTPUT FLANGE, PARKING LOCK,SHIFT LOCK,SELECTOR LEBER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEL7f64LjpXaBOHPS%2BCQQd44JvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "130",
+            "number": "A1402700198",
+            "label_en": "FILTER",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "80a92d042732ab43b030ec4df865b3ff",
+        "name": "COMPRESSOR AND CABLE SPECIFICATION",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEP%2BfaUMjpXaBOPLS%2BCUQd44KfBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "35",
+            "number": "A2203200069",
+            "label_en": "FILTER",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "e2eec3d29dbf122094cec400e6591094",
+        "name": "OIL FILTER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEH0f6ILjpXaBurKS%2BGVQNs7K%2FBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "5",
+            "number": "A1121840102",
+            "label_en": "HOUSING",
+            "qty": "001"
+          },
+          {
+            "ref": "11",
+            "number": "A1121880301",
+            "label_en": "OIL COOLER",
+            "qty": "-"
+          },
+          {
+            "ref": "11",
+            "number": "A1121880401",
+            "label_en": "OIL COOLER",
+            "qty": "001"
+          },
+          {
+            "ref": "17",
+            "number": "A1121840261",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "23",
+            "number": "A1121840361",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "29",
+            "number": "A1129900512",
+            "label_en": "SCREW",
+            "qty": "-"
+          },
+          {
+            "ref": "29",
+            "number": "A0029908412",
+            "label_en": "SCREW",
+            "qty": "004"
+          },
+          {
+            "ref": "35",
+            "number": "A1121840061",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "41",
+            "number": "A1121840017",
+            "label_en": "FITTING",
+            "qty": "001"
+          },
+          {
+            "ref": "125",
+            "number": "A1131800010",
+            "label_en": "OIL FILTER",
+            "qty": "-"
+          },
+          {
+            "ref": "125",
+            "number": "A1121800110",
+            "label_en": "OIL FILTER",
+            "qty": "-"
+          },
+          {
+            "ref": "125",
+            "number": "A1121800510",
+            "label_en": "OIL FILTER",
+            "qty": "-"
+          },
+          {
+            "ref": "125",
+            "number": "A1121800610",
+            "label_en": "OIL FILTER",
+            "qty": "-"
+          },
+          {
+            "ref": "125",
+            "number": "A1121800710",
+            "label_en": "OIL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "131",
+            "number": "A0179973148",
+            "label_en": "SEAL RING",
+            "qty": "-"
+          },
+          {
+            "ref": "131",
+            "number": "A0259976648",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "137",
+            "number": "A0239979948",
+            "label_en": "SEAL RING",
+            "qty": "-"
+          },
+          {
+            "ref": "137",
+            "number": "A0259976548",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "143",
+            "number": "A0249970048",
+            "label_en": "SEAL RING",
+            "qty": "-"
+          },
+          {
+            "ref": "143",
+            "number": "A0259976448",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "149",
+            "number": "A0249970148",
+            "label_en": "SEAL RING",
+            "qty": "-"
+          },
+          {
+            "ref": "149",
+            "number": "A0259976248",
+            "label_en": "SEAL RING",
+            "qty": "001"
+          },
+          {
+            "ref": "155",
+            "number": "A0001802609",
+            "label_en": "TS OIL FILTER ELEMENT",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "31546be2c94f69f4db6d1686c980ca86",
+        "name": "OIL PAN,OIL FILTER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEL7fqcLjpXaBOLKS%2BCXQd87LfBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "10",
+            "number": "A2212700912",
+            "label_en": "OIL PAN",
+            "qty": "001"
+          },
+          {
+            "ref": "12",
+            "number": "N000908012009",
+            "label_en": "SCREW PLUG",
+            "qty": "001"
+          },
+          {
+            "ref": "14",
+            "number": "N007603012102",
+            "label_en": "SEALING RING",
+            "qty": "001"
+          },
+          {
+            "ref": "15",
+            "number": "A0009880152",
+            "label_en": "PERMANENT MAGNET",
+            "qty": "002"
+          },
+          {
+            "ref": "20",
+            "number": "A2202710180",
+            "label_en": "GASKET",
+            "qty": "001"
+          },
+          {
+            "ref": "20",
+            "number": "A2202710380",
+            "label_en": "ELASTOMER MOLDED SEAL",
+            "qty": "001"
+          },
+          {
+            "ref": "30",
+            "number": "A2202770395",
+            "label_en": "TRANSMISSION OIL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "30",
+            "number": "A2202770695",
+            "label_en": "TRANSMISSION OIL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "30",
+            "number": "A2212770095",
+            "label_en": "TRANSMISSION OIL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "30",
+            "number": "A2212770195",
+            "label_en": "OIL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "40",
+            "number": "A2202710068",
+            "label_en": "SPRAG",
+            "qty": "005"
+          },
+          {
+            "ref": "50",
+            "number": "A2202710268",
+            "label_en": "SPRAG",
+            "qty": "001"
+          },
+          {
+            "ref": "60",
+            "number": "A0049903512",
+            "label_en": "SCREW WITH FEATURE",
+            "qty": "006"
+          },
+          {
+            "ref": "100",
+            "number": "A2512710097",
+            "label_en": "OVERFLOW PIPE",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "5627c3706b8f1f9e3a5ffeb9511f09c0",
+        "name": "AIR CLEANER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eED1f6cLjpXaBeHOS%2BCWQdI5LvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "11",
+            "number": "A1120900601",
+            "label_en": "DAMPER FILTER",
+            "qty": "-"
+          },
+          {
+            "ref": "11",
+            "number": "A1120901101",
+            "label_en": "AIR FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "35",
+            "number": "A1120940004",
+            "label_en": "AIR FILTER INSERT",
+            "qty": "-"
+          },
+          {
+            "ref": "35",
+            "number": "A1120940604",
+            "label_en": "TS FILTER INSERT",
+            "qty": "001"
+          },
+          {
+            "ref": "77",
+            "number": "A0019907822",
+            "label_en": "SCREW",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "0f508dc04fb32b2b98f6bb534154e35f",
+        "name": "FUEL PUMP PACKAGE",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eET7f6UOjpXaBeTPS%2BGRQd07JvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "10",
+            "number": "A2304768726",
+            "label_en": "HOSE",
+            "qty": "NB"
+          },
+          {
+            "ref": "17",
+            "number": "A2304768726",
+            "label_en": "HOSE",
+            "qty": "NB"
+          },
+          {
+            "ref": "25",
+            "number": "A0069971890",
+            "label_en": "HOSE CLAMP",
+            "qty": "002"
+          },
+          {
+            "ref": "30",
+            "number": "A0024773001",
+            "label_en": "FUEL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "70",
+            "number": "A0019976990",
+            "label_en": "HOSE CLAMP",
+            "qty": "002"
+          }
+        ]
+      },
+      {
+        "hash": "d9644fdc0c2b0983294867aff9652ff1",
+        "name": "AIR INTAKE",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEX%2BfqUOjpXaBOXDS%2BGRQd07JvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "600",
+            "number": "A1120901501",
+            "label_en": "AIR FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "605",
+            "number": "A1120940604",
+            "label_en": "TS FILTER ELEMENT",
+            "qty": "001"
+          },
+          {
+            "ref": "605",
+            "number": "A2730940404",
+            "label_en": "TS AIR FILTER INSERT",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "90683072db37cbd0290af47c800384a6",
+        "name": "CLOSED FUEL-EVAPORATION-CONTROL SYSTEM",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eET7f6AOjpXaBurKS%2BGcQd87K%2FBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "15",
+            "number": "A2204760826",
+            "label_en": "HOSE",
+            "qty": "001"
+          },
+          {
+            "ref": "25",
+            "number": "A2204763926",
+            "label_en": "HOSE",
+            "qty": "001"
+          },
+          {
+            "ref": "60",
+            "number": "A2204700559",
+            "label_en": "ACTIVATED CHARCOAL FILTER",
+            "qty": "001"
+          },
+          {
+            "ref": "70",
+            "number": "A2204763926",
+            "label_en": "HOSE",
+            "qty": "001"
+          },
+          {
+            "ref": "90",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "002"
+          },
+          {
+            "ref": "130",
+            "number": "A2024766526",
+            "label_en": "HOSE",
+            "qty": "NB"
+          },
+          {
+            "ref": "135",
+            "number": "A0059971990",
+            "label_en": "CLAMP",
+            "qty": "002"
+          },
+          {
+            "ref": "145",
+            "number": "A0069971890",
+            "label_en": "HOSE CLAMP",
+            "qty": "002"
+          },
+          {
+            "ref": "190",
+            "number": "A2204711415",
+            "label_en": "VENT TUBE",
+            "qty": "001"
+          },
+          {
+            "ref": "200",
+            "number": "A0039975790",
+            "label_en": "CLAMP",
+            "qty": "001"
+          },
+          {
+            "ref": "230",
+            "number": "A2024766526",
+            "label_en": "HOSE",
+            "qty": "NB"
+          },
+          {
+            "ref": "250",
+            "number": "A0049972590",
+            "label_en": "CLAMP",
+            "qty": "001"
+          },
+          {
+            "ref": "280",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "002"
+          },
+          {
+            "ref": "290",
+            "number": "A2204764101",
+            "label_en": "LINE",
+            "qty": "001"
+          },
+          {
+            "ref": "292",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "001"
+          },
+          {
+            "ref": "335",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "001"
+          },
+          {
+            "ref": "400",
+            "number": "A2204764026",
+            "label_en": "HOSE",
+            "qty": "001"
+          },
+          {
+            "ref": "405",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "001"
+          },
+          {
+            "ref": "420",
+            "number": "A0059978690",
+            "label_en": "BINDER",
+            "qty": "003"
+          },
+          {
+            "ref": "430",
+            "number": "A0059971990",
+            "label_en": "CLAMP",
+            "qty": "003"
+          },
+          {
+            "ref": "450",
+            "number": "A2404760726",
+            "label_en": "HOSE",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "5585da038ac9e482acc0f08832b96a0e",
+        "name": "FUEL LINES, GASOLINE VEHICLES",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eET7f6ULjpXaBOLIS%2BCTQds6LfBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "5",
+            "number": "A2204762875",
+            "label_en": "FUEL HOSE",
+            "qty": "001"
+          },
+          {
+            "ref": "22",
+            "number": "A6389971590",
+            "label_en": "BINDER",
+            "qty": "001"
+          },
+          {
+            "ref": "55",
+            "number": "A1299950265",
+            "label_en": "CLAMP",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "e745ac91fe0ba03b22500533744f255f",
+        "name": "REAR END FLOOR",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEb9f6ILjpXaBeTIS%2BCWQdM7JvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "230",
+            "number": "A2106370414",
+            "label_en": "BRACKET",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "2ef0c4b0ee3ce2e9acc4b1fcce4e4589",
+        "name": "FUEL TANK WITH ATTACHMENT PARTS",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eET7f6cLjpXaBefKS%2BGXQNo5L%2FBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "55",
+            "number": "A1244710481",
+            "label_en": "BOOT",
+            "qty": "001"
+          },
+          {
+            "ref": "55",
+            "number": "A2104710481",
+            "label_en": "BOOT",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "ef89e84e4db4610e704e8b1d73905ac4",
+        "name": "CENTRAL LOCKING SYSTEM AND POWER CLOSING SYSTEM",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEj8f6IJjpXaBOPLS%2BGVQds4KPBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "10",
+            "number": "A0001581435",
+            "label_en": "PIPING",
+            "qty": "NB"
+          }
+        ]
+      },
+      {
+        "hash": "1a9687cccbd8e4d5903291f679ddeac3",
+        "name": "CYLINDER HEAD COVER",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eED9f6ELjpXaBufCS%2BGWQd86LPBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "107",
+            "number": "A1120900089",
+            "label_en": "BEARING",
+            "qty": "004"
+          }
+        ]
+      },
+      {
+        "hash": "a33ea8e329e676bc6f342dae0ef88ce2",
+        "name": "ENGINE CABLE HARNESS,BODY MOUNTED",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEX4fqQPjpXaBOXDS%2BCWQdk6K%2FBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "230",
+            "number": "A1405453528",
+            "label_en": "RECEPTACLE HOUSING",
+            "qty": "001"
+          }
+        ]
+      },
+      {
+        "hash": "c826cb6d3a8992b61ec0c8f203c742ac",
+        "name": "WINDSHIELD",
+        "image": "https://vinalfa.com/images/oem?f=fxWshr3s83mnP2tARAuOXZj1bsyYajwhuKAqR08DUNInp%2BFSNx193kRHx4TxqU9awuh2zGT9eEb7f6cLjpXaBOTMS%2BGRQds7KvBDrB4%3D",
+        "foundParts": [
+          {
+            "ref": "10",
+            "number": "A2206701701",
+            "label_en": "WINDSHIELD",
+            "qty": "001"
+          },
+          {
+            "ref": "10",
+            "number": "A2206706801",
+            "label_en": "WINDSHIELD",
+            "qty": "001"
+          }
+        ]
+      }
+    ]
+  }
+}
