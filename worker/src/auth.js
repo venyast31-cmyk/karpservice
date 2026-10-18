@@ -1,3 +1,6 @@
+import { recordAnalytics } from './analytics.js';
+import { getAppleSession, registerVerifiedCustomer } from './apple-auth.js';
+
 const OTP_TTL_SECONDS = 5 * 60;
 const LINK_TTL_SECONDS = 10 * 60;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -87,7 +90,16 @@ export async function handleAuthRoute({
   ctx.waitUntil(cleanupExpiredAuthData(env));
 
   if (url.pathname === "/auth/request" && request.method === "POST") {
-    return requestTelegramAuth(request, env, headers);
+    const session = await getAuthSession(request, env);
+    if (env.APPLE_ONLY_AUTH === 'true' && session?.auth_provider !== 'apple') return unauthorized(headers);
+    const response = await requestTelegramAuth(request, env, headers);
+    if (session?.auth_provider === 'apple' && response.ok) {
+      const data = await response.clone().json();
+      const proof = data.challenge_id || await sha256Hex(`link:${data.link_token}`);
+      await env.AUTH_DB.prepare('INSERT OR REPLACE INTO apple_phone_verifications(proof_id,subject_hash,expires_at) VALUES(?,?,?)')
+        .bind(proof, session.apple_subject_hash, unixTime() + LINK_TTL_SECONDS).run();
+    }
+    return response;
   }
   if (url.pathname === "/auth/link-status" && request.method === "POST") {
     return getTelegramLinkStatus(request, env, headers);
@@ -118,11 +130,11 @@ export async function handleAuthRoute({
 }
 
 export async function requireAuthSession(request, env, headers) {
-  if (!authConfigured(env)) {
+  if (!env.AUTH_DB || !env.SESSION_SECRET) {
     return {
       response: authJson({
         success: false,
-        error: "Підтвердження через Telegram ще не налаштоване"
+        error: "Вхід тимчасово недоступний"
       }, 503, headers)
     };
   }
@@ -199,6 +211,10 @@ async function getTelegramLinkStatus(request, env, headers) {
     return tooManyRequests(headers);
   }
   const tokenHash = await sha256Hex(`link:${rawToken}`);
+  const apple = await getAuthSession(request, env);
+  const proof = apple?.auth_provider === 'apple' ? await env.AUTH_DB.prepare('SELECT * FROM apple_phone_verifications WHERE proof_id = ? AND expires_at > ?')
+    .bind(tokenHash, unixTime()).first() : null;
+  if ((env.APPLE_ONLY_AUTH === 'true' || apple?.auth_provider === 'apple') && (!proof || proof.subject_hash !== apple?.apple_subject_hash)) return unauthorized(headers);
   const row = await env.AUTH_DB.prepare(
     `SELECT state, challenge_id, expires_at
        FROM link_requests
@@ -208,6 +224,8 @@ async function getTelegramLinkStatus(request, env, headers) {
     return authJson({ success: true, stage: "expired" }, 200, headers);
   }
   if (row.state === "otp_sent" && row.challenge_id) {
+    if (proof) await env.AUTH_DB.prepare('INSERT OR REPLACE INTO apple_phone_verifications(proof_id,subject_hash,expires_at) VALUES(?,?,?)')
+      .bind(row.challenge_id, proof.subject_hash, proof.expires_at).run();
     return authJson({
       success: true,
       stage: "code",
@@ -237,6 +255,10 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return tooManyRequests(headers);
   }
 
+  const apple = await getAuthSession(request, env);
+  const proof = apple?.auth_provider === 'apple' ? await env.AUTH_DB.prepare('SELECT * FROM apple_phone_verifications WHERE proof_id = ? AND expires_at > ?')
+    .bind(challengeId, unixTime()).first() : null;
+  if ((env.APPLE_ONLY_AUTH === 'true' || apple?.auth_provider === 'apple') && (!proof || proof.subject_hash !== apple?.apple_subject_hash)) return unauthorized(headers);
   const challenge = await env.AUTH_DB.prepare(
     `SELECT id, phone, telegram_user_id, code_hash, attempts, expires_at, used_at
        FROM otp_challenges
@@ -261,11 +283,29 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
     return authJson({ success: false, error: "Невірний код" }, 401, headers);
   }
 
-  const customer = await findCustomerByPhone(env, challenge.phone);
+  let customer = await findCustomerByPhone(env, challenge.phone);
+  // A verified phone change keeps the existing customer's cars and history.
+  // A number attached to another CRM contact needs staff reconciliation.
+  if (apple?.auth_provider === 'apple' && apple.phone && apple.customer_id) {
+    if (customer?.id && Number(customer.id) !== Number(apple.customer_id)) {
+      return authJson({success:false,error:'Цей номер належить іншій картці клієнта. Зверніться до сервісу для зміни номера.'},409,headers);
+    }
+    customer = { id: apple.customer_id, first_name: apple.customer_name };
+  }
   if (!customer?.id) {
-    return authJson({ success: false, error: "Клієнта з таким номером не знайдено" }, 404, headers);
+    if(apple?.auth_provider!=='apple')return authJson({success:false,error:'Увійдіть через Apple для реєстрації.'},403,headers);
+    const name=typeof body.registration_name==='string'?body.registration_name.trim().replace(/\s+/g,' '):'';
+    if(body.register!==true)return authJson({success:false,stage:'registration',error:'Ви новий клієнт. Вкажіть ПІБ, щоб створити профіль Karpservice.'},404,headers);
+    if(name.length<3||name.length>160||name.split(' ').length<2||/[\u0000-\u001f\u007f]/.test(name))return authJson({success:false,stage:'registration',error:'Вкажіть ваше прізвище та ім’я.'},400,headers);
+    try{customer=await registerVerifiedCustomer(env,apple,challenge.phone,name);}catch(e){return authJson({success:false,error:e.message},e.status||409,headers);}
   }
 
+  if (apple?.auth_provider === 'apple') {
+    const owner = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE customer_id = ?').bind(Number(customer.id)).first();
+    if (owner && owner.subject_hash !== apple.apple_subject_hash) return authJson({success:false,error:'Цей номер уже підключено до іншого Apple Account.'},409,headers);
+    const phoneOwner = await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_accounts WHERE phone = ? AND disabled_at IS NULL').bind(challenge.phone).first();
+    if (phoneOwner && phoneOwner.subject_hash !== apple.apple_subject_hash) return authJson({success:false,error:'Цей номер уже підключено до іншого Apple Account.'},409,headers);
+  }
   const rawSessionToken = randomToken(32);
   const sessionHash = await sha256Hex(`session:${rawSessionToken}`);
   const customerName = [customer.first_name || customer.name, customer.last_name]
@@ -281,6 +321,15 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   ).bind(now, challenge.id).first();
   if (!claimed?.id) {
     return authJson({ success: false, error: "Код уже використано" }, 401, headers);
+  }
+  if (apple?.auth_provider === 'apple') {
+    await env.AUTH_DB.batch([
+      env.AUTH_DB.prepare('UPDATE apple_accounts SET customer_id=?,customer_name=?,phone=? WHERE subject_hash=? AND disabled_at IS NULL')
+        .bind(Number(customer.id), customerName, challenge.phone, apple.apple_subject_hash),
+      env.AUTH_DB.prepare('DELETE FROM apple_phone_verifications WHERE subject_hash=?').bind(apple.apple_subject_hash)
+    ]);
+    if (!apple.phone) await recordAnalytics(env, 'phone_linked', apple.apple_subject_hash, {once:true});
+    return authJson({success:true,token:bearerToken(request),token_type:'Bearer',expires_at:apple.expires_at,auth_provider:'apple',phone_linked:true,phone_masked:maskPhone(challenge.phone)},200,headers);
   }
   await env.AUTH_DB.prepare(
     `INSERT INTO sessions
@@ -307,14 +356,15 @@ async function verifyTelegramCode(request, env, headers, findCustomerByPhone) {
   }, 200, headers);
 }
 
-async function getAuthSession(request, env) {
+export async function getAuthSession(request, env) {
   const token = bearerToken(request);
+  if (token.startsWith('apple_')) return getAppleSession(request, env);
   if (!token || token.length < 30 || token.length > 100) return null;
   const tokenHash = await sha256Hex(`session:${token}`);
   const now = unixTime();
   const session = await env.AUTH_DB.prepare(
     `SELECT token_hash, phone, customer_id, customer_name, telegram_user_id,
-            expires_at, last_used_at
+            created_at, expires_at, last_used_at
        FROM sessions
       WHERE token_hash = ? AND expires_at > ?`
   ).bind(tokenHash, now).first();
@@ -434,7 +484,8 @@ async function completeTelegramLink(env, linkRequest, findCustomerByPhone) {
 
   try {
     const customer = await findCustomerByPhone(env, linkRequest.phone);
-    if (!customer?.id) {
+    const registrationProof = !customer?.id ? await env.AUTH_DB.prepare('SELECT subject_hash FROM apple_phone_verifications WHERE proof_id=? AND expires_at>?').bind(linkRequest.token_hash,unixTime()).first() : null;
+    if (!customer?.id && !registrationProof) {
       await env.AUTH_DB.prepare(
         "UPDATE link_requests SET state = 'failed' WHERE token_hash = ?"
       ).bind(linkRequest.token_hash).run();
@@ -632,7 +683,7 @@ function bearerToken(request) {
 function unauthorized(headers) {
   return authJson({
     success: false,
-    error: "Потрібне підтвердження через Telegram"
+    error: "Увійдіть у профіль Karpservice"
   }, 401, headers);
 }
 
@@ -721,3 +772,5 @@ function safeEqual(left, right) {
   }
   return difference === 0;
 }
+
+export { consumeRateLimit, normalizeUkrainianPhone, randomToken, sha256Hex, safeEqual };

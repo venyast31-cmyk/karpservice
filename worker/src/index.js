@@ -1,9 +1,16 @@
+import { handleShop } from './shop.js';
+import { recordAnalytics, handleAnalytics } from './analytics.js';
+import { handleReviewAccount } from "./review-account.js";
+import { appleConfigured, handleAppleAuthRoute, ensureAppleCustomer } from './apple-auth.js';
 import {
   authConfigured,
   corsHeadersFor,
   handleAuthRoute,
   requireAuthSession
 } from "./auth.js";
+import { handleDeletionRoute } from "./deletion.js";
+import { handleProfileRoute } from './profile.js';
+import { addCustomerMileage, saveCustomerMileage, firstMileage } from './mileage.js';
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -23,12 +30,13 @@ var CORS_HEADERS = {
   "Content-Type": "application/json; charset=UTF-8",
   "Cache-Control": "no-store"
 };
-async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
+async function getCustomerData(url, env, responseHeaders = CORS_HEADERS, appleSession = null) {
   const phone = normalizePhone(url.searchParams.get("phone"));
-  if (phone.length < 10) {
+  if (!appleSession && phone.length < 10) {
     return json({ success: false, error: "\u0412\u043A\u0430\u0436\u0456\u0442\u044C \u043D\u043E\u043C\u0435\u0440 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443" }, 400, responseHeaders);
   }
-  const customer = await findCustomerByPhone(env, phone);
+  const customer = appleSession ? { id: appleSession.customer_id, first_name: appleSession.customer_name, email: appleSession.email } : await findCustomerByPhone(env, phone);
+  if (appleSession && (!customer.id || (env.APPLE_ONLY_AUTH === 'true' && !appleSession.phone))) return json({ success: true, found: true, auth_provider: 'apple', phone_linked: false, customer: { id: 0, first_name: customer.first_name, email: customer.email, birth_date: appleSession.birth_date || '', phone: '' }, cars: [], history_cars: [], history: { loaded: 0, total: 0, complete: true } }, 200, responseHeaders);
   if (!customer?.id) {
     return json({ success: true, found: false, customer: null, cars: [] }, 200, responseHeaders);
   }
@@ -40,6 +48,7 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
     console.error(JSON.stringify({ event: "customer_assets_load", success: false, message: error instanceof Error ? error.message : String(error) }));
   }
   const historyCars = mergeCustomerAssets(assets, orderResult.orders);
+  await addCustomerMileage(env, Number(customer.id), historyCars);
   let cars = historyCars;
   try {
     const hiddenCars = await getHiddenCustomerCars(env, customer.id);
@@ -54,11 +63,13 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
   return json({
     success: true,
     found: true,
+    ...(appleSession ? { auth_provider: 'apple', phone_linked: Boolean(appleSession.phone && appleSession.customer_id) } : {}),
     customer: {
       id: Number(customer.id),
       first_name: customer.first_name || customer.name || "",
       last_name: customer.last_name || "",
-      phone: `+${phone}`
+      phone: phone ? `+${phone}` : '',
+      ...(appleSession ? { email: appleSession.email, birth_date: appleSession.birth_date || '' } : {})
     },
     cars,
     history_cars: historyCars,
@@ -70,16 +81,16 @@ async function getCustomerData(url, env, responseHeaders = CORS_HEADERS) {
   }, 200, responseHeaders);
 }
 __name(getCustomerData, "getCustomerData");
-async function getOrderDetails(url, env, responseHeaders = CORS_HEADERS) {
+async function getOrderDetails(url, env, responseHeaders = CORS_HEADERS, appleSession = null) {
   const phone = normalizePhone(url.searchParams.get("phone"));
   const orderId = Number(url.searchParams.get("order_id"));
-  if (phone.length < 10 || !Number.isInteger(orderId) || orderId <= 0) {
+  if ((!appleSession && phone.length < 10) || !Number.isInteger(orderId) || orderId <= 0) {
     return json({
       success: false,
       error: "\u041D\u0435 \u0432\u0438\u0441\u0442\u0430\u0447\u0430\u0454 \u0434\u0430\u043D\u0438\u0445 \u0434\u043B\u044F \u0437\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u0437\u0430\u043C\u043E\u0432\u043B\u0435\u043D\u043D\u044F"
     }, 400, responseHeaders);
   }
-  const customer = await findCustomerByPhone(env, phone);
+  const customer = appleSession ? { id: appleSession.customer_id } : await findCustomerByPhone(env, phone);
   if (!customer?.id) {
     return json({ success: false, error: "\u041A\u043B\u0456\u0454\u043D\u0442\u0430 \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E" }, 404, responseHeaders);
   }
@@ -141,7 +152,7 @@ async function findCustomerByPhone(env, phone) {
   }
   const peopleResponse = await roappRequest(env, peopleUrl.toString());
   const people = extractList(peopleResponse.data, ["people", "contacts"]);
-  return people.find((person) => personHasPhone(person, phone)) || (people.length === 1 ? people[0] : null);
+  return people.find((person) => personHasPhone(person, phone)) || null;
 }
 __name(findCustomerByPhone, "findCustomerByPhone");
 async function getAllCustomerOrders(env, customerId) {
@@ -225,6 +236,7 @@ function publicAssetCar(asset, history = []) {
     modification: valueTitle(asset?.modification),
     year: asset?.year || asset?.production_year || "",
     vin,
+    mileage: firstMileage(asset?.mileage, asset?.odometer),
     history: Array.isArray(history) ? history : []
   };
 }
@@ -638,7 +650,7 @@ async function createRoappAssetCompatible(env, payload) {
   throw lastError || new Error("RO App не прийняв дані автомобіля");
 }
 __name(createRoappAssetCompatible, "createRoappAssetCompatible");
-async function createCustomerAsset(request, env, customerId, responseHeaders) {
+async function createCustomerAsset(request, env, authSession, responseHeaders) {
   let body;
   try {
     body = await request.json();
@@ -652,7 +664,7 @@ async function createCustomerAsset(request, env, customerId, responseHeaders) {
       error: "VIN має містити рівно 17 символів без літер I, O та Q"
     }, 400, responseHeaders);
   }
-  const numericCustomerId = Number(customerId);
+  const numericCustomerId = Number(await ensureAppleCustomer(env, authSession));
   if (!Number.isInteger(numericCustomerId) || numericCustomerId <= 0) {
     return json({ success: false, error: "Клієнта не знайдено" }, 404, responseHeaders);
   }
@@ -893,7 +905,7 @@ function buildCarsFromOrders(orders) {
       created_at: order.created_at || null,
       closed_at: order.closed_at || null,
       due_date: order.due_date || null,
-      mileage: firstNumber(
+      mileage: firstMileage(
         order.mileage,
         order.odometer,
         order.asset_mileage,
@@ -921,7 +933,7 @@ function publicOrderDetails(order, items) {
     created_at: order.created_at || null,
     closed_at: order.closed_at || null,
     due_date: order.due_date || null,
-    mileage: firstNumber(
+    mileage: firstMileage(
       order.mileage,
       order.odometer,
       order.asset_mileage,
@@ -1319,6 +1331,19 @@ var index_default = {
     }
     try {
       const url = new URL(request.url);
+      const analyticsResponse = await handleAnalytics(request, env);
+      if (analyticsResponse) return analyticsResponse;
+      const reviewResponse = await handleReviewAccount(request, env, corsHeaders);
+      if (reviewResponse) return reviewResponse;
+      const shopResponse = await handleShop(request, env, corsHeaders, { getCars: async customerId => {
+        const assets = await getCustomerAssets(env, customerId);
+        const orders = await getAllCustomerOrders(env, customerId);
+        const hidden = await getHiddenCustomerCars(env, customerId);
+        return mergeCustomerAssets(assets, orders.orders).filter(car => !isCustomerCarHidden(car, hidden));
+      }});
+      if (shopResponse) return shopResponse;
+      const appleResponse = await handleAppleAuthRoute(request, env, corsHeaders);
+      if (appleResponse) return appleResponse;
       const authResponse = await handleAuthRoute({
         request,
         env,
@@ -1327,6 +1352,10 @@ var index_default = {
         findCustomerByPhone
       });
       if (authResponse) return authResponse;
+      const profileResponse = await handleProfileRoute(request, env, corsHeaders);
+      if (profileResponse) return profileResponse;
+      const deletionResponse = await handleDeletionRoute(request, env, corsHeaders);
+      if (deletionResponse) return deletionResponse;
 
       if (url.pathname === "/health" && request.method === "GET") {
         const configured = Boolean(env.ROAPP_API_KEY);
@@ -1335,6 +1364,7 @@ var index_default = {
           service: "Karpservice API",
           configured,
           telegram_configured: isTelegramConfigured(env),
+          apple_signin_configured: appleConfigured(env),
           telegram_auth_configured: authConfigured(env)
         }, configured && authConfigured(env) ? 200 : 503, corsHeaders);
       }
@@ -1347,22 +1377,36 @@ var index_default = {
       }
 
       let authSession = null;
-      if (["/", "/order", "/availability", "/booking", "/cars", "/cars/remove"].includes(url.pathname)) {
+      if (["/", "/order", "/availability", "/booking", "/cars", "/cars/remove", "/cars/mileage"].includes(url.pathname)) {
         const authResult = await requireAuthSession(request, env, corsHeaders);
         if (authResult.response) return authResult.response;
         authSession = authResult.session;
+        if (env.APPLE_ONLY_AUTH === 'true') {
+          if (authSession.auth_provider !== 'apple') return json2({success:false,error:'Увійдіть через Apple.'},401,corsHeaders);
+          if ((!authSession.phone || !authSession.customer_id) && url.pathname !== '/') return json2({success:false,stage:'phone_link',error:'Спочатку підтвердьте номер телефону через Telegram.'},403,corsHeaders);
+        }
       }
 
+      if (url.pathname === '/cars/mileage') {
+        if (request.method !== 'POST') return json2({success:false},405,corsHeaders);
+        const customerId = Number(authSession.customer_id);
+        return await saveCustomerMileage(request, env, customerId, corsHeaders, async () => {
+          const assets = await getCustomerAssets(env, customerId);
+          const orders = await getAllCustomerOrders(env, customerId);
+          const hidden = await getHiddenCustomerCars(env, customerId);
+          return mergeCustomerAssets(assets, orders.orders).filter(car => !isCustomerCarHidden(car, hidden));
+        });
+      }
       if (url.pathname === "/order" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
-        return await getOrderDetails(protectedUrl, env, corsHeaders);
+        return await getOrderDetails(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
       }
       if (url.pathname === "/cars" && request.method === "POST") {
         return await createCustomerAsset(
           request,
           env,
-          Number(authSession.customer_id),
+          authSession,
           corsHeaders
         );
       }
@@ -1575,6 +1619,7 @@ var index_default = {
               clientId: verifiedBooking?.client_id ?? verifiedBooking?.client?.id ?? effectiveClientId,
               customerName: authSession.customer_name || getClientName(verifiedBooking),
               phone: authSession.phone,
+              email: authSession.email,
               car: normalizedCar,
               service: normalizedService,
               comment: normalizedComment,
@@ -1597,6 +1642,7 @@ var index_default = {
             reason: "not_configured"
           }));
         }
+        await recordAnalytics(env, 'booking', String(bookingId), {once:true});
         return json2({
           success: true,
           verified: true,
@@ -1617,7 +1663,9 @@ var index_default = {
       if (url.pathname === "/" && request.method === "GET") {
         const protectedUrl = new URL(request.url);
         protectedUrl.searchParams.set("phone", authSession.phone);
-        return await getCustomerData(protectedUrl, env, corsHeaders);
+        const response = await getCustomerData(protectedUrl, env, corsHeaders, authSession.auth_provider === 'apple' ? authSession : null);
+        if (response.ok && authSession.auth_provider === 'apple') await recordAnalytics(env, 'active', authSession.apple_subject_hash, {once:true});
+        return response;
       }
       return json2({
         success: false,
@@ -1681,6 +1729,7 @@ async function sendTelegramBookingNotification(env, booking) {
     url: buildRoAppClientUrl(booking.clientId)
   }]);
   const message = [
+    ...(booking.email ? [`Email: ${telegramValue(booking.email)}`] : []),
     "\u{1F527} \u041D\u041E\u0412\u0418\u0419 \u041E\u041D\u041B\u0410\u0419\u041D-\u0417\u0410\u041F\u0418\u0421",
     "",
     `\u{1F464} \u041A\u043B\u0456\u0454\u043D\u0442: ${telegramValue(booking.customerName)}`,

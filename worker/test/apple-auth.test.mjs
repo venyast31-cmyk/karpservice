@@ -1,0 +1,380 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { readFile } from 'node:fs/promises';
+import { generateKeyPairSync, sign, randomUUID, createHmac } from 'node:crypto';
+import worker from '../src/index.js';
+import { verifyAppleIdentity, getAppleSession, ensureAppleCustomer } from '../src/apple-auth.js';
+import { sha256Hex } from '../src/auth.js';
+
+class Statement {
+  constructor(db, sql, values = []) { Object.assign(this, { db, sql, values }); }
+  bind(...values) { return new Statement(this.db, this.sql, values); }
+  async first() { return this.db.prepare(this.sql).get(...this.values) || null; }
+  async run() { const result = this.db.prepare(this.sql).run(...this.values); return { success: true, meta: { changes: Number(result.changes) } }; }
+  async all() { return { results: this.db.prepare(this.sql).all(...this.values) }; }
+}
+const timestamp = () => Math.floor(Date.now() / 1000);
+const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+
+async function setup({ redirectPath, assets = [], newCustomer=false, uncertainCreate=false } = {}) {
+  const db = new DatabaseSync(':memory:');
+  for (const file of ['0001_auth.sql', '0002_hidden_customer_cars.sql', '0003_deletion_requests.sql', '0004_review_accounts.sql', '0006_apple_sign_in.sql', '0007_apple_phone_verification.sql', '0008_profile_name.sql', '0009_profile_birth_date.sql', '0010_unique_verified_phone.sql', '0011_car_mileage.sql']) db.exec(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+  const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const signing = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const kid = randomUUID();
+  const jwk = { ...rsa.publicKey.export({ format: 'jwk' }), kid, alg: 'RS256', use: 'sig' };
+  const jwt = claims => {
+    const content = `${encode({ alg: 'RS256', kid })}.${encode({ iss: 'https://appleid.apple.com', aud: 'ua.karpservice.client', sub: 'apple-test-user', email: 'relay@privaterelay.appleid.com', email_verified: true, iat: timestamp(), exp: timestamp() + 300, ...claims })}`;
+    return `${content}.${sign('RSA-SHA256', Buffer.from(content), rsa.privateKey).toString('base64url')}`;
+  };
+  const env = { AUTH_DB: { prepare: sql => new Statement(db, sql), batch: async statements => {
+    db.exec('BEGIN');
+    try { const results = []; for (const statement of statements) results.push(await statement.run()); db.exec('COMMIT'); return results; } catch (error) { db.exec('ROLLBACK'); throw error; }
+  } }, SESSION_SECRET: 'test-only-session-secret-at-least-32-characters', APPLE_SIGN_IN_KEY_ID: 'TESTKEY123', APPLE_SIGN_IN_PRIVATE_KEY: signing.privateKey.export({ format: 'pem', type: 'pkcs8' }), ROAPP_API_KEY: 'test-crm', TELEGRAM_BOT_TOKEN: 'test-bot', TELEGRAM_WEBHOOK_SECRET: 'test-webhook', TELEGRAM_CHAT_ID: 'test-chat', ACCOUNT_DELETION_DAYS: '7' };
+  const calls = [], codes = new Map();
+  let rejectRefresh = false;
+  const previous = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    calls.push({ url: url.toString(), body: init.body });
+    // Match the deployed Workers fetch contract, which differs from Node fetch.
+    if (init.redirect === 'error') throw new TypeError('Workers does not support redirect:error');
+    if (url.hostname === 'appleid.apple.com') {
+      assert.equal(init.redirect, 'manual', 'Apple credentials must never follow redirects');
+      if (url.pathname === redirectPath) return new Response(null, {status:302,headers:{Location:'https://unexpected.example/token'}});
+    }
+    if (url.toString() === 'https://appleid.apple.com/auth/keys') return Response.json({ keys: [jwk] });
+    if (url.toString() === 'https://appleid.apple.com/auth/token') {
+      const body = new URLSearchParams(init.body);
+      assert.equal(body.get('client_id'), 'ua.karpservice.client');
+      if (body.get('grant_type') === 'refresh_token') return rejectRefresh ? Response.json({ error: 'invalid_grant' }, { status: 400 }) : Response.json({ access_token: 'access' });
+      const identity = codes.get(body.get('code'));
+      if (!identity) return Response.json({ error: 'invalid_grant' }, { status: 400 });
+      codes.delete(body.get('code'));
+      return Response.json({ id_token: identity, refresh_token: 'private-test-refresh-token' });
+    }
+    if (url.toString() === 'https://appleid.apple.com/auth/revoke') {
+      const body = new URLSearchParams(init.body);
+      assert.equal(body.get('token'), 'private-test-refresh-token');
+      return Response.json({});
+    }
+    if (url.toString() === 'https://api.roapp.io/v2/contacts/people' && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      assert.equal(body.email, 'relay@privaterelay.appleid.com');
+      assert.deepEqual(body.phones, newCustomer?[{title:'Мобільний',phone:'+380671234567',notify:false,has_viber:false,has_whatsapp:false}]:[]);
+      if(uncertainCreate)throw Error('timeout');
+      return Response.json({ data: { id: 123 } });
+    }
+    if (url.pathname === '/v2/contacts/people' && init.method !== 'POST') return Response.json({data:newCustomer?[]:[{id:123,first_name:'Власник',phones:['380670000000']}]});
+    if (url.pathname === '/v2/orders') { assert.deepEqual(url.searchParams.getAll('client_ids'), ['123']); return Response.json({ data: [], count: 0 }); }
+    if (url.pathname === '/v2/warehouse/assets') return Response.json({ data: assets });
+    if (url.pathname === '/v2/orders/999') return Response.json({ data: { id: 999, client_id: 999 } });
+    if (url.hostname === 'api.telegram.org') return Response.json({ ok: true, result: {} });
+    throw new Error(`Unexpected external request: ${url.origin}${url.pathname}`);
+  };
+  const call = (path, method = 'GET', body, token) => worker.fetch(new Request(`https://example.test/${path}`, { method, headers: { 'CF-Connecting-IP': 'test', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) }), env, { waitUntil() {} });
+  const start = async (mode = 'login', token) => (await (await call('auth/apple/start', 'POST', { mode }, token)).json());
+  const complete = async (challenge, claims = {}, token) => {
+    const identity = jwt({ nonce: challenge.nonce, ...claims });
+    const code = randomUUID(); codes.set(code, identity);
+    const body = { challenge_id: challenge.challenge_id, identity_token: identity, authorization_code: code, name: 'Тест Apple', phone: '380670000000', customer_id: 999 };
+    return { response: await call('auth/apple/complete', 'POST', body, token), body };
+  };
+  return { db, env, jwt, calls, call, start, complete, revoke: () => { rejectRefresh = true; }, close: () => { globalThis.fetch = previous; db.close(); } };
+}
+
+test('Apple tokens reject wrong issuer, audience, nonce, expiry and signature', async () => {
+  const t = await setup();
+  try {
+    const nonce = 'nonce';
+    assert.equal((await verifyAppleIdentity(t.jwt({ nonce }), nonce)).sub, 'apple-test-user');
+    for (const bad of [{ iss: 'https://evil.test' }, { aud: 'another-app' }, { nonce: 'another-attempt' }, { exp: timestamp() - 1 }, { iat: timestamp() + 120 }, { sub: '' }]) {
+      await assert.rejects(verifyAppleIdentity(t.jwt({ nonce, ...bad }), nonce));
+    }
+    const token = t.jwt({ nonce });
+    const [head, payload, signature] = token.split('.');
+    await assert.rejects(verifyAppleIdentity(`${head}.${encode({ ...JSON.parse(Buffer.from(payload, 'base64url')), sub: 'victim' })}.${signature}`, nonce));
+    await assert.rejects(verifyAppleIdentity(`${encode({ alg: 'none' })}.${payload}.${signature}`, nonce));
+  } finally { t.close(); }
+});
+
+test('Apple redirects are rejected without following them or issuing a session', async () => {
+  for (const redirectPath of ['/auth/keys', '/auth/token']) {
+    const t = await setup({redirectPath});
+    try {
+      const result = await t.complete(await t.start());
+      assert.equal(result.response.status, 503);
+      assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_sessions').get().count, 0);
+      assert.equal(t.calls.some(call => call.url.includes('unexpected.example')), false);
+    } finally { t.close(); }
+  }
+});
+
+test('Apple sign-in is independent of Telegram, replay-safe and does not merge by email or supplied IDs', async () => {
+  const t = await setup();
+  try {
+    delete t.env.TELEGRAM_BOT_TOKEN;
+    delete t.env.TELEGRAM_WEBHOOK_SECRET;
+    const challenge = await t.start();
+    const result = await t.complete(challenge);
+    assert.equal(result.response.status, 200);
+    const auth = await result.response.json();
+    assert.match(auth.token, /^apple_/);
+    assert.equal((await t.call('auth/apple/complete', 'POST', result.body)).status, 401);
+    let response = await t.call('', 'GET', null, auth.token);
+    const profile = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(profile.found, true);
+    assert.equal(profile.customer.id, 0);
+    assert.equal(profile.customer.phone, '');
+    assert.equal(profile.customer.email, 'relay@privaterelay.appleid.com');
+    assert.deepEqual(profile.cars, []);
+    assert.equal(t.calls.some(call => call.url.includes('roapp') || call.url.includes('telegram')), false);
+    const row = t.db.prepare('SELECT * FROM apple_accounts').get();
+    assert.notEqual(row.refresh_token, 'private-test-refresh-token');
+    assert.equal(row.customer_id, null);
+    const second = await (await (await t.complete(await t.start(), { sub: 'different-apple-same-email' })).response.json());
+    assert.notEqual(second.token, auth.token);
+    assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_accounts').get().count, 2);
+    await t.call('auth/logout', 'POST', {}, auth.token);
+    assert.equal((await t.call('', 'GET', null, auth.token)).status, 401);
+    assert.equal((await t.call('', 'GET', null, second.token)).status, 200);
+  } finally { t.close(); }
+});
+
+test('existing customers can link Apple only with their own recent verified session', async () => {
+  const t = await setup();
+  try {
+    assert.equal((await t.call('auth/apple/start', 'POST', { mode: 'link', customer_id: 123 })).status, 401);
+    const telegramToken = 'T'.repeat(43);
+    t.db.prepare('INSERT INTO sessions VALUES(?,?,?,?,?,?,?,?)').run(await sha256Hex(`session:${telegramToken}`), '380670000000', 123, 'Власник', 'test-telegram', timestamp(), timestamp() + 3600, timestamp());
+    const challenge = await t.start('link', telegramToken);
+    assert.equal((await t.complete(challenge)).response.status, 401);
+    const linked = await t.complete(challenge, {}, telegramToken);
+    assert.equal(linked.response.status, 200);
+    const auth = await linked.response.json();
+    const profile = await (await t.call('', 'GET', null, auth.token)).json();
+    assert.equal(profile.customer.id, 123);
+    assert.equal(profile.customer.first_name, 'Власник');
+    assert.equal((await t.call('order?order_id=999&phone=380671111111', 'GET', null, auth.token)).status, 404);
+    t.db.prepare('UPDATE sessions SET created_at=?').run(timestamp() - 600);
+    assert.equal((await t.call('auth/apple/start', 'POST', { mode: 'link' }, telegramToken)).status, 401);
+  } finally { t.close(); }
+});
+
+test('CRM profile creation uses verified Apple account, runs once and cannot claim an existing customer', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const request = new Request('https://example.test', { headers: { Authorization: `Bearer ${auth.token}` } });
+    const session = await getAppleSession(request, t.env);
+    assert.equal(await ensureAppleCustomer(t.env, session), 123);
+    assert.equal(await ensureAppleCustomer(t.env, session), 123);
+    assert.equal(t.calls.filter(call => call.url === 'https://api.roapp.io/v2/contacts/people').length, 1);
+    const current = await getAppleSession(request, t.env);
+    assert.equal(current.customer_id, 123);
+    const profile = await (await t.call('', 'GET', null, auth.token)).json();
+    assert.equal(profile.customer.id, 123);
+  } finally { t.close(); }
+});
+
+test('account deletion revokes Apple token and removes unlinked profile plus every session', async () => {
+  const t = await setup();
+  try {
+    const first = await (await t.complete(await t.start())).response.json();
+    const second = await (await t.complete(await t.start())).response.json();
+    assert.equal((await t.call('account/deletion', 'POST', { confirmed: false }, first.token)).status, 400);
+    const response = await t.call('account/deletion', 'POST', { confirmed: true }, first.token);
+    assert.equal((await response.json()).status, 'deleted');
+    assert.ok(t.calls.some(call => call.url.endsWith('/auth/revoke')));
+    assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_accounts').get().count, 0);
+    assert.equal((await t.call('', 'GET', null, second.token)).status, 401);
+    assert.equal(t.calls.some(call => call.url.includes('roapp') || call.url.includes('telegram')), false);
+  } finally { t.close(); }
+});
+
+test('revoked Apple authorization invalidates all sessions during daily validation', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    t.db.prepare('UPDATE apple_accounts SET validated_at = ?').run(timestamp() - 90000);
+    t.revoke();
+    assert.equal((await t.call('', 'GET', null, auth.token)).status, 401);
+    assert.equal(t.db.prepare('SELECT count(*) AS count FROM apple_sessions').get().count, 0);
+  } finally { t.close(); }
+});
+
+test('invalid vehicle data does not create a CRM record and deletion waits for CRM creation', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    assert.equal((await t.call('cars', 'POST', { vin: 'invalid' }, auth.token)).status, 400);
+    assert.equal(t.calls.some(call => call.url.includes('roapp')), false);
+    t.db.prepare('UPDATE apple_accounts SET crm_creation_started_at = ?').run(timestamp());
+    assert.equal((await t.call('account/deletion', 'POST', { confirmed: true }, auth.token)).status, 409);
+    assert.equal(t.calls.some(call => call.url.endsWith('/auth/revoke')), false);
+    assert.equal(t.db.prepare('SELECT count(*) AS n FROM apple_accounts').get().n, 1);
+  } finally { t.close(); }
+});
+
+
+test('Apple-first mode binds Telegram proof to its Apple owner and gates CRM until phone verification', async () => {
+ const t = await setup(); t.env.APPLE_ONLY_AUTH = 'true';
+ try {
+  const auth = await (await t.complete(await t.start())).response.json();
+  const other = await (await t.complete(await t.start(), {sub:'other-user'})).response.json();
+  assert.equal((await t.call('auth/request','POST',{phone:'380670000000'})).status,401);
+  assert.equal((await t.call('auth/apple/start','POST',{mode:'link'},auth.token)).status,400);
+  for (const [path,method] of [['cars','POST'],['order?order_id=1','GET'],['availability?date=2026-10-10','GET'],['booking','POST']]) {
+   assert.equal((await t.call(path,method,method==='POST'?{}:null,auth.token)).status,403);
+  }
+  let profile = await (await t.call('', 'GET', null, auth.token)).json();
+  assert.equal(profile.phone_linked,false);
+  assert.equal(t.calls.some(x=>x.url.includes('roapp')),false);
+  t.db.prepare('INSERT INTO telegram_links VALUES(?,?,?,?,?)').run('380670000000','777','777',timestamp(),timestamp());
+  const proof = await (await t.call('auth/request','POST',{phone:'380670000000'},auth.token)).json();
+  assert.equal(proof.stage,'code');
+  const message = t.calls.filter(x=>x.url.includes('sendMessage')).at(-1);
+  const code = JSON.parse(message.body).text.match(/\b\d{6}\b/)[0];
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},other.token)).status,401);
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code:'000000'===code?'000001':'000000'},auth.token)).status,401);
+  const verified = await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token);
+  assert.equal(verified.status,200);
+  const linked = await verified.json();
+  assert.equal(linked.token,auth.token);
+  assert.equal(linked.phone_linked,true);
+  profile = await (await t.call('', 'GET', null, auth.token)).json();
+  assert.equal(profile.customer.id,123);
+  assert.equal(profile.phone_linked,true);
+  assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,401);
+  assert.equal(t.db.prepare('SELECT count(*) AS n FROM sessions').get().n,0);
+  assert.equal(t.calls.some(x=>x.url.includes('roapp') && x.body && String(x.body).includes('phones')),false);
+ } finally {t.close();}
+});
+
+
+test('profile names persist across login and CRM name refresh, scoped to the authenticated account', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), { sub: 'other-profile-owner' })).response.json();
+    assert.equal((await t.call('account/name', 'POST', { name: 'Changed' })).status, 401);
+    assert.equal((await t.call('account/name', 'GET', null, auth.token)).status, 405);
+    for (const name of ['', '   ', 'x'.repeat(161), 123, 'a\u0000b']) {
+      assert.equal((await t.call('account/name', 'POST', { name }, auth.token)).status, 400);
+    }
+    const response = await t.call('account/name', 'POST', { name: '  Євгеній   Карпенко  ', customer_id: 999, subject_hash: 'other-profile-owner' }, auth.token);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).name, 'Євгеній Карпенко');
+    assert.equal((await (await t.call('', 'GET', null, auth.token)).json()).customer.first_name, 'Євгеній Карпенко');
+    assert.equal((await (await t.call('', 'GET', null, other.token)).json()).customer.first_name, 'Тест Apple');
+    t.db.prepare("UPDATE apple_accounts SET customer_name='CRM name'").run();
+    await t.call('auth/logout', 'POST', {}, auth.token);
+    const next = await (await t.complete(await t.start())).response.json();
+    assert.equal((await (await t.call('', 'GET', null, next.token)).json()).customer.first_name, 'Євгеній Карпенко');
+    assert.equal((await t.call('account/name', 'POST', {name:'Stale'}, auth.token)).status, 401);
+  } finally { t.close(); }
+});
+
+
+test('birth date validates real calendar dates and persists only on the authenticated profile', async () => {
+  const t = await setup();
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), {sub:'birthday-other'})).response.json();
+    for (const birth_date of ['2023-02-29','2000-02-30','2100-01-01','1899-01-01',null,123,'12.10.2000']) {
+      assert.equal((await t.call('account/birth-date','POST',{birth_date},auth.token)).status,400);
+    }
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:'2000-02-29'})).status,401);
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:'2000-02-29',customer_id:999},auth.token)).status,200);
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.birth_date,'2000-02-29');
+    assert.equal((await (await t.call('','GET',null,other.token)).json()).customer.birth_date,'');
+    await t.call('auth/logout','POST',{},auth.token);
+    const next = await (await t.complete(await t.start())).response.json();
+    assert.equal((await (await t.call('','GET',null,next.token)).json()).customer.birth_date,'2000-02-29');
+    assert.equal((await t.call('account/birth-date','POST',{birth_date:''},next.token)).status,200);
+    assert.equal((await (await t.call('','GET',null,next.token)).json()).customer.birth_date,'');
+  } finally {t.close();}
+});
+
+test('phone changes require account-bound Telegram proof and retain existing CRM ownership', async () => {
+  const t = await setup(); t.env.APPLE_ONLY_AUTH='true';
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    const other = await (await t.complete(await t.start(), {sub:'phone-other'})).response.json();
+    const verify = async phone => {
+      const proof = await (await t.call('auth/request','POST',{phone},auth.token)).json();
+      const code = JSON.parse(t.calls.filter(x=>x.url.includes('sendMessage')).at(-1).body).text.match(/\b\d{6}\b/)[0];
+      return {proof,code};
+    };
+    for (const phone of ['380670000000','380671111111','380672222222']) t.db.prepare('INSERT INTO telegram_links VALUES(?,?,?,?,?)').run(phone,phone,phone,timestamp(),timestamp());
+    let {proof,code} = await verify('380670000000');
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,200);
+    ({proof,code} = await verify('380671111111'));
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.phone,'+380670000000');
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},other.token)).status,401);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code:code==='000000'?'000001':'000000'},auth.token)).status,401);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,200);
+    const profile = await (await t.call('','GET',null,auth.token)).json();
+    assert.equal(profile.customer.phone,'+380671111111');
+    assert.equal(profile.customer.id,123);
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,401);
+    t.db.prepare("UPDATE apple_accounts SET phone='380672222222' WHERE customer_id IS NULL").run();
+    ({proof,code} = await verify('380672222222'));
+    assert.equal((await t.call('auth/verify','POST',{challenge_id:proof.challenge_id,code},auth.token)).status,409);
+    assert.equal((await (await t.call('','GET',null,auth.token)).json()).customer.phone,'+380671111111');
+  } finally {t.close();}
+});
+
+
+test('car mileage requires ownership, validates input and persists per customer and VIN', async () => {
+  const vin = 'WDBNG70J45A441584';
+  const t = await setup({assets:[{id:777,owner_id:123,vin,title:'Mercedes',mileage:120000},{id:888,owner_id:999,vin:'WF05XXGBB53D33139',mileage:80000}]});
+  t.env.APPLE_ONLY_AUTH='true';
+  try {
+    const auth = await (await t.complete(await t.start())).response.json();
+    assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:150000})).status,401);
+    assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:150000},auth.token)).status,403);
+    t.db.prepare("UPDATE apple_accounts SET customer_id=123,phone='380670000000'").run();
+    t.db.prepare('INSERT INTO customer_car_mileage VALUES(?,?,?,?)').run(999,`vin:${vin}`,55555,timestamp());
+    let profile = await (await t.call('','GET',null,auth.token)).json();
+    assert.equal(profile.cars.find(car=>car.id===777).mileage,120000);
+    assert.equal(profile.cars.some(car=>car.id===888),false);
+    for (const mileage of [-1,1.5,null,'150000',10000000]) assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage},auth.token)).status,400);
+    assert.equal((await t.call('cars/mileage','POST',{car_id:888,mileage:90000,customer_id:999},auth.token)).status,404);
+    assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:150000,customer_id:999,vin:'WF05XXGBB53D33139'},auth.token)).status,200);
+    assert.equal(t.db.prepare('SELECT mileage FROM customer_car_mileage WHERE customer_id=999').get().mileage,55555);
+    await t.call('auth/logout','POST',{},auth.token);
+    const next = await (await t.complete(await t.start())).response.json();
+    profile = await (await t.call('','GET',null,next.token)).json();
+    assert.equal(profile.cars.find(car=>car.id===777).mileage,150000);
+    assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:0},next.token)).status,200);
+    assert.equal((await (await t.call('','GET',null,next.token)).json()).cars.find(car=>car.id===777).mileage,0);
+    assert.equal((await t.call('cars/remove','POST',{car_id:777},next.token)).status,200);
+    assert.equal((await t.call('cars/mileage','POST',{car_id:777,mileage:500},next.token)).status,404);
+  } finally {t.close();}
+});
+
+for(const uncertainCreate of [false,true])test('verified new customer registration '+(uncertainCreate?'does not repeat uncertain CRM writes':'requires consent and binds the exact verified phone'),async()=>{
+ const t=await setup({newCustomer:true,uncertainCreate});
+ try{
+  const login=await t.complete(await t.start());const {token}=await login.response.json();
+  const session=await getAppleSession(new Request('https://test/',{headers:{Authorization:'Bearer '+token}}),t.env);
+  const id='register-test-otp',phone='380671234567',code='123456',now=timestamp();
+  const hash=createHmac('sha256',t.env.SESSION_SECRET).update(`otp:${id}:${phone}:${code}`).digest('hex');
+  t.db.prepare('INSERT INTO otp_challenges(id,phone,telegram_user_id,code_hash,created_at,expires_at) VALUES(?,?,?,?,?,?)').run(id,phone,'77',hash,now,now+300);
+  t.db.prepare('INSERT INTO apple_phone_verifications VALUES(?,?,?)').run(id,session.apple_subject_hash,now+300);
+  const send=body=>t.call('auth/verify','POST',{challenge_id:id,code,...body},token);
+  assert.equal((await send({code:'000000',register:true,registration_name:'Новий Клієнт'})).status,401);
+  const prompt=await(await send({})).json();assert.equal(prompt.stage,'registration');
+  assert.equal(t.calls.filter(x=>x.url==='https://api.roapp.io/v2/contacts/people'&&x.body).length,0);
+  const response=await send({register:true,registration_name:'Новий Клієнт'});
+  assert.equal(response.status,uncertainCreate?409:200);
+  if(!uncertainCreate){
+   const account=t.db.prepare('SELECT customer_id,phone FROM apple_accounts').get();assert.equal(account.customer_id,123);assert.equal(account.phone,phone);
+   assert.equal((await send({register:true,registration_name:'Новий Клієнт'})).status,401);
+  }else assert.equal((await send({register:true,registration_name:'Новий Клієнт'})).status,409);
+  assert.equal(t.calls.filter(x=>x.url==='https://api.roapp.io/v2/contacts/people'&&x.body).length,1);
+ }finally{t.close();}
+});
