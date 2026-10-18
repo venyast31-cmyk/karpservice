@@ -1,0 +1,55 @@
+name: Capture current App Store screenshots
+on:
+  push:
+    branches: [release/app-store]
+    paths: ['mobile/screenshots/**', '.github/workflows/store-screenshots.yml']
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: bash mobile/scripts/select-xcode.sh
+      - run: npm ci --no-audit --no-fund && npm run sync
+        working-directory: mobile
+      - name: Build and capture real iPhone simulator screens
+        working-directory: mobile
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build > "$RUNNER_TEMP/build.log" 2>&1 || { tail -80 "$RUNNER_TEMP/build.log"; exit 1; }
+          CAPTURE_APP="$RUNNER_TEMP/Karpservice-Screenshots.app"
+          ditto DerivedData/Build/Products/Release-iphonesimulator/App.app "$CAPTURE_APP"
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | python3 -c 'import sys,json; print(next(x["identifier"] for x in json.load(sys.stdin)["devicetypes"] if x["name"]=="iPhone 14 Plus"))')
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | python3 -c 'import sys,json; print(next(x["identifier"] for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and x["name"].startswith("iOS 26")))')
+          CAPTURE_SIM=$(xcrun simctl create Karpservice-Store "$DEVICE_TYPE" "$RUNTIME_ID")
+          xcrun simctl boot "$CAPTURE_SIM"
+          xcrun simctl bootstatus "$CAPTURE_SIM" -b
+          xcrun simctl status_bar "$CAPTURE_SIM" override --time '9:41' --batteryState charged --batteryLevel 100 --dataNetwork wifi --wifiMode active --wifiBars 3
+          mkdir -p artifacts/store
+          for screen in shop groups checkout; do
+            node screenshots/prepare-store.mjs "$CAPTURE_APP" "$screen"
+            codesign --force --sign - "$CAPTURE_APP"
+            xcrun simctl install "$CAPTURE_SIM" "$CAPTURE_APP"
+            xcrun simctl launch "$CAPTURE_SIM" ua.karpservice.client
+            sleep 45
+            xcrun simctl io "$CAPTURE_SIM" screenshot "artifacts/store/new-$screen.png"
+            xcrun simctl terminate "$CAPTURE_SIM" ua.karpservice.client
+            xcrun simctl uninstall "$CAPTURE_SIM" ua.karpservice.client
+          done
+          xcrun simctl shutdown "$CAPTURE_SIM"
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          for f in Path('artifacts/store').glob('*.png'):
+              assert struct.unpack('>II', f.read_bytes()[16:24]) == (1284,2778)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Karpservice-store-1.0.1
+          path: mobile/artifacts/store/
+          retention-days: 30
