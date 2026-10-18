@@ -28,3 +28,5 @@ window.addEventListener('load',async()=>{
  }else window.scrollTo(0,0);
  document.body.dataset.screenshotReady=screen;
 });
+
+// Recapture after verified API restoration.
