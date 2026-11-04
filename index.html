@@ -465,17 +465,17 @@
     <h1 class="news-feed-title">Новини</h1>
 
     <article class="news-card">
-      <img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />
+      <img class="news-promo-image" style="aspect-ratio:auto" src="news-diagnostics-november-2026.jpg" alt="Безкоштовна діагностика у Karpservice з 1 до 30 листопада 2026 року" />
       <div class="news-description">
-        <div class="news-kicker">Акція · 01.09–30.10</div>
-        <h2>Вашому авто — свіже мастило. Вам — економія на роботі!</h2>
-        <p>Купуйте мастило та фільтри у Karpservice — їх заміну ми виконаємо безкоштовно.</p>
-        <button class="news-more" type="button" aria-label="Показати умови акції" aria-expanded="false" onclick="toggleNewsDetails('oilPromoDetails', this)">
+        <div class="news-kicker">Акція · 01.11–30.11.2026</div>
+        <h2>Безкоштовна діагностика у листопаді</h2>
+        <p>З 1 до 30 листопада 2026 року діагностика автомобіля у Karpservice — безкоштовна.</p>
+        <button class="news-more" type="button" aria-label="Показати умови акції" aria-expanded="false" onclick="toggleNewsDetails('diagnosticsPromoDetails', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
         </button>
-        <div id="oilPromoDetails" class="news-details" hidden>
-          <p><strong>Акція діє з 01.09 до 30.10.</strong></p>
-          <p>Ви оплачуєте лише матеріали. Вартість роботи — 0 грн!</p>
+        <div id="diagnosticsPromoDetails" class="news-details" hidden>
+          <p><strong>Акція діє з 01.11 до 30.11.2026 включно.</strong></p>
+          <p>Вартість діагностики за акцією — 0 грн.</p>
           <p>Не відкладайте обслуговування авто — записуйтеся на зручний час.</p>
           <p>📍 м. Бориспіль, вул. Київський Шлях, 10<br />📞 073 44 47 344</p>
           <button class="primary news-cta" type="button" onclick="openQuickBooking()">Записатися на сервіс</button>
@@ -2310,7 +2310,7 @@ function initializeNewsCarousel(){
     let visual = card.querySelector('.news-promo-image, .news-banner');
     if (!visual) return;
     const bannerSrc = card.querySelector('#mechanicVacancyDetails') ? 'news-vacancy-wide.jpg'
-      : card.querySelector('#oilPromoDetails') ? 'news-oil-wide.jpg' : '';
+      : card.querySelector('#diagnosticsPromoDetails') ? 'news-diagnostics-november-2026.jpg' : '';
     if (bannerSrc) {
       const banner = document.createElement('img');
       banner.className = 'news-promo-image';

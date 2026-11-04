@@ -185,7 +185,6 @@ replaceOnce('<section id="home" class="screen">', `<section id="home" class="scr
         </div>
       </div>
     </article>`);
-replaceOnce('<img class="news-promo-image" src="oil-change-promo-2026-09.jpg?v=1" alt="Акція Karpservice — безкоштовна заміна мастила та фільтрів" />', '<svg class="news-promo-image native-promo-art" viewBox="48 271 772 800" role="img" aria-labelledby="nativeOilPromoTitle"><title id="nativeOilPromoTitle">Безкоштовна заміна мастила та фільтрів при їх купівлі у Karpservice. Бориспіль, Київський Шлях, 10. 073 44 47 344.</title><image href="oil-promo-october-source.jpg" width="864" height="1536" /></svg>');
 replaceOnce('    <button class="secondary" onclick="openCars()">До моїх авто</button>', `    <div id="nativeBookingActions" class="native-actions" hidden>
       <button id="nativeReminder" class="primary" type="button">Нагадати про запис</button>
       <button id="nativeShareBooking" class="secondary" type="button">Поділитися записом</button>
@@ -254,7 +253,7 @@ ${phoneFlow.replace(/\n  <\/section>$/, '\n</div>\n  </section>')}`);
 html = html.replace('>Увійти</button>', '>Підтвердити номер</button>');
 html = html.replace("btn.textContent = 'Увійти';", "btn.textContent = 'Підтвердити номер';");
 await writeFile(`${out}/index.html`, html);
-for (const asset of ['shop.js', 'shop-oem.js', 'shop.css', 'news-vacancy-wide.jpg', 'news-oil-wide.jpg', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
+for (const asset of ['shop.js', 'shop-oem.js', 'shop.css', 'news-vacancy-wide.jpg', 'news-diagnostics-november-2026.jpg', 'logo.jpg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest']) {
   await cp(`${root}${asset}`, `${out}/${asset}`, { recursive: true });
 }
 await cp(`${mobile}public`, out, { recursive: true });
