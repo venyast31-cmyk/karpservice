@@ -9,9 +9,19 @@ async function api(path,method='GET',body){
 }
 
 
+
 const app='6816711108';
 if((await api('/v1/apps/'+app)).data.attributes.bundleId!=='ua.karpservice.client')throw Error('Wrong app');
-const versions=(await api('/v1/apps/'+app+'/appStoreVersions?filter[platform]=IOS')).data;
-console.log('VERSIONS', JSON.stringify(versions.map(v=>({id:v.id,...v.attributes}))));
-const builds=(await api('/v1/builds?filter[app]='+app+'&sort=-uploadedDate&limit=5&include=preReleaseVersion')).data;
-console.log('BUILDS',JSON.stringify(builds.map(v=>({id:v.id,...v.attributes,preReleaseVersion:v.relationships.preReleaseVersion.data}))));
+let versions=(await api('/v1/apps/'+app+'/appStoreVersions?filter[platform]=IOS')).data;
+let v=versions.find(v=>v.attributes.versionString==='1.0.2');
+if(!v) v=(await api('/v1/appStoreVersions','POST',{data:{type:'appStoreVersions',attributes:{platform:'IOS',versionString:'1.0.2',releaseType:'AFTER_APPROVAL',copyright:'2026 Karpservice'},relationships:{app:{data:{type:'apps',id:app}}}}})).data;
+console.log('VERSION',JSON.stringify({id:v.id,...v.attributes}));
+const locs=(await api('/v1/appStoreVersions/'+v.id+'/appStoreVersionLocalizations')).data;
+for(const l of locs){
+ await api('/v1/appStoreVersionLocalizations/'+l.id,'PATCH',{data:{type:'appStoreVersionLocalizations',id:l.id,attributes:{whatsNew:l.attributes.locale.startsWith('uk')?'Нова акція: безкоштовна діагностика автомобіля з 1 до 30 листопада 2026 року. Банер та умови доступні в розділі новин.':'New promotion: free vehicle diagnostics from November 1–30, 2026. Find the banner and details in News.'}}});
+ console.log('LOCALE',JSON.stringify({id:l.id,locale:l.attributes.locale,hasDescription:!!l.attributes.description}));
+ const sets=(await api('/v1/appStoreVersionLocalizations/'+l.id+'/appScreenshotSets')).data;
+ for(const set of sets){const shots=(await api('/v1/appScreenshotSets/'+set.id+'/appScreenshots')).data;console.log('SCREENSHOTS',set.attributes.screenshotDisplayType,shots.length,shots.map(x=>x.attributes.assetDeliveryState.state).join(','));}
+}
+const d=(await api('/v1/appStoreVersions/'+v.id+'/appStoreReviewDetail')).data;
+console.log('REVIEW',JSON.stringify({id:d?.id,required:d?.attributes?.demoAccountRequired,hasUser:!!d?.attributes?.demoAccountName,hasPassword:!!d?.attributes?.demoAccountPassword,hasNotes:!!d?.attributes?.notes,hasContact:!!d?.attributes?.contactEmail}));
